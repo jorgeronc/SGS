@@ -26,7 +26,8 @@ try {
 const supabaseUrl =
   process.env.EXPO_PUBLIC_SUPABASE_URL ?? "https://rdyjjfbehjfggpldmmur.supabase.co";
 const supabaseAnonKey =
-  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "sb_publishable_Uv0U9C5V3qEFfc450WHD0A_s2xa4Gc0";
+  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ??
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJkeWpqZmJlaGpmZ2dwbGRtbXVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcyNTM5MTYsImV4cCI6MjEwMjgyOTkxNn0.KfTuJC7Ju3UtaqdmOvE8_DUot6xpmCpGIgHV6Ydn1-4";
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
