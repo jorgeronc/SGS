@@ -8,7 +8,7 @@ servidor API intermedio.
 |---|---|---|---|
 | Web (despacho/registros) | `frontend/` | Next.js 14 (App Router, TS) | **Vercel** (proyecto `scp`, Root = `frontend`; push a `main` = deploy) |
 | Móvil (oficial en campo) | `mobile/` | Expo SDK 54 / RN 0.81 | **EAS** (APK Android) |
-| Backend | `supabase/` | Postgres (migraciones `0001`–`0041`) + Edge Functions (Deno) | Supabase (ref `okhsniabwiukjyjhmeav`) |
+| Backend | `supabase/` | Postgres (migraciones `0001`–`0041`) + Edge Functions (Deno) | Supabase (ref `rdyjjfbehjfggpldmmur`) |
 
 > Guía de trabajo para contribuir (comandos, arquitectura y convenciones): ver
 > `CLAUDE.md`. Diseño completo y roadmap: `Arquitectura_Sistema_Central_Policial_SaaS.md`.

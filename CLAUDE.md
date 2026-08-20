@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - `frontend/` — Next.js 14 (App Router, TypeScript) web app for dispatch/records. Deployed to **Vercel** (project `scp`, **Root Directory = `frontend`**; pushing to `main` on GitHub triggers a production deploy).
 - `mobile/` — Expo / React Native app for officers in the field. Built with **EAS**.
-- `supabase/` — Postgres schema (`migrations/`) + Deno **Edge Functions** (`functions/`). Backend is **Supabase** (project ref `okhsniabwiukjyjhmeav`).
+- `supabase/` — Postgres schema (`migrations/`) + Deno **Edge Functions** (`functions/`). Backend is **Supabase** (project ref `rdyjjfbehjfggpldmmur`).
 
 Both apps talk directly to Supabase (Postgres + Auth + Storage + Realtime) via `@supabase/supabase-js`. There is no separate API server.
 

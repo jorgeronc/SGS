@@ -18,7 +18,7 @@ citas), no aquí.
 2. Instala/enlaza el CLI (una vez):
    ```bash
    npx supabase login
-   npx supabase link --project-ref okhsniabwiukjyjhmeav
+   npx supabase link --project-ref rdyjjfbehjfggpldmmur
    ```
 
 ## Desplegar las funciones
@@ -31,7 +31,7 @@ npx supabase functions deploy buscar-ia
 ## Construir el índice (una vez, y cada que agregues datos)
 Llama a `indexar-ia` con un token (el `service_role` o un JWT de admin):
 ```bash
-curl -X POST "https://okhsniabwiukjyjhmeav.supabase.co/functions/v1/indexar-ia" \
+curl -X POST "https://rdyjjfbehjfggpldmmur.supabase.co/functions/v1/indexar-ia" \
   -H "Authorization: Bearer <SERVICE_ROLE_O_JWT_ADMIN>" \
   -H "Content-Type: application/json" -d '{}'
 # Reindexar solo una fuente:  -d '{"tabla":"incidentes"}'
@@ -40,7 +40,7 @@ Respuesta: `{ ok: true, documentos: { incidentes: N, novedades: M, ... } }`.
 
 ## Probar la búsqueda semántica
 ```bash
-curl -X POST "https://okhsniabwiukjyjhmeav.supabase.co/functions/v1/buscar-ia" \
+curl -X POST "https://rdyjjfbehjfggpldmmur.supabase.co/functions/v1/buscar-ia" \
   -H "Authorization: Bearer <JWT_DE_UN_USUARIO>" \
   -H "Content-Type: application/json" \
   -d '{"q":"robo de vehículo con violencia en la colonia centro","k":8}'
@@ -63,7 +63,7 @@ npx supabase functions deploy copiloto
 
 Probar directo:
 ```bash
-curl -X POST "https://okhsniabwiukjyjhmeav.supabase.co/functions/v1/copiloto" \
+curl -X POST "https://rdyjjfbehjfggpldmmur.supabase.co/functions/v1/copiloto" \
   -H "Authorization: Bearer <JWT_DE_UN_USUARIO>" \
   -H "Content-Type: application/json" \
   -d '{"pregunta":"¿Qué antecedentes hay del vehículo con placas ABC-123?"}'

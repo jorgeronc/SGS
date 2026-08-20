@@ -24,7 +24,7 @@ try {
 // bundle del cliente igual que en la web. Para apuntar a otro proyecto, define
 // EXPO_PUBLIC_SUPABASE_URL / EXPO_PUBLIC_SUPABASE_ANON_KEY (en .env o eas.json).
 const supabaseUrl =
-  process.env.EXPO_PUBLIC_SUPABASE_URL ?? "https://okhsniabwiukjyjhmeav.supabase.co";
+  process.env.EXPO_PUBLIC_SUPABASE_URL ?? "https://rdyjjfbehjfggpldmmur.supabase.co";
 const supabaseAnonKey =
   process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "sb_publishable_Uv0U9C5V3qEFfc450WHD0A_s2xa4Gc0";
 

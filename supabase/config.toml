@@ -1,5 +1,5 @@
 # Configuración del proyecto Supabase (para el CLI: link + deploy de functions).
-project_id = "okhsniabwiukjyjhmeav"
+project_id = "rdyjjfbehjfggpldmmur"
 
 # Copiloto de IA (Fase 0). Ambas requieren usuario autenticado.
 [functions.buscar-ia]

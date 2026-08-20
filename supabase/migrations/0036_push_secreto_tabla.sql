@@ -26,7 +26,7 @@ create or replace function fn_push_despacho() returns trigger
 language plpgsql security definer set search_path = public, extensions as $$
 declare
   v_secret text := (select valor from app_secretos where clave = 'push_secret');
-  v_url    text := 'https://okhsniabwiukjyjhmeav.supabase.co/functions/v1/enviar_push';
+  v_url    text := 'https://rdyjjfbehjfggpldmmur.supabase.co/functions/v1/enviar_push';
   v_titulo text;
   v_cuerpo text;
   v_folio  text;

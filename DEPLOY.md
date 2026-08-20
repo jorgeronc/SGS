@@ -19,7 +19,7 @@ La app tiene dos partes:
 
    | Name | Value |
    |------|-------|
-   | `NEXT_PUBLIC_SUPABASE_URL` | `https://okhsniabwiukjyjhmeav.supabase.co` |
+   | `NEXT_PUBLIC_SUPABASE_URL` | `https://rdyjjfbehjfggpldmmur.supabase.co` |
    | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | (tu anon/publishable key de Supabase) |
 
    > La anon/publishable key es pública por diseño (viaja al navegador), así que no
