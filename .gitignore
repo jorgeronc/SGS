@@ -1,0 +1,11 @@
+node_modules/
+.next/
+frontend/.env.local
+frontend/next-env.d.ts
+frontend/tsconfig.tsbuildinfo
+*.log
+scripts/fotos_manifest.json
+scripts/supabase.local.json
+
+.vercel
+.env*

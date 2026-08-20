@@ -1,0 +1,14 @@
+# Configuración del proyecto Supabase (para el CLI: link + deploy de functions).
+project_id = "okhsniabwiukjyjhmeav"
+
+# Copiloto de IA (Fase 0). Ambas requieren usuario autenticado.
+[functions.buscar-ia]
+verify_jwt = true
+
+[functions.indexar-ia]
+verify_jwt = true
+
+# verify_jwt=false para que el preflight CORS del navegador pase; la función
+# valida el JWT del usuario internamente (auth.getUser) antes de responder.
+[functions.copiloto]
+verify_jwt = false

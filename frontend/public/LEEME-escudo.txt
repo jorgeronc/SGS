@@ -1,0 +1,11 @@
+Coloca aquí la imagen del escudo de la policía con el nombre exacto:
+
+    escudo.png
+
+El frontend la referencia como "/escudo.png" en:
+ - el header (esquina superior derecha, todas las pantallas)
+ - la pantalla de bienvenida (sin sesión)
+ - la pantalla de acceso (/login)
+
+Formatos aceptados: png (recomendado, con transparencia) o jpg. Si usas .jpg,
+renómbrala igual a escudo.png o ajusta las rutas en el código.
