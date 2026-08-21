@@ -97,7 +97,7 @@ export default function PerfilPage() {
     try {
       const { data: f } = await supabase.auth.mfa.listFactors();
       for (const x of (f?.all ?? []).filter((a) => a.factor_type === "totp" && a.status !== "verified")) await supabase.auth.mfa.unenroll({ factorId: x.id });
-      const { data, error } = await supabase.auth.mfa.enroll({ factorType: "totp", friendlyName: `SCP ${Date.now()}` });
+      const { data, error } = await supabase.auth.mfa.enroll({ factorType: "totp", issuer: "SGS - Sistema de Gestión de Seguridad", friendlyName: `SGS ${Date.now()}` });
       if (error || !data) { setError(error?.message ?? "No se pudo iniciar el registro 2FA."); return; }
       setEnrol({ factorId: data.id, qr: (data as any).totp.qr_code, secret: (data as any).totp.secret });
     } finally { setGuardando(false); }
