@@ -22,3 +22,11 @@
     ]
   }
 }
+{
+  "permissions": {
+    "allow": [
+      "Bash(git push:*)",
+      "Bash(git remote add:*)"
+    ]
+  }
+}

@@ -15,23 +15,12 @@ import { registrarPush } from "./src/lib/push";
 import type { RootStackParamList, TabParamList } from "./src/types";
 import { T } from "./src/theme";
 import LoginScreen from "./src/screens/LoginScreen";
-import InicioScreen from "./src/screens/InicioScreen";
+import InicioSgsScreen from "./src/screens/InicioSgsScreen";
 import BuscarScreen from "./src/screens/BuscarScreen";
-import NuevoScreen from "./src/screens/NuevoScreen";
-import NuevoMenuScreen from "./src/screens/NuevoMenuScreen";
-import AbordamientoScreen from "./src/screens/AbordamientoScreen";
-import AccidenteScreen from "./src/screens/AccidenteScreen";
-import CasosTabScreen from "./src/screens/CasosTabScreen";
+import RondinScreen from "./src/screens/RondinScreen";
 import PerfilScreen from "./src/screens/PerfilScreen";
 import ExpedienteScreen from "./src/screens/ExpedienteScreen";
 import EvidenciaScreen from "./src/screens/EvidenciaScreen";
-import UbicacionScreen from "./src/screens/UbicacionScreen";
-import AlertasScreen from "./src/screens/AlertasScreen";
-import DespachosScreen from "./src/screens/DespachosScreen";
-import DespachoDetalleScreen from "./src/screens/DespachoDetalleScreen";
-import InformeScreen from "./src/screens/InformeScreen";
-import MisAlertasScreen from "./src/screens/MisAlertasScreen";
-import MisIncidentesScreen from "./src/screens/MisIncidentesScreen";
 import TransmisionScreen from "./src/screens/TransmisionScreen";
 import TareasScreen from "./src/screens/TareasScreen";
 import ChatScreen from "./src/screens/ChatScreen";
@@ -44,17 +33,14 @@ export const navigationRef = createNavigationContainerRef<RootStackParamList>();
 // Al tocar una notificación push, abre la pantalla adecuada según su tipo.
 function abrirDesdeNotificacion(data: any) {
   if (!navigationRef.isReady() || !data) return;
-  if (data.tipo === "despacho") navigationRef.navigate("Despachos");
-  else if (data.tipo === "tarea") navigationRef.navigate("Tareas");
-  else if (data.tipo === "incidente") navigationRef.navigate("MisIncidentes");
+  if (data.tipo === "tarea") navigationRef.navigate("Tareas");
   else if (data.tipo === "chat" && data.canal_id) navigationRef.navigate("ChatCanal", { canalId: data.canal_id, nombre: data.nombre ?? "Chat" });
 }
 
 const ICONO: Record<keyof TabParamList, { on: keyof typeof Ionicons.glyphMap; off: keyof typeof Ionicons.glyphMap }> = {
   Inicio: { on: "home", off: "home-outline" },
   Buscar: { on: "search", off: "search-outline" },
-  Nuevo: { on: "add-circle", off: "add-circle-outline" },
-  Casos: { on: "clipboard", off: "clipboard-outline" },
+  Rondin: { on: "qr-code", off: "qr-code-outline" },
   Chat: { on: "chatbubbles", off: "chatbubbles-outline" },
   Perfil: { on: "person", off: "person-outline" },
 };
@@ -74,10 +60,9 @@ function Tabs() {
         ),
       })}
     >
-      <Tab.Screen name="Inicio" component={InicioScreen} />
+      <Tab.Screen name="Inicio" component={InicioSgsScreen} />
       <Tab.Screen name="Buscar" component={BuscarScreen} />
-      <Tab.Screen name="Nuevo" component={NuevoMenuScreen} />
-      <Tab.Screen name="Casos" component={CasosTabScreen} />
+      <Tab.Screen name="Rondin" component={RondinScreen} options={{ tabBarLabel: "Rondín" }} />
       <Tab.Screen name="Chat" component={ChatScreen} />
       <Tab.Screen name="Perfil" component={PerfilScreen} />
     </Tab.Navigator>
@@ -143,22 +128,12 @@ export default function App() {
         }}
       >
         {!session ? (
-          <Stack.Screen name="Login" component={LoginScreen} options={{ title: "Sistema Central Policial" }} />
+          <Stack.Screen name="Login" component={LoginScreen} options={{ title: "Sistema de Gestión de Seguridad" }} />
         ) : (
           <>
             <Stack.Screen name="Tabs" component={Tabs} options={{ headerShown: false }} />
-            <Stack.Screen name="Despachos" component={DespachosScreen} options={{ title: "Mis despachos" }} />
-            <Stack.Screen name="DespachoDetalle" component={DespachoDetalleScreen} options={{ title: "Despacho" }} />
-            <Stack.Screen name="NuevoIncidente" component={NuevoScreen} options={{ title: "Nuevo incidente" }} />
-            <Stack.Screen name="Abordamiento" component={AbordamientoScreen} options={{ title: "Nuevo abordamiento" }} />
-            <Stack.Screen name="Accidente" component={AccidenteScreen} options={{ title: "Informe de accidente" }} />
-            <Stack.Screen name="Informe" component={InformeScreen} options={{ title: "Informe de incidente" }} />
             <Stack.Screen name="Expediente" component={ExpedienteScreen} options={{ title: "Expediente" }} />
             <Stack.Screen name="Evidencia" component={EvidenciaScreen} options={{ title: "Nueva evidencia" }} />
-            <Stack.Screen name="Ubicacion" component={UbicacionScreen} options={{ title: "Incidentes abiertos" }} />
-            <Stack.Screen name="Alertas" component={AlertasScreen} options={{ title: "Alertas" }} />
-            <Stack.Screen name="MisAlertas" component={MisAlertasScreen} options={{ title: "Mis alertas" }} />
-            <Stack.Screen name="MisIncidentes" component={MisIncidentesScreen} options={{ title: "Mis incidentes" }} />
             <Stack.Screen name="Transmision" component={TransmisionScreen} options={{ headerShown: false, presentation: "fullScreenModal", animation: "fade" }} />
             <Stack.Screen name="Tareas" component={TareasScreen} options={{ title: "Mis tareas" }} />
             <Stack.Screen name="ChatCanal" component={ChatCanalScreen} options={{ title: "Chat" }} />

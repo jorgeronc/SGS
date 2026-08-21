@@ -21,25 +21,13 @@ export type TipoConsulta = "persona" | "vehiculo" | "orden" | "caso" | "incident
 export type RootStackParamList = {
   Login: undefined;
   Tabs: undefined;
-  Despachos: undefined;
-  DespachoDetalle: { despacho: Despacho };
-  // Informe abre por llamada (desde un despacho) o por incidente existente
-  // (continuar editando desde Casos o tras crear uno nuevo).
-  Informe: { llamada?: LlamadaCad; incidenteId?: string };
-  NuevoIncidente: undefined;   // alta de incidente (desde el selector "+")
-  Abordamiento: undefined;     // alta de abordamiento (desde el selector "+")
-  Accidente: { llamada?: LlamadaCad } | undefined;  // parte de accidente vial (directo o desde reporte)
   Expediente: { tipo: TipoConsulta; id: string; titulo: string };
-  // Evidencia puede abrirse suelta o ligada a un incidente (desde el informe).
+  // Evidencia puede abrirse suelta o ligada a un registro.
   Evidencia: { incidenteId?: string } | undefined;
-  Ubicacion: undefined;
-  Alertas: undefined;
-  MisAlertas: undefined;
-  MisIncidentes: undefined;
   Tareas: undefined;
   // Conversación de un canal de chat.
   ChatCanal: { canalId: string; nombre: string };
-  // Transmisión en vivo (bodycam) disparada por Enviar Alerta.
+  // Transmisión en vivo (bodycam).
   Transmision: {
     despachoId?: string | null;
     llamadaId?: string | null;
@@ -55,8 +43,7 @@ export type RootStackParamList = {
 export type TabParamList = {
   Inicio: undefined;
   Buscar: undefined;
-  Nuevo: undefined;
-  Casos: undefined;
+  Rondin: undefined;
   Chat: undefined;
   Perfil: undefined;
 };

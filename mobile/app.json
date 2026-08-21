@@ -59,6 +59,12 @@
           "cameraPermission": "Se usa la cámara para tomar fotos del incidente."
         }
       ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Se usa la cámara para escanear el código QR de los puntos de control en los rondines."
+        }
+      ],
       "expo-audio",
       [
         "expo-notifications",

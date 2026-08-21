@@ -249,14 +249,10 @@ export default function BuscarScreen() {
               <View style={styles.acciones}>
                 <TouchableOpacity
                   style={styles.btnPrim}
-                  onPress={() =>
-                    tipo === "incidente"
-                      ? nav.navigate("Informe", { incidenteId: item.id })
-                      : nav.navigate("Expediente", { tipo, id: item.id, titulo: item.titulo })
-                  }
+                  onPress={() => nav.navigate("Expediente", { tipo, id: item.id, titulo: item.titulo })}
                 >
                   <Ionicons name="document-text-outline" size={16} color={T.white} />
-                  <Text style={styles.btnPrimTxt}>{tipo === "incidente" ? "Abrir informe" : "Ver expediente"}</Text>
+                  <Text style={styles.btnPrimTxt}>Ver expediente</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.btnSec} onPress={() => compartir(item)}>
                   <Ionicons name="share-outline" size={16} color={T.text} />

@@ -387,15 +387,6 @@ export default function PerfilScreen() {
           })}
         </View>
 
-        {/* Mis alertas */}
-        <Text style={styles.seccion}>Alertas</Text>
-        <View style={styles.card}>
-          <TouchableOpacity style={styles.row} onPress={() => nav.navigate("MisAlertas")}>
-            <Ionicons name="warning-outline" size={20} color={T.accent} style={{ width: 28 }} />
-            <Text style={[styles.l, { flex: 1, color: T.text }]}>Mis alertas enviadas</Text>
-            <Ionicons name="chevron-forward" size={18} color={T.textMute} />
-          </TouchableOpacity>
-        </View>
 
         {/* Recordatorios del turno (expiran al finalizar el turno) */}
         <View style={styles.seccionRow}>
