@@ -48,7 +48,7 @@ export default function Header() {
     <header className="barra">
       <div className="barra-top">
         <h1>
-          <Link href="/">Sistema Central Policial</Link>
+          <Link href="/">Sistema de Gestión de Seguridad</Link>
         </h1>
         <img src="/escudo.png" alt="Escudo de la policía" className="escudo-header" />
       </div>

@@ -22,7 +22,7 @@ export default function AvisoDuplicados({ titulo, registros }: { titulo: string;
           </li>
         ))}
       </ul>
-      <span className="dash-sub">Ya hay registro(s) en el sistema policial. Revisa sus antecedentes antes de continuar. El alta no se bloquea.</span>
+      <span className="dash-sub">Ya hay registro(s) en el sistema. Revisa sus antecedentes antes de continuar. El alta no se bloquea.</span>
     </div>
   );
 }

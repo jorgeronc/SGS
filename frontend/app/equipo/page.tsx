@@ -144,7 +144,7 @@ function NuevoEquipo({ onCreado }: { onCreado: () => void }) {
 export default function EquipoPage() {
   return (
     <ListaMaestra
-      titulo="Equipo policial"
+      titulo="Equipo"
       subtitulo="Armas, radios, bodycams, patrullas y motos"
       tabla="equipo"
       modulo="equipo"

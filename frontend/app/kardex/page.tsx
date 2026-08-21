@@ -51,7 +51,7 @@ function NuevoKardex({ onCreado }: { onCreado: () => void }) {
 export default function KardexPage() {
   return (
     <ListaMaestra
-      titulo="Kardex Policial"
+      titulo="Kardex"
       subtitulo="Expediente de trayectoria profesional del personal"
       tabla="kardex"
       modulo="kardex"

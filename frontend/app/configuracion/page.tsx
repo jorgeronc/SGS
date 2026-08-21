@@ -14,7 +14,7 @@ const VACIA: ConfigSistema = {
   correo: null,
 };
 
-// Parámetros de configuración del sistema (datos de la Corporación Policial).
+// Parámetros de configuración del sistema (datos de la Corporación).
 // La jurisdicción rige la búsqueda de domicilios en el CAD. Edición: admin.
 export default function ConfiguracionPage() {
   const [cfg, setCfg] = useState<ConfigSistema>(VACIA);
@@ -68,7 +68,7 @@ export default function ConfiguracionPage() {
     <main className="contenedor">
       <h2>Parámetros del sistema</h2>
       <p style={{ fontSize: 13, color: "#555" }}>
-        Datos de la Corporación Policial. La <strong>jurisdicción</strong> rige dónde se buscan los
+        Datos de la Corporación. La <strong>jurisdicción</strong> rige dónde se buscan los
         domicilios escritos en el campo “Lugar del incidente” del CAD. Solo administrador.
       </p>
 

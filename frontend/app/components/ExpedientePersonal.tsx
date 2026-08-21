@@ -7,7 +7,7 @@ import { primeraFoto } from "@/lib/fotos";
 import VinculosPanel from "@/app/components/VinculosPanel";
 import type { BitacoraEntry } from "@/lib/types";
 
-// Expediente del elemento = datos de empleo (Personal) + Kardex Policial.
+// Expediente del elemento = datos de empleo (Personal) + Kardex.
 // Fusiona el módulo Personal con la vista de Kardex: una sola pantalla por elemento.
 
 const PESTANAS = [

@@ -7,8 +7,8 @@ export default function Bienvenida({ mostrarLogin = false }: { mostrarLogin?: bo
   return (
     <section className="bienvenida">
       <img src="/escudo.png" alt="Escudo de la policía" className="escudo-grande" />
-      <h1 className="bienvenida-titulo">Bienvenido al Sistema Central Policial</h1>
-      <p className="bienvenida-secretaria">Secretaría de Seguridad Metropolitana</p>
+      <h1 className="bienvenida-titulo">Bienvenido al Sistema de Gestión de Seguridad</h1>
+      <p className="bienvenida-secretaria">Seguridad Privada</p>
       {mostrarLogin && (
         <Link href="/login" className="boton-login">
           Iniciar sesión

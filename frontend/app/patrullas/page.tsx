@@ -89,7 +89,7 @@ export default function PatrullasPage() {
     <ListaMaestra
       titulo="Patrullas"
       sinToggleCancelados
-      subtitulo="Flota policial (autos, motos, bicicletas) con estatus operativo"
+      subtitulo="Flota de unidades (autos, motos, bicicletas) con estatus operativo"
       tabla="patrullas"
       modulo="patrullas"
       orderBy="numero"
