@@ -21,7 +21,8 @@
         "NSCameraUsageDescription": "Se usa la cámara para tomar fotos y video de evidencia.",
         "NSPhotoLibraryUsageDescription": "Se usa la galería para adjuntar fotos y video.",
         "NSMicrophoneUsageDescription": "Se usa el micrófono para grabar audio de evidencia."
-      }
+      },
+      "bitcode": false
     },
     "android": {
       "package": "com.sgs.movil",
@@ -42,7 +43,12 @@
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.FOREGROUND_SERVICE_CAMERA",
         "android.permission.FOREGROUND_SERVICE_MICROPHONE",
-        "android.permission.POST_NOTIFICATIONS"
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.INTERNET",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.WAKE_LOCK",
+        "android.permission.BLUETOOTH"
       ]
     },
     "plugins": [
@@ -78,7 +84,9 @@
       "@react-native-community/datetimepicker"
     ],
     "extra": {
-      "eas": {}
+      "eas": {
+        "projectId": "d6052d9c-0653-476f-999a-198b706ee552"
+      }
     },
     "owner": "jorgeroncs-team"
   }
