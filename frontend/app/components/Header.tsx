@@ -50,7 +50,7 @@ export default function Header() {
         <h1>
           <Link href="/">Sistema de Gestión de Seguridad</Link>
         </h1>
-        <img src="/escudo.png" alt="Escudo de la policía" className="escudo-header" />
+        <img src="/escudo.png" alt="Logo SGS" className="escudo-header" />
       </div>
 
       {session && (

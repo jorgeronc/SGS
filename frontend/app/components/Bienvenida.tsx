@@ -6,7 +6,7 @@ import Link from "next/link";
 export default function Bienvenida({ mostrarLogin = false }: { mostrarLogin?: boolean }) {
   return (
     <section className="bienvenida">
-      <img src="/escudo.png" alt="Escudo de la policía" className="escudo-grande" />
+      <img src="/escudo.png" alt="Logo SGS" className="escudo-grande" />
       <h1 className="bienvenida-titulo">Bienvenido al Sistema de Gestión de Seguridad</h1>
       <p className="bienvenida-secretaria">Seguridad Privada</p>
       {mostrarLogin && (

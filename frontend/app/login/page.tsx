@@ -86,7 +86,7 @@ export default function LoginPage() {
 
   return (
     <main className="contenedor acceso">
-      <img src="/escudo.png" alt="Escudo de la policía" className="escudo-acceso" />
+      <img src="/escudo.png" alt="Logo SGS" className="escudo-acceso" />
       <h1 className="bienvenida-titulo">Bienvenido al Sistema de Gestión de Seguridad</h1>
       <p className="bienvenida-secretaria">Seguridad Privada</p>
 
