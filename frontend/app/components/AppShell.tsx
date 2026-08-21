@@ -18,6 +18,8 @@ const GRUPOS: { grupo: string; items: { href: string; label: string; ico: string
   {
     grupo: "Operaciones",
     items: [
+      { href: "/clientes", label: "Clientes", ico: "🏢" },
+      { href: "/sitios", label: "Sitios / Puestos", ico: "📍" },
       { href: "/tareas", label: "Tareas", ico: "✔" },
       { href: "/chat", label: "Chat", ico: "💬" },
     ],
