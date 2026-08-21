@@ -1,0 +1,104 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { supabase } from "@/lib/supabaseClient";
+import ListaMaestra from "@/app/components/ListaMaestra";
+
+// Puntos de control (checkpoints) de un sitio. El `codigo` es lo que el guardia
+// escanea (QR / tag NFC) para registrar su paso. Ver migración 0053_rondines.
+function NuevoPunto({ onCreado }: { onCreado: () => void }) {
+  const [sitios, setSitios] = useState<any[]>([]);
+  const [f, setF] = useState({ sitio_id: "", nombre: "", codigo: "", orden: "", descripcion: "" });
+  const [error, setError] = useState<string | null>(null);
+  const [creando, setCreando] = useState(false);
+  const set = (k: string, v: string) => setF((p) => ({ ...p, [k]: v }));
+
+  useEffect(() => {
+    supabase.from("sitios").select("id, nombre, cliente:clientes(razon_social)").eq("estatus", "activo").order("nombre")
+      .then(({ data }) => setSitios((data as any[]) ?? []));
+    set("codigo", `PC-${(crypto.randomUUID().replace(/-/g, "").slice(0, 8)).toUpperCase()}`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function crear(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (!f.sitio_id) { setError("Elige el sitio."); return; }
+    if (!f.nombre.trim()) { setError("El nombre del punto es obligatorio."); return; }
+    if (!f.codigo.trim()) { setError("El código es obligatorio."); return; }
+    setCreando(true);
+    const { error } = await supabase.from("puntos_control").insert({
+      sitio_id: f.sitio_id, nombre: f.nombre.trim(), codigo: f.codigo.trim(),
+      orden: f.orden ? Number(f.orden) : null, descripcion: f.descripcion || null,
+    });
+    setCreando(false);
+    if (error) { setError(error.message); return; }
+    onCreado();
+  }
+
+  return (
+    <form onSubmit={crear}>
+      <div className="form-fila">
+        <select value={f.sitio_id} onChange={(e) => set("sitio_id", e.target.value)} required style={{ flex: 2 }}>
+          <option value="">— Sitio —</option>
+          {sitios.map((s) => <option key={s.id} value={s.id}>{s.nombre}{s.cliente?.razon_social ? ` · ${s.cliente.razon_social}` : ""}</option>)}
+        </select>
+        <input placeholder="Nombre del punto (ej. Acceso principal)" value={f.nombre} onChange={(e) => set("nombre", e.target.value)} required style={{ flex: 2 }} />
+      </div>
+      <div className="form-fila">
+        <input placeholder="Código (QR/NFC)" value={f.codigo} onChange={(e) => set("codigo", e.target.value)} required />
+        <input placeholder="Orden" type="number" min={0} value={f.orden} onChange={(e) => set("orden", e.target.value)} style={{ maxWidth: 100 }} />
+        <input placeholder="Descripción / referencia" value={f.descripcion} onChange={(e) => set("descripcion", e.target.value)} style={{ flex: 2 }} />
+        <button type="submit" disabled={creando}>{creando ? "Creando…" : "Agregar punto"}</button>
+      </div>
+      {sitios.length === 0 && <p className="dash-sub">Primero registra un sitio.</p>}
+      {error && <p style={{ color: "#b00020" }}>{error}</p>}
+    </form>
+  );
+}
+
+export default function PuntosControlPage() {
+  return (
+    <ListaMaestra
+      titulo="Puntos de control"
+      subtitulo="Checkpoints por sitio; el guardia escanea su código en cada ronda"
+      tabla="puntos_control"
+      modulo="puntos_control"
+      orderBy="orden"
+      select="id, folio, nombre, codigo, orden, descripcion, estatus, creado_en, sitio_id, sitio:sitios(nombre, cliente_id, cliente:clientes(razon_social))"
+      placeholderBuscar="Buscar punto, código, sitio…"
+      columnas={[
+        { header: "Folio", celda: (r) => r.folio ?? "—" },
+        { header: "Sitio", celda: (r) => r.sitio?.nombre ?? "—" },
+        { header: "Punto", celda: (r) => r.nombre },
+        { header: "Código", celda: (r) => <code>{r.codigo}</code> },
+        { header: "Orden", celda: (r) => (r.orden ?? "—") },
+        { header: "Estatus", celda: (r) => <span className={r.estatus === "activo" ? "badge-activo" : "badge-cancelado"}>{r.estatus}</span> },
+      ]}
+      textoBusqueda={(r) => `${r.nombre} ${r.codigo} ${r.sitio?.nombre ?? ""}`}
+      detalleHref={(r) => `/clientes/${r.sitio?.cliente_id ?? ""}`}
+      quickView={(r) => (
+        <>
+          <h3 style={{ margin: "0 0 8px" }}>{r.nombre}</h3>
+          <dl className="sc-kv">
+            <dt>Folio</dt><dd>{r.folio ?? "—"}</dd>
+            <dt>Sitio</dt><dd>{r.sitio?.nombre ?? "—"}</dd>
+            <dt>Cliente</dt><dd>{r.sitio?.cliente?.razon_social ?? "—"}</dd>
+            <dt>Código (QR/NFC)</dt><dd><code>{r.codigo}</code></dd>
+            <dt>Orden</dt><dd>{r.orden ?? "—"}</dd>
+            <dt>Descripción</dt><dd>{r.descripcion ?? "—"}</dd>
+          </dl>
+          <p style={{ marginTop: 10 }}><Link href="/rondines" className="qbtn2">▤ Ver rondines →</Link></p>
+        </>
+      )}
+      editar={[
+        { campo: "nombre", label: "Nombre del punto" },
+        { campo: "codigo", label: "Código (QR/NFC)" },
+        { campo: "orden", label: "Orden", tipo: "number" },
+        { campo: "descripcion", label: "Descripción", tipo: "textarea" },
+      ]}
+      nuevo={(onCreado) => <NuevoPunto onCreado={onCreado} />}
+    />
+  );
+}

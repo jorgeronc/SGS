@@ -21,6 +21,8 @@ const GRUPOS: { grupo: string; items: { href: string; label: string; ico: string
       { href: "/clientes", label: "Clientes", ico: "🏢" },
       { href: "/sitios", label: "Sitios / Puestos", ico: "📍" },
       { href: "/turnos", label: "Rol de turnos", ico: "🗓" },
+      { href: "/puntos-control", label: "Puntos de control", ico: "🚩" },
+      { href: "/rondines", label: "Rondines", ico: "🔁" },
       { href: "/tareas", label: "Tareas", ico: "✔" },
       { href: "/chat", label: "Chat", ico: "💬" },
     ],
