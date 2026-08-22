@@ -14,17 +14,16 @@ const LIMPIAS: string[] = ["/monitoreo", "/cad/mapa"];
 // exige nivel aal2; si no, se manda a /login (que retoma el segundo factor).
 const SIN_2FA = ["/login"];
 
-const GRUPOS: { grupo: string; items: { href: string; label: string; ico: string }[] }[] = [
+const GRUPOS: { grupo: string; items: { href: string; label: string; ico: string; nueva?: boolean }[] }[] = [
   {
     grupo: "Operaciones",
     items: [
-      { href: "/clientes", label: "Clientes", ico: "🏢" },
+      { href: "/cad", label: "Central / Despacho", ico: "🎧", nueva: true },
+      { href: "/monitoreo", label: "Monitoreo (GPS)", ico: "🗺", nueva: true },
       { href: "/sitios", label: "Sitios / Puestos", ico: "📍" },
       { href: "/turnos", label: "Rol de turnos", ico: "🗓" },
       { href: "/puntos-control", label: "Puntos de control", ico: "🚩" },
       { href: "/rondines", label: "Rondines", ico: "🔁" },
-      { href: "/cad", label: "Central / Despacho", ico: "🎧" },
-      { href: "/monitoreo", label: "Monitoreo (GPS)", ico: "🗺" },
       { href: "/tareas", label: "Tareas", ico: "✔" },
       { href: "/chat", label: "Chat", ico: "💬" },
     ],
@@ -51,6 +50,7 @@ const GRUPOS: { grupo: string; items: { href: string; label: string; ico: string
   {
     grupo: "Gestión",
     items: [
+      { href: "/clientes", label: "Clientes", ico: "🏢" },
       { href: "/personal", label: "Guardias", ico: "★" },
       { href: "/kardex", label: "Kardex", ico: "▤" },
       { href: "/rol-servicio", label: "Rol de Turnos", ico: "▦" },
@@ -178,9 +178,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <div key={g.grupo}>
               <div className="shell-group">{g.grupo}</div>
               {g.items.map((it) => (
-                <Link key={it.href} href={it.href} className={pathname.startsWith(it.href) ? "on" : ""}>
+                <Link
+                  key={it.href}
+                  href={it.href}
+                  className={!it.nueva && pathname.startsWith(it.href) ? "on" : ""}
+                  target={it.nueva ? "_blank" : undefined}
+                  rel={it.nueva ? "noopener noreferrer" : undefined}
+                >
                   <span className="ico">{it.ico}</span>
                   <span>{it.label}</span>
+                  {it.nueva && <span style={{ marginLeft: "auto", opacity: 0.6, fontSize: 12 }}>↗</span>}
                   {it.href === "/chat" && !pathname.startsWith("/chat") && chatNuevos > 0 && (
                     <span style={{ marginLeft: "auto", background: "#e11d48", color: "#fff", fontSize: 11, fontWeight: 800, borderRadius: 999, padding: "0 7px" }}>{chatNuevos}</span>
                   )}

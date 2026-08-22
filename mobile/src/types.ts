@@ -24,6 +24,8 @@ export type RootStackParamList = {
   Expediente: { tipo: TipoConsulta; id: string; titulo: string };
   // Evidencia puede abrirse suelta o ligada a un registro.
   Evidencia: { incidenteId?: string } | undefined;
+  // Levantar incidente desde el campo.
+  Incidente: undefined;
   Tareas: undefined;
   // Conversación de un canal de chat.
   ChatCanal: { canalId: string; nombre: string };

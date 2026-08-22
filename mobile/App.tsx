@@ -13,6 +13,7 @@ import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./src/lib/supabase";
 import { registrarPush } from "./src/lib/push";
 import { iniciarRastreo, detenerRastreo } from "./src/lib/ubicacionVivo";
+import { getRolActual, esMando } from "./src/lib/rol";
 import type { RootStackParamList, TabParamList } from "./src/types";
 import { T } from "./src/theme";
 import LoginScreen from "./src/screens/LoginScreen";
@@ -22,6 +23,7 @@ import RondinScreen from "./src/screens/RondinScreen";
 import PerfilScreen from "./src/screens/PerfilScreen";
 import ExpedienteScreen from "./src/screens/ExpedienteScreen";
 import EvidenciaScreen from "./src/screens/EvidenciaScreen";
+import IncidenteScreen from "./src/screens/IncidenteScreen";
 import TransmisionScreen from "./src/screens/TransmisionScreen";
 import TareasScreen from "./src/screens/TareasScreen";
 import ChatScreen from "./src/screens/ChatScreen";
@@ -47,6 +49,9 @@ const ICONO: Record<keyof TabParamList, { on: keyof typeof Ionicons.glyphMap; of
 };
 
 function Tabs() {
+  // La consulta/búsqueda solo la ven mandos (supervisor/administrador).
+  const [mando, setMando] = useState(false);
+  useEffect(() => { getRolActual().then((r) => setMando(esMando(r))); }, []);
   return (
     <Tab.Navigator
       id={"tabs" as never}
@@ -62,7 +67,7 @@ function Tabs() {
       })}
     >
       <Tab.Screen name="Inicio" component={InicioSgsScreen} />
-      <Tab.Screen name="Buscar" component={BuscarScreen} />
+      {mando && <Tab.Screen name="Buscar" component={BuscarScreen} />}
       <Tab.Screen name="Rondin" component={RondinScreen} options={{ tabBarLabel: "Rondín" }} />
       <Tab.Screen name="Chat" component={ChatScreen} />
       <Tab.Screen name="Perfil" component={PerfilScreen} />
@@ -144,6 +149,7 @@ export default function App() {
             <Stack.Screen name="Tabs" component={Tabs} options={{ headerShown: false }} />
             <Stack.Screen name="Expediente" component={ExpedienteScreen} options={{ title: "Expediente" }} />
             <Stack.Screen name="Evidencia" component={EvidenciaScreen} options={{ title: "Nueva evidencia" }} />
+            <Stack.Screen name="Incidente" component={IncidenteScreen} options={{ title: "Levantar incidente" }} />
             <Stack.Screen name="Transmision" component={TransmisionScreen} options={{ headerShown: false, presentation: "fullScreenModal", animation: "fade" }} />
             <Stack.Screen name="Tareas" component={TareasScreen} options={{ title: "Mis tareas" }} />
             <Stack.Screen name="ChatCanal" component={ChatCanalScreen} options={{ title: "Chat" }} />
