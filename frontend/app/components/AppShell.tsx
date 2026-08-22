@@ -21,7 +21,6 @@ const GRUPOS: { grupo: string; items: { href: string; label: string; ico: string
       { href: "/cad", label: "Central / Despacho", ico: "🎧", nueva: true },
       { href: "/monitoreo", label: "Monitoreo (GPS)", ico: "🗺", nueva: true },
       { href: "/sitios", label: "Sitios / Puestos", ico: "📍" },
-      { href: "/turnos", label: "Rol de turnos", ico: "🗓" },
       { href: "/puntos-control", label: "Puntos de control", ico: "🚩" },
       { href: "/rondines", label: "Rondines", ico: "🔁" },
       { href: "/tareas", label: "Tareas", ico: "✔" },
@@ -52,8 +51,8 @@ const GRUPOS: { grupo: string; items: { href: string; label: string; ico: string
     items: [
       { href: "/clientes", label: "Clientes", ico: "🏢" },
       { href: "/personal", label: "Guardias", ico: "★" },
+      { href: "/turnos", label: "Rol de turnos", ico: "🗓" },
       { href: "/kardex", label: "Kardex", ico: "▤" },
-      { href: "/rol-servicio", label: "Rol de Turnos", ico: "▦" },
       { href: "/bitacora", label: "Bitácora", ico: "▥" },
       { href: "/admin", label: "Administración", ico: "⚙" },
       { href: "/configuracion", label: "Parámetros del sistema", ico: "❖" },
@@ -159,11 +158,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     <div className={`shell${colapsado ? " collapsed" : ""}`}>
       <aside className="shell-side">
         <Link href="/" className="shell-brand">
-          <b className="brand-name">Sistema de Gestión de Seguridad</b>
-          <span className="brand-row">
-            <img src="/escudo.png" alt="Logo" className="brand-escudo" />
-            <span className="brand-sub">Seguridad Privada</span>
-          </span>
+          <span className="brand-name">Sistema de<br />Gestión de<br />Seguridad</span>
+          <img src="/escudo.png" alt="Logo" className="brand-escudo" />
         </Link>
         <nav className="shell-nav">
           <Link href="/" className={pathname === "/" ? "on" : ""}>
