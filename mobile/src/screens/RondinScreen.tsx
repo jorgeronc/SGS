@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CameraView, useCameraPermissions } from "expo-camera";
+import { useIsFocused } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { T } from "../theme";
 import { getMiOficial, type MiOficial } from "../lib/oficial";
@@ -13,6 +14,10 @@ type Fase = "escanear" | "confirmar" | "hecho";
 // registra su paso, con novedad opcional y GPS. Ver 0053_rondines.
 export default function RondinScreen() {
   const [permiso, pedirPermiso] = useCameraPermissions();
+  // La cámara solo se monta cuando esta pantalla está enfocada; al salir libera
+  // la cámara para que no choque con react-native-webrtc (Enviar alerta) ni con
+  // la bodycam. Rondín es un tab y, sin esto, retendría la cámara en segundo plano.
+  const enfocado = useIsFocused();
   const [fase, setFase] = useState<Fase>("escanear");
   const [codigo, setCodigo] = useState("");
   const [novedad, setNovedad] = useState("");
@@ -51,7 +56,13 @@ export default function RondinScreen() {
       {fase === "escanear" && (
         <View style={{ flex: 1, padding: 16 }}>
           <View style={styles.camaraBox}>
-            {permiso?.granted ? (
+            {!permiso?.granted ? (
+              <View style={styles.permiso}>
+                <Ionicons name="qr-code-outline" size={48} color={T.textMute} />
+                <Text style={styles.permisoTxt}>Se necesita la cámara para escanear el punto de control.</Text>
+                <TouchableOpacity style={styles.btn} onPress={pedirPermiso}><Text style={styles.btnTxt}>Permitir cámara</Text></TouchableOpacity>
+              </View>
+            ) : enfocado ? (
               <CameraView
                 style={{ flex: 1 }}
                 facing="back"
@@ -60,9 +71,8 @@ export default function RondinScreen() {
               />
             ) : (
               <View style={styles.permiso}>
-                <Ionicons name="qr-code-outline" size={48} color={T.textMute} />
-                <Text style={styles.permisoTxt}>Se necesita la cámara para escanear el punto de control.</Text>
-                <TouchableOpacity style={styles.btn} onPress={pedirPermiso}><Text style={styles.btnTxt}>Permitir cámara</Text></TouchableOpacity>
+                <Ionicons name="pause-circle-outline" size={48} color={T.textMute} />
+                <Text style={styles.permisoTxt}>Cámara en pausa</Text>
               </View>
             )}
           </View>
