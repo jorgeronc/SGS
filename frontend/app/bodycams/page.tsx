@@ -11,10 +11,11 @@ export default function BodycamsPage() {
         titulo: "Bodycams",
         subtitulo: "Cámaras corporales asignadas a elementos",
         placeholderBuscar: "Buscar folio, marca, serie…",
+        categoria: "tipo_bodycam",
         tipos: [
-          { v: "bodycam", label: "Bodycam" },
-          { v: "camara_vehicular", label: "Cámara vehicular" },
-          { v: "otro", label: "Otro" },
+          { v: "Smartphone", label: "Smartphone" },
+          { v: "Bodycam portátil", label: "Bodycam portátil" },
+          { v: "Bodycam fija", label: "Bodycam fija" },
         ],
       }}
     />

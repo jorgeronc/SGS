@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import ListaMaestra from "@/app/components/ListaMaestra";
 import { SelectPersonal } from "@/app/components/Pickers";
@@ -18,12 +18,36 @@ export interface InventarioConfig {
   modulo: string;
   titulo: string;
   subtitulo: string;
-  tipos: { v: string; label: string }[]; // opciones del selector "tipo"
+  // Categoría de cat_opciones que alimenta el selector "tipo" (administrable en
+  // Administración → Catálogos). `tipos` queda como respaldo si el catálogo está
+  // vacío o no carga.
+  categoria?: string;
+  tipos: { v: string; label: string }[];
   placeholderBuscar?: string;
 }
 
 function NuevoItem({ cfg, onCreado }: { cfg: InventarioConfig; onCreado: () => void }) {
+  // Opciones del selector "tipo": del catálogo cat_opciones si hay `categoria`,
+  // con respaldo a las opciones fijas de `cfg.tipos`.
+  const [opciones, setOpciones] = useState<{ v: string; label: string }[]>(cfg.tipos);
   const [tipo, setTipo] = useState(cfg.tipos[0]?.v ?? "");
+
+  useEffect(() => {
+    if (!cfg.categoria) return;
+    supabase
+      .from("cat_opciones")
+      .select("valor")
+      .eq("categoria", cfg.categoria)
+      .eq("activo", true)
+      .order("orden")
+      .then(({ data }) => {
+        const ops = ((data as any[]) ?? []).map((o) => ({ v: o.valor, label: o.valor }));
+        if (ops.length) {
+          setOpciones(ops);
+          setTipo((t) => t || ops[0].v);
+        }
+      });
+  }, [cfg.categoria]);
   const [marca, setMarca] = useState("");
   const [modelo, setModelo] = useState("");
   const [serie, setSerie] = useState("");
@@ -60,7 +84,7 @@ function NuevoItem({ cfg, onCreado }: { cfg: InventarioConfig; onCreado: () => v
     <form onSubmit={crear}>
       <div className="form-fila">
         <select value={tipo} onChange={(e) => setTipo(e.target.value)}>
-          {cfg.tipos.map((t) => <option key={t.v} value={t.v}>{t.label}</option>)}
+          {opciones.map((t) => <option key={t.v} value={t.v}>{t.label}</option>)}
         </select>
         <input placeholder="Marca" value={marca} onChange={(e) => setMarca(e.target.value)} />
         <input placeholder="Modelo" value={modelo} onChange={(e) => setModelo(e.target.value)} />

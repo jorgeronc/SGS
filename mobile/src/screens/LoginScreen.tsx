@@ -26,8 +26,8 @@ export default function LoginScreen() {
 
   return (
     <KeyboardAvoidingView behavior="padding" style={styles.contenedor}>
-      <Text style={styles.titulo}>Sistema Central Policial</Text>
-      <Text style={styles.subtitulo}>Acceso del elemento en campo</Text>
+      <Text style={styles.titulo}>Sistema de Gestión de Seguridad</Text>
+      <Text style={styles.subtitulo}>Acceso del guardia en campo</Text>
 
       <TextInput
         style={styles.input}

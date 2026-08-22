@@ -12,6 +12,7 @@ import { getMiUnidad, setMiUnidad, clearMiUnidad } from "../lib/unidad";
 import { getMiOficial, getMiOficialValido, setMiOficial, clearMiOficial, getMiCrp } from "../lib/oficial";
 import { actualizarPersonalPush } from "../lib/push";
 import { validarBodycam, mensajeBloqueo, getMiBodycam, clearMiBodycam } from "../lib/bodycam";
+import { iniciarRastreo, detenerRastreo } from "../lib/ubicacionVivo";
 import { pendientesBodycam, descargarPendientes, bodycamDisponible } from "../lib/bodycamHd";
 import { getAccesos, setAccesos, ACCESOS_DISPONIBLES, MAX_ACCESOS } from "../lib/accesos";
 import { recordatoriosVigentes, agregarRecordatorio, quitarRecordatorio, ventanaTurno, Recordatorio } from "../lib/recordatorios";
@@ -160,6 +161,7 @@ export default function PerfilScreen() {
     await setMiOficial({ personalId: o.id, etiqueta: o.etiqueta });
     await actualizarPersonalPush(o.id);
     await cargarMiFoto(o.id);
+    iniciarRastreo(); // empieza a compartir ubicación con central
     setAviso(r.vinculado
       ? `Elemento asignado. Smartphone vinculado a la bodycam ${r.folio}.`
       : `Elemento asignado. Bodycam ${r.folio}.`);
@@ -170,6 +172,7 @@ export default function PerfilScreen() {
     await clearMiOficial();
     await clearMiBodycam();
     await actualizarPersonalPush(null);
+    await detenerRastreo(); // deja de compartir ubicación
     setAviso("Ya no hay elemento asignado en este dispositivo.");
   }
 

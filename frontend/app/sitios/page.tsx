@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import ListaMaestra from "@/app/components/ListaMaestra";
+import { CatalogoSelect } from "@/app/components/CatalogoSelect";
 
 const TIPOS = [
   "Corporativo / oficinas", "Residencial", "Industrial / planta", "Comercial / retail",
@@ -51,10 +52,7 @@ function NuevoSitio({ onCreado }: { onCreado: () => void }) {
           {clientes.map((c) => <option key={c.id} value={c.id}>{c.razon_social}</option>)}
         </select>
         <input placeholder="Nombre del sitio" value={f.nombre} onChange={(e) => set("nombre", e.target.value)} required />
-        <select value={f.tipo} onChange={(e) => set("tipo", e.target.value)}>
-          <option value="">— Tipo —</option>
-          {TIPOS.map((t) => <option key={t} value={t}>{t}</option>)}
-        </select>
+        <CatalogoSelect categoria="tipo_sitio" value={f.tipo} onChange={(v) => set("tipo", v)} placeholder="— Tipo —" />
       </div>
       <div className="form-fila">
         <input placeholder="Dirección" value={f.direccion} onChange={(e) => set("direccion", e.target.value)} style={{ flex: 2 }} />

@@ -12,6 +12,9 @@ const VACIA: ConfigSistema = {
   domicilio: null,
   telefono: null,
   correo: null,
+  gps_activo: true,
+  gps_intervalo_seg: 60,
+  gps_ventana_seg: 180,
 };
 
 // Parámetros de configuración del sistema (datos de la Corporación).
@@ -55,6 +58,9 @@ export default function ConfiguracionPage() {
         domicilio: cfg.domicilio?.trim() || null,
         telefono: cfg.telefono?.trim() || null,
         correo: cfg.correo?.trim() || null,
+        gps_activo: cfg.gps_activo,
+        gps_intervalo_seg: Math.min(3600, Math.max(10, Number(cfg.gps_intervalo_seg) || 60)),
+        gps_ventana_seg: Math.min(7200, Math.max(30, Number(cfg.gps_ventana_seg) || 180)),
         actualizado_en: new Date().toISOString(),
       })
       .eq("id", true);
@@ -106,6 +112,26 @@ export default function ConfiguracionPage() {
             </label>
             <label>Correo
               <input value={cfg.correo ?? ""} onChange={(e) => set("correo", e.target.value)} placeholder="Correo institucional" />
+            </label>
+          </div>
+
+          <div className="dash-eyebrow">Rastreo GPS de guardias (app móvil)</div>
+          <p style={{ fontSize: 12, color: "#777", margin: "0 0 8px" }}>
+            El móvil lee estos valores al iniciar sesión y reporta la ubicación del guardia. En el
+            mapa de monitoreo se ven los guardias en línea (solo supervisor/administrador).
+          </p>
+          <div className="form-grid">
+            <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <input type="checkbox" checked={cfg.gps_activo} onChange={(e) => set("gps_activo", e.target.checked)} style={{ width: "auto" }} />
+              Rastreo activo
+            </label>
+            <label>Intervalo de reporte (segundos)
+              <input type="number" min={10} max={3600} value={cfg.gps_intervalo_seg}
+                onChange={(e) => set("gps_intervalo_seg", Number(e.target.value))} placeholder="60" />
+            </label>
+            <label>Ventana “en línea” (segundos)
+              <input type="number" min={30} max={7200} value={cfg.gps_ventana_seg}
+                onChange={(e) => set("gps_ventana_seg", Number(e.target.value))} placeholder="180" />
             </label>
           </div>
 

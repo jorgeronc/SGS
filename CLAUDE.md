@@ -2,6 +2,16 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## ⚠️ ALCANCE DE ESTA SESIÓN: SGS — seguridad PRIVADA (no policial)
+
+Este repo es **SGS (Sistema de Gestión de Seguridad)**, producto para **seguridad privada**, hecho como **FORK PURO de SCP**. Trabaja **solo** en el dominio privado. Reglas de esta sesión:
+
+- **No toques ni reactives los módulos policiales.** Están **dormidos** a propósito (sus tablas existen en la BD porque se corrieron todas las migraciones de SCP, pero sin UI). No los propongas, no los revivas, no los borres.
+- **Dominio SGS** = Guardias, Clientes/Sitios (puestos), Rol de turnos, Puntos de control, Rondines, Tareas, Chat. Aquí se construye lo nuevo (migraciones `0050+`).
+- **Infra separada de SCP**, misma organización/cuentas. Supabase ref **`rdyjjfbehjfggpldmmur`** (cuenta distinta a la de SCP); Vercel proyecto **`sgs`** (web en `sgs-two-phi.vercel.app`, Root=`frontend`); repo GitHub `jorgeronc/SGS` (push a `main` = deploy); móvil EAS **`sgs-movil`** (`@jorgeroncs-team`, projectId `d6052d9c-0653-476f-999a-198b706ee552`, package `com.sgs.movil`, Firebase `sgs-movil-f115a`).
+- **Branding igual a SCP salvo:** en la UI los **botones son naranja claro** (`--sc-btn: #f4a03f` en `globals.css`); el resto (azul/teal) igual.
+- **La arquitectura técnica descrita abajo es la que SGS heredó del fork y sigue aplicando** (WORM, folios, bitácora, RLS, catálogos, vínculos, push Expo, chat, bodycam WebRTC, LocationIQ, environments de EAS). Cuando dudes de un patrón de plataforma, funciona igual que en SCP. **Ojo:** partes del texto de abajo todavía dicen "SCP/policial" por ser copia — el alcance real es este banner.
+
 ## What this is
 
 **SCP (Sistema Central Policial)** — a police RMS + CAD (Computer-Aided Dispatch) system. Three deployables live in one repo:

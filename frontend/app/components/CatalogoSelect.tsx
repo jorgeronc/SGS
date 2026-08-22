@@ -10,11 +10,13 @@ export function CatalogoSelect({
   value,
   onChange,
   placeholder,
+  disabled,
 }: {
   categoria: string;
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
+  disabled?: boolean;
 }) {
   const [opciones, setOpciones] = useState<string[]>([]);
 
@@ -28,10 +30,14 @@ export function CatalogoSelect({
       .then(({ data }) => setOpciones(((data as any[]) ?? []).map((o) => o.valor)));
   }, [categoria]);
 
+  // Incluye el valor actual aunque no esté (aún) en el catálogo, para no
+  // "perderlo" al mostrar un registro con un valor histórico o externo.
+  const lista = value && !opciones.includes(value) ? [value, ...opciones] : opciones;
+
   return (
-    <select value={value} onChange={(e) => onChange(e.target.value)}>
+    <select value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)}>
       <option value="">{placeholder ?? "— Selecciona —"}</option>
-      {opciones.map((o) => (
+      {lista.map((o) => (
         <option key={o} value={o}>
           {o}
         </option>

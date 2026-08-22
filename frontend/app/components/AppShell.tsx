@@ -9,7 +9,7 @@ import { supabase } from "@/lib/supabaseClient";
 const PUBLICAS = ["/", "/login"];
 // Rutas que se muestran a pantalla completa, sin el shell (menú/topbar), para
 // abrirlas en una pestaña/monitor aparte (p. ej. el mapa de despacho).
-const LIMPIAS: string[] = [];
+const LIMPIAS: string[] = ["/monitoreo", "/cad/mapa"];
 // El 2FA se resuelve completo en /login (código o registro). El resto de rutas
 // exige nivel aal2; si no, se manda a /login (que retoma el segundo factor).
 const SIN_2FA = ["/login"];
@@ -23,6 +23,8 @@ const GRUPOS: { grupo: string; items: { href: string; label: string; ico: string
       { href: "/turnos", label: "Rol de turnos", ico: "🗓" },
       { href: "/puntos-control", label: "Puntos de control", ico: "🚩" },
       { href: "/rondines", label: "Rondines", ico: "🔁" },
+      { href: "/cad", label: "Central / Despacho", ico: "🎧" },
+      { href: "/monitoreo", label: "Monitoreo (GPS)", ico: "🗺" },
       { href: "/tareas", label: "Tareas", ico: "✔" },
       { href: "/chat", label: "Chat", ico: "💬" },
     ],

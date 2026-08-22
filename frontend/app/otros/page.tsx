@@ -11,6 +11,7 @@ export default function OtrosPage() {
         titulo: "Otros equipos",
         subtitulo: "Drones, robots y equipo especial",
         placeholderBuscar: "Buscar folio, tipo, marca, serie…",
+        categoria: "tipo_otros_equipo",
         tipos: [
           { v: "dron", label: "Dron" },
           { v: "robot", label: "Robot" },

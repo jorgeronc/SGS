@@ -157,7 +157,7 @@ export default function BuscarScreen() {
   async function compartir(r: Resultado) {
     const cuerpo = `${r.titulo}\n${r.campos.map((c) => `${c.l}: ${c.v}`).join("\n")}`;
     try {
-      await Share.share({ message: `SCP — ${cuerpo}` });
+      await Share.share({ message: `SGS — ${cuerpo}` });
     } catch {
       /* cancelado */
     }

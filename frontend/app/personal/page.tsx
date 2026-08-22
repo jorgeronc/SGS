@@ -7,6 +7,7 @@ import ListaMaestra from "@/app/components/ListaMaestra";
 import { subirFotoArchivo } from "@/lib/fotos";
 import { personasSimilares, type RegistroSimilar } from "@/lib/duplicados";
 import AvisoDuplicados from "@/app/components/AvisoDuplicados";
+import { CatalogoSelect } from "@/app/components/CatalogoSelect";
 
 const CATEGORIAS = [
   "Guardia intramuros", "Escolta", "Canino (K9)", "Monitorista / CCTV",
@@ -130,10 +131,7 @@ function NuevoGuardia({ onCreado }: { onCreado: () => void }) {
       <p className="dash-sub">Datos del guardia:</p>
       <div className="form-fila">
         <input placeholder="No. de gafete / ID" value={gafete} onChange={(e) => setGafete(e.target.value)} />
-        <select value={categoria} onChange={(e) => setCategoria(e.target.value)}>
-          <option value="">— Categoría —</option>
-          {CATEGORIAS.map((c) => <option key={c} value={c}>{c}</option>)}
-        </select>
+        <CatalogoSelect categoria="categoria_guardia" value={categoria} onChange={setCategoria} placeholder="— Categoría —" />
         <select value={estado} onChange={(e) => setEstado(e.target.value)}>
           <option value="activo">Activo</option>
           <option value="licencia">Licencia</option>

@@ -11,6 +11,7 @@ export default function ArmamentoPage() {
         titulo: "Armamento",
         subtitulo: "Armas cortas, largas y equipo menos letal",
         placeholderBuscar: "Buscar folio, tipo, marca, serie…",
+        categoria: "tipo_armamento",
         tipos: [
           { v: "arma_corta", label: "Arma corta" },
           { v: "arma_larga", label: "Arma larga" },

@@ -6,6 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { T } from "../theme";
 import { getMiOficial, type MiOficial } from "../lib/oficial";
 import { marcarRondin } from "../lib/rondin";
+import BodycamBoton from "../components/BodycamBoton";
 
 type Fase = "escanear" | "confirmar" | "hecho";
 
@@ -45,7 +46,10 @@ export default function RondinScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
-      <Text style={styles.titulo}>Rondín</Text>
+      <View style={styles.encab}>
+        <Text style={styles.titulo}>Rondín</Text>
+        <BodycamBoton variant="chip" />
+      </View>
       <Text style={styles.sub}>{mio?.etiqueta ? `Guardia: ${mio.etiqueta}` : "Selecciona tu elemento en Perfil para registrar como guardia."}</Text>
 
       {fase === "escanear" && (
@@ -103,6 +107,7 @@ export default function RondinScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: T.bg },
+  encab: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingRight: 16 },
   titulo: { color: T.text, fontSize: 22, fontWeight: "800", paddingHorizontal: 16, paddingTop: 8 },
   sub: { color: T.textDim, fontSize: 13, paddingHorizontal: 16, marginTop: 2 },
   camaraBox: { flex: 1, borderRadius: 16, overflow: "hidden", backgroundColor: "#000", borderWidth: 1, borderColor: T.border },

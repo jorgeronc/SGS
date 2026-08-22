@@ -1,21 +1,21 @@
 {
   "project_info": {
-    "project_number": "495867343745",
-    "project_id": "scp-movil",
-    "storage_bucket": "scp-movil.firebasestorage.app"
+    "project_number": "37903651275",
+    "project_id": "sgs-movil-f115a",
+    "storage_bucket": "sgs-movil-f115a.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:495867343745:android:e03de7a47c88abb002ee80",
+        "mobilesdk_app_id": "1:37903651275:android:1a6c626e47c451b6c1e64e",
         "android_client_info": {
-          "package_name": "com.scp.movil"
+          "package_name": "com.sgs.movil"
         }
       },
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyAe1zEpURND9y1-B7g3_ykF0_TwdTh0CL0"
+          "current_key": "AIzaSyDRgqkRfRTTNWymToRfdTW9hmgEw4kSOVs"
         }
       ],
       "services": {

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import ListaMaestra from "@/app/components/ListaMaestra";
+import { CatalogoSelect } from "@/app/components/CatalogoSelect";
 
 const TIPOS = ["Diurno (08:00-20:00)", "Nocturno (20:00-08:00)", "24 horas", "Mixto / rolado"];
 const HORARIO: Record<string, [string, string]> = {
@@ -80,10 +81,7 @@ function NuevoTurno({ onCreado }: { onCreado: () => void }) {
         <label className="dash-sub" style={{ display: "flex", flexDirection: "column" }}>Fecha
           <input type="date" value={f.fecha} onChange={(e) => set("fecha", e.target.value)} required />
         </label>
-        <select value={f.tipo_turno} onChange={(e) => pickTipo(e.target.value)}>
-          <option value="">— Tipo de turno —</option>
-          {TIPOS.map((t) => <option key={t} value={t}>{t}</option>)}
-        </select>
+        <CatalogoSelect categoria="tipo_turno" value={f.tipo_turno} onChange={pickTipo} placeholder="— Tipo de turno —" />
         <label className="dash-sub" style={{ display: "flex", flexDirection: "column" }}>Inicio
           <input type="time" value={f.hora_inicio} onChange={(e) => set("hora_inicio", e.target.value)} />
         </label>

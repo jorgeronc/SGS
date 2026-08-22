@@ -7,13 +7,14 @@ import { primeraFoto } from "@/lib/fotos";
 import MapaReportes, { type ReporteMapa } from "./MapaReportes";
 
 interface DefInd { key: string; label: string; href: string; tabla: string; fecha: string; color: string; ico: string; mod?: (q: any) => any; }
+// Indicadores del dominio SGS (seguridad privada).
 const INDS: DefInd[] = [
-  { key: "reportes", label: "Nuevos reportes", href: "/cad", tabla: "llamadas_cad", fecha: "creado_en", color: "c-red", ico: "◎" },
-  { key: "incidentes", label: "Nuevos informes de incidente", href: "/incidentes", tabla: "incidentes", fecha: "creado_en", color: "c-blue", ico: "▤" },
-  { key: "abordamientos", label: "Nuevos abordamientos", href: "/abordamientos", tabla: "abordamientos", fecha: "creado_en", color: "c-teal", ico: "◈" },
-  { key: "custodia", label: "Nuevas personas en custodia", href: "/barandilla", tabla: "barandilla", fecha: "fecha_ingreso", color: "c-purple", ico: "⛓" },
-  { key: "accidentes", label: "Accidentes viales", href: "/accidentes", tabla: "accidentes", fecha: "creado_en", color: "c-amber", ico: "🚗" },
-  { key: "casos", label: "Casos abiertos", href: "/casos", tabla: "casos", fecha: "creado_en", color: "c-green", ico: "▦", mod: (q: any) => q.in("estado_investigacion", ["abierto", "en_investigacion"]) },
+  { key: "emergencias", label: "Emergencias / alertas", href: "/cad", tabla: "llamadas_cad", fecha: "fecha_recepcion", color: "c-red", ico: "🚨" },
+  { key: "rondines", label: "Rondines registrados", href: "/rondines", tabla: "rondines", fecha: "creado_en", color: "c-blue", ico: "🔁" },
+  { key: "tareas", label: "Tareas nuevas", href: "/tareas", tabla: "tareas", fecha: "creado_en", color: "c-teal", ico: "✔" },
+  { key: "evidencias", label: "Evidencias nuevas", href: "/evidencias", tabla: "evidencias", fecha: "creado_en", color: "c-purple", ico: "◧" },
+  { key: "turnos", label: "Turnos programados", href: "/turnos", tabla: "turnos", fecha: "creado_en", color: "c-amber", ico: "🗓" },
+  { key: "sitios", label: "Sitios nuevos", href: "/sitios", tabla: "sitios", fecha: "creado_en", color: "c-green", ico: "📍" },
 ];
 
 interface ItemReciente { id: string; titulo: string; sub: string; href: string; foto: string | null; iniciales: string; gradiente: string; }
@@ -94,10 +95,10 @@ function Columnas({ titulo, datos, color }: { titulo: string; datos: Dato[]; col
 export default function Panel({ correo }: { correo?: string | null }) {
   const [sem, setSem] = useState<Record<string, number | null>>({});
   const [ano, setAno] = useState<Record<string, number | null>>({});
-  const [incidentes, setIncidentes] = useState<ItemReciente[]>([]);
-  const [detenidos, setDetenidos] = useState<ItemReciente[]>([]);
-  const [abordamientos, setAbordamientos] = useState<ItemReciente[]>([]);
-  const [accidentes, setAccidentes] = useState<ItemReciente[]>([]);
+  const [guardias, setGuardias] = useState<ItemReciente[]>([]);
+  const [evidencias, setEvidencias] = useState<ItemReciente[]>([]);
+  const [tareas, setTareas] = useState<ItemReciente[]>([]);
+  const [rondines, setRondines] = useState<ItemReciente[]>([]);
   const [reportes, setReportes] = useState<ReporteMapa[]>([]);
   const [bitAnio, setBitAnio] = useState<BitRow[]>([]);
   const [bitSem, setBitSem] = useState<BitRow[]>([]);
@@ -116,19 +117,38 @@ export default function Panel({ correo }: { correo?: string | null }) {
       setSem(Object.fromEntries(semVals));
       setAno(Object.fromEntries(anoVals));
 
-      const { data: inc } = await supabase.from("incidentes").select("id, folio, tipo, delito, fotografias, creado_en, fecha_incidente").eq("estatus", "activo").order("creado_en", { ascending: false }).limit(3);
-      setIncidentes(((inc as any[]) ?? []).map((r) => ({ id: r.id, titulo: r.delito ?? r.tipo ?? "Incidente", sub: r.folio ?? new Date(r.fecha_incidente ?? r.creado_en).toLocaleDateString(), href: `/incidentes/${r.id}`, foto: primeraFoto(r.fotografias), iniciales: "▤", gradiente: "linear-gradient(135deg,#1f6feb,#0b3d8f)" })));
+      // Últimos guardias dados de alta.
+      const { data: gs } = await supabase.from("personal")
+        .select("id, categoria, creado_en, persona:personas(nombre, apellido_paterno, fotografias)")
+        .eq("estatus", "activo").order("creado_en", { ascending: false }).limit(3);
+      setGuardias(((gs as any[]) ?? []).map((g) => {
+        const nom = g.persona ? `${g.persona.nombre ?? ""} ${g.persona.apellido_paterno ?? ""}`.trim() : "Guardia";
+        return { id: g.id, titulo: nom || "Guardia", sub: g.categoria ?? "Guardia", href: `/personal/${g.id}`, foto: primeraFoto(g.persona?.fotografias), iniciales: iniciales(nom, "G"), gradiente: "linear-gradient(135deg,#1f6feb,#0b3d8f)" };
+      }));
 
-      const { data: det } = await supabase.from("barandilla").select("id, folio, fotografias, fecha_ingreso, persona:personas(nombre, apellido_paterno, fotografias)").eq("estatus", "activo").order("fecha_ingreso", { ascending: false }).limit(3);
-      setDetenidos(((det as any[]) ?? []).map((d) => { const nom = d.persona ? `${d.persona.nombre ?? ""} ${d.persona.apellido_paterno ?? ""}`.trim() : "Detenido"; return { id: d.id, titulo: nom || "Detenido", sub: new Date(d.fecha_ingreso).toLocaleDateString(), href: `/barandilla/${d.id}`, foto: primeraFoto(d.fotografias) ?? primeraFoto(d.persona?.fotografias), iniciales: iniciales(nom, "D"), gradiente: "linear-gradient(135deg,#b03a4a,#6d2530)" }; }));
+      // Últimas evidencias.
+      const { data: ev } = await supabase.from("evidencias")
+        .select("id, folio, tipo, descripcion, fotografias, creado_en")
+        .eq("estatus", "activo").order("creado_en", { ascending: false }).limit(3);
+      setEvidencias(((ev as any[]) ?? []).map((e) => ({ id: e.id, titulo: e.tipo ?? e.descripcion ?? "Evidencia", sub: e.folio ?? new Date(e.creado_en).toLocaleDateString(), href: `/evidencias/${e.id}`, foto: primeraFoto(e.fotografias), iniciales: "◧", gradiente: "linear-gradient(135deg,#7a3fbf,#4a2374)" })));
 
-      const { data: abo } = await supabase.from("abordamientos").select("id, folio, motivo, creado_en, persona:personas(nombre, apellido_paterno, fotografias), vehiculo:vehiculos(placas, fotografias)").eq("estatus", "activo").order("creado_en", { ascending: false }).limit(3);
-      setAbordamientos(((abo as any[]) ?? []).map((a) => { const nom = a.persona ? `${a.persona.nombre ?? ""} ${a.persona.apellido_paterno ?? ""}`.trim() : ""; return { id: a.id, titulo: a.motivo ?? "Abordamiento", sub: nom || a.vehiculo?.placas || a.folio || "—", href: `/abordamientos/${a.id}`, foto: primeraFoto(a.persona?.fotografias) ?? primeraFoto(a.vehiculo?.fotografias), iniciales: "◈", gradiente: "linear-gradient(135deg,#0e8f86,#0b5c56)" }; }));
+      // Últimas tareas.
+      const { data: ts } = await supabase.from("tareas")
+        .select("id, folio, tipo, asunto, motivo, prioridad, fotografias, creado_en")
+        .eq("estatus", "activo").order("creado_en", { ascending: false }).limit(3);
+      setTareas(((ts as any[]) ?? []).map((t) => ({ id: t.id, titulo: t.asunto ?? t.tipo ?? t.motivo ?? "Tarea", sub: `${t.folio ?? ""}${t.prioridad ? ` · ${t.prioridad}` : ""}`.trim() || "—", href: `/tareas/${t.id}`, foto: primeraFoto(t.fotografias), iniciales: "✔", gradiente: "linear-gradient(135deg,#0e8f86,#0b5c56)" })));
 
-      const { data: acc } = await supabase.from("accidentes").select("id, folio, tipo_hecho, direccion, fotografias, creado_en").eq("estatus", "activo").order("creado_en", { ascending: false }).limit(3);
-      setAccidentes(((acc as any[]) ?? []).map((a) => ({ id: a.id, titulo: a.tipo_hecho ?? "Accidente vial", sub: a.direccion ?? a.folio ?? "—", href: `/accidentes/${a.id}`, foto: primeraFoto(a.fotografias), iniciales: "🚗", gradiente: "linear-gradient(135deg,#8a5a00,#5c3c00)" })));
+      // Últimos rondines (con o sin novedad).
+      const { data: ro } = await supabase.from("rondines")
+        .select("id, novedad, creado_en, punto:puntos_control(nombre, sitio:sitios(nombre))")
+        .eq("estatus", "activo").order("creado_en", { ascending: false }).limit(3);
+      setRondines(((ro as any[]) ?? []).map((r) => {
+        const nov = r.novedad && r.novedad.trim() && r.novedad.trim().toLowerCase() !== "sin novedad";
+        const punto = r.punto?.nombre ? `${r.punto.nombre}${r.punto.sitio?.nombre ? ` · ${r.punto.sitio.nombre}` : ""}` : "Punto de control";
+        return { id: r.id, titulo: nov ? r.novedad : "Sin novedad", sub: `${punto} · ${new Date(r.creado_en).toLocaleString()}`, href: `/rondines`, foto: null, iniciales: nov ? "⚠" : "🔁", gradiente: nov ? "linear-gradient(135deg,#c62828,#7f1616)" : "linear-gradient(135deg,#546e7a,#37474f)" };
+      }));
 
-      // Mapa: SOLO reportes abiertos (aún en atención), coloreados por prioridad, del más reciente al más antiguo.
+      // Mapa: emergencias / despachos abiertos (incluye alertas de pánico del móvil).
       const { data: cad } = await supabase.from("llamadas_cad")
         .select("id, folio, tipo, direccion, prioridad, latitud, longitud, fecha_recepcion")
         .eq("estatus", "activo").in("estado_despacho", ["recibida", "despachada", "en_atencion"])
@@ -225,17 +245,17 @@ export default function Panel({ correo }: { correo?: string | null }) {
 
       <div className="dash-lower2">
         <div>
-          <Galeria titulo="Últimos 3 incidentes" items={incidentes} vacio="Sin incidentes." />
-          <Galeria titulo="Últimos 3 detenidos" items={detenidos} vacio="Sin registros de custodia." />
-          <Galeria titulo="Últimos 3 abordamientos" items={abordamientos} vacio="Sin abordamientos." />
-          <Galeria titulo="Últimos 3 accidentes viales" items={accidentes} vacio="Sin accidentes." />
+          <Galeria titulo="Últimos 3 guardias" items={guardias} vacio="Sin guardias." />
+          <Galeria titulo="Últimas 3 evidencias" items={evidencias} vacio="Sin evidencias." />
+          <Galeria titulo="Últimas 3 tareas" items={tareas} vacio="Sin tareas." />
+          <Galeria titulo="Últimos 3 rondines" items={rondines} vacio="Sin rondines." />
         </div>
 
         <div>
-          <div className="dash-eyebrow">Reportes abiertos · mapa</div>
+          <div className="dash-eyebrow">Emergencias / despachos abiertos · mapa</div>
           <div className="mapcard">
             <div className="maphead">
-              <span className="t">Reportes abiertos</span>
+              <span className="t">Emergencias / despachos abiertos</span>
               <span className="maplegend">
                 <span className="lg"><span className="mdot" style={{ background: PRIO_COLOR.alta }}></span>Alta</span>
                 <span className="lg"><span className="mdot" style={{ background: PRIO_COLOR.media }}></span>Media</span>
@@ -251,7 +271,7 @@ export default function Panel({ correo }: { correo?: string | null }) {
                   <span style={{ color: "var(--sc-text-soft)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} dangerouslySetInnerHTML={{ __html: r.titulo }} />
                 </Link>
               ))}
-              {!cargando && reportes.length === 0 && <p className="dash-sub" style={{ padding: "10px 16px" }}>No hay reportes abiertos con coordenadas.</p>}
+              {!cargando && reportes.length === 0 && <p className="dash-sub" style={{ padding: "10px 16px" }}>No hay emergencias ni despachos abiertos con coordenadas.</p>}
             </div>
           </div>
         </div>

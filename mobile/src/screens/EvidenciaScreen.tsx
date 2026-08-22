@@ -27,6 +27,7 @@ import {
 import * as FileSystem from "expo-file-system/legacy";
 import { decode } from "base64-arraybuffer";
 import { supabase, BUCKET_FOTOS } from "../lib/supabase";
+import BodycamBoton from "../components/BodycamBoton";
 import { T, UI } from "../theme";
 
 type Kind = "foto" | "video" | "audio" | "documento";
@@ -284,6 +285,10 @@ export default function EvidenciaScreen() {
             {recState.isRecording ? `Grabando… ${seg}s (tocar para detener)` : "Grabar audio"}
           </Text>
         </TouchableOpacity>
+
+        {/* Bodycam HD en segundo plano (solo build Android): el video se descarga
+            luego como evidencia independiente con cadena de custodia. */}
+        <BodycamBoton style={{ marginTop: 10 }} />
 
         {/* Medios agregados */}
         {medios.length > 0 && (

@@ -9,6 +9,9 @@ export interface ConfigSistema {
   domicilio: string | null;
   telefono: string | null;
   correo: string | null;
+  gps_activo: boolean;
+  gps_intervalo_seg: number;
+  gps_ventana_seg: number;
 }
 
 let cache: ConfigSistema | null = null;

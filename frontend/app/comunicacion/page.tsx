@@ -11,6 +11,7 @@ export default function ComunicacionPage() {
         titulo: "Equipo de comunicación",
         subtitulo: "Radios, celulares y equipo de enlace",
         placeholderBuscar: "Buscar folio, tipo, marca, serie…",
+        categoria: "tipo_comunicacion",
         tipos: [
           { v: "radio", label: "Radio" },
           { v: "celular", label: "Celular" },

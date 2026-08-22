@@ -36,6 +36,43 @@ export interface PatrullaMapa {
   longitud: number;
 }
 
+// Guardia con la app móvil, posición en vivo. Se dibuja en una capa aparte que
+// se actualiza en cada ping sin reconstruir el mapa (no reinicia el zoom).
+export interface GuardiaMapa {
+  personal_id: string;
+  etiqueta: string | null;
+  unidad?: string | null;
+  latitud: number;
+  longitud: number;
+  actualizado_en?: string | null;
+}
+
+// "hace N s / min" a partir de una marca de tiempo ISO.
+function hace(iso?: string | null): string {
+  if (!iso) return "";
+  const s = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
+  if (s < 60) return `hace ${s} s`;
+  const m = Math.round(s / 60);
+  return m < 60 ? `hace ${m} min` : `hace ${Math.round(m / 60)} h`;
+}
+
+// Pinta/actualiza los guardias en su capa (punto azul con anillo blanco).
+function pintarGuardias(L: any, layer: any, guardias: GuardiaMapa[]): void {
+  if (!layer) return;
+  layer.clearLayers();
+  guardias.forEach((g) => {
+    const m = L.circleMarker([g.latitud, g.longitud], {
+      radius: 7,
+      color: "#ffffff",
+      weight: 2,
+      fillColor: "#1e88e5",
+      fillOpacity: 1,
+    }).addTo(layer);
+    const sub = [g.unidad ? `📍 ${g.unidad}` : "", hace(g.actualizado_en)].filter(Boolean).join(" · ");
+    m.bindPopup(`👷 <b>${g.etiqueta ?? "Guardia"}</b>${sub ? `<br>${sub}` : ""}`);
+  });
+}
+
 let leafletPromise: Promise<any> | null = null;
 function cargarLeaflet(): Promise<any> {
   if (typeof window === "undefined") return Promise.reject();
@@ -62,14 +99,18 @@ function cargarLeaflet(): Promise<any> {
 export default function MapaReportes({
   reportes,
   patrullas = [],
+  guardias = [],
   className = "mapbox",
 }: {
   reportes: ReporteMapa[];
   patrullas?: PatrullaMapa[];
+  guardias?: GuardiaMapa[];
   className?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
+  const guardiasRef = useRef<GuardiaMapa[]>(guardias);
+  const guardiasLayerRef = useRef<any>(null);
 
   useEffect(() => {
     let cancelado = false;
@@ -116,6 +157,11 @@ export default function MapaReportes({
           bounds.push([p.latitud, p.longitud]);
         });
 
+        // Guardias en vivo: capa propia (se repinta en cada ping sin rehacer
+        // el mapa). Se pinta desde el ref para sobrevivir a la reconstrucción.
+        guardiasLayerRef.current = L.layerGroup().addTo(map);
+        pintarGuardias(L, guardiasLayerRef.current, guardiasRef.current);
+
         if (bounds.length > 1) map.fitBounds(bounds, { padding: [30, 30] });
         setTimeout(() => map.invalidateSize(), 100);
       })
@@ -128,6 +174,16 @@ export default function MapaReportes({
       }
     };
   }, [reportes, patrullas]);
+
+  // Guardias en vivo: repinta solo su capa cuando llegan nuevas posiciones,
+  // sin tocar el mapa base ni el zoom actual.
+  useEffect(() => {
+    guardiasRef.current = guardias;
+    const L = (window as any).L;
+    if (L && mapRef.current && guardiasLayerRef.current) {
+      pintarGuardias(L, guardiasLayerRef.current, guardias);
+    }
+  }, [guardias]);
 
   return <div ref={ref} className={className} />;
 }

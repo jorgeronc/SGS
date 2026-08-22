@@ -12,6 +12,7 @@ import type { Session } from "@supabase/supabase-js";
 
 import { supabase } from "./src/lib/supabase";
 import { registrarPush } from "./src/lib/push";
+import { iniciarRastreo, detenerRastreo } from "./src/lib/ubicacionVivo";
 import type { RootStackParamList, TabParamList } from "./src/types";
 import { T } from "./src/theme";
 import LoginScreen from "./src/screens/LoginScreen";
@@ -111,6 +112,15 @@ export default function App() {
     return () => respSub.remove();
   }, [session]);
 
+  // Rastreo GPS: arranca al haber sesión (si hay "Mi elemento" y gps_activo);
+  // se detiene al cerrar sesión. iniciarRastreo es idempotente y no rastrea si
+  // no hay elemento seleccionado (Perfil lo dispara al elegirlo).
+  const logueado = !!session;
+  useEffect(() => {
+    if (logueado) iniciarRastreo();
+    else detenerRastreo();
+  }, [logueado]);
+
   const contenido = cargando ? (
     <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: T.bg }}>
       <ActivityIndicator size="large" color={T.accent} />
@@ -149,7 +159,7 @@ export default function App() {
         {contenido}
         {intro && (
           <Animated.View style={[styles.intro, { opacity: introOpacity }]} pointerEvents="none">
-            <Image source={require("./assets/intro.png")} style={styles.introImg} resizeMode="contain" />
+            <Image source={require("./assets/intro.jpg")} style={styles.introImg} resizeMode="cover" />
           </Animated.View>
         )}
       </View>

@@ -14,21 +14,15 @@ export interface AccesoDef {
 }
 
 export const ACCESOS_DISPONIBLES: AccesoDef[] = [
-  { key: "consultar", label: "Consultar", icon: "search", ruta: "Buscar" },
-  { key: "evidencia", label: "Evidencia", icon: "camera", ruta: "Evidencia" },
-  { key: "incidentes_asignados", label: "Incidentes asignados", icon: "clipboard", ruta: "Despachos" },
-  { key: "mis_incidentes", label: "Mis incidentes", icon: "list", ruta: "MisIncidentes" },
+  { key: "rondin", label: "Registrar rondín", icon: "qr-code", ruta: "Rondin" },
+  { key: "evidencia", label: "Nueva evidencia", icon: "camera", ruta: "Evidencia" },
   { key: "tareas", label: "Mis tareas", icon: "clipboard-outline", ruta: "Tareas" },
-  { key: "alertas", label: "Alertas", icon: "notifications", ruta: "Alertas" },
-  { key: "informe_policial", label: "Nuevo Informe Policial", icon: "document-text", ruta: "NuevoIncidente" },
-  { key: "informe_accidente", label: "Nuevo Informe Accidente", icon: "car", ruta: "Accidente" },
-  { key: "abordamiento", label: "Abordamiento", icon: "hand-left", ruta: "Abordamiento" },
-  { key: "incidentes_abiertos", label: "Incidentes abiertos", icon: "location", ruta: "Ubicacion" },
-  { key: "nuevo", label: "Nuevo registro", icon: "add-circle", ruta: "Nuevo" },
+  { key: "chat", label: "Chat", icon: "chatbubbles", ruta: "Chat" },
+  { key: "consultar", label: "Consultar", icon: "search", ruta: "Buscar" },
 ];
 
 export const MAX_ACCESOS = 8;
-const DEFAULT_KEYS = ["nuevo", "consultar", "tareas", "evidencia", "incidentes_abiertos"];
+const DEFAULT_KEYS = ["rondin", "evidencia", "tareas", "chat", "consultar"];
 const KEY = "scp_accesos_rapidos";
 
 export function accesoPorKey(key: string): AccesoDef | undefined {
