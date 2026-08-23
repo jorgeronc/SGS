@@ -76,6 +76,7 @@ export default function SupervisionPage() {
   })), [pasos]);
 
   const novedades = pasos.filter((p) => conNovedad(p.novedad)).length;
+  const guardiaNom = useMemo(() => nombreGuardia(guardias.find((g) => g.id === guardiaId)), [guardias, guardiaId]);
   const pdfHref = guardiaId ? `/supervision/imprimir?guardia=${guardiaId}&fecha=${fecha}` : "#";
 
   return (
@@ -123,25 +124,29 @@ export default function SupervisionPage() {
             <MapaReportes reportes={reportes} ruta={ruta} className="mapbox-dash" />
           </div>
 
-          <h3 style={{ marginTop: 18 }}>Lecturas de puntos de control</h3>
-          {pasos.length === 0 ? (
-            <p className="dash-sub">Sin lecturas de rondín para este guardia en la fecha seleccionada.</p>
-          ) : (
-            <table>
-              <thead><tr><th>#</th><th>Hora</th><th>Punto</th><th>Sitio</th><th>Novedad</th></tr></thead>
-              <tbody>
+          {/* Historial del recorrido en línea de tiempo (mismo estilo que el
+              historial de atención de un despacho en Central/Despacho). */}
+          <section style={{ marginTop: 18 }}>
+            <h3>🕓 Historial del recorrido{guardiaNom && guardiaNom !== "—" ? ` — ${guardiaNom}` : ""}</h3>
+            {pasos.length === 0 ? (
+              <p className="dash-sub">Sin lecturas de rondín para este guardia en la fecha seleccionada.</p>
+            ) : (
+              <ol className="cad-timeline">
                 {pasos.map((p, i) => (
-                  <tr key={p.id}>
-                    <td>{i + 1}</td>
-                    <td>{new Date(p.fecha_hora).toLocaleTimeString()}</td>
-                    <td>{p.punto}</td>
-                    <td>{p.sitio}</td>
-                    <td style={conNovedad(p.novedad) ? { color: "#b00020", fontWeight: 600 } : { color: "#777" }}>{p.novedad ?? "Sin novedad"}</td>
-                  </tr>
+                  <li key={p.id} className="cad-tl-item">
+                    <span className="cad-tl-dot" style={conNovedad(p.novedad) ? { background: "#d32f2f" } : undefined} />
+                    <div className="cad-tl-body">
+                      <span className="cad-tl-estado">{i + 1}. {p.punto}{p.sitio ? ` · ${p.sitio}` : ""}</span>
+                      <span className="cad-tl-meta">
+                        {new Date(p.fecha_hora).toLocaleString()}
+                        {conNovedad(p.novedad) ? ` · ⚠ ${p.novedad}` : " · Sin novedad"}
+                      </span>
+                    </div>
+                  </li>
                 ))}
-              </tbody>
-            </table>
-          )}
+              </ol>
+            )}
+          </section>
         </>
       )}
     </main>
