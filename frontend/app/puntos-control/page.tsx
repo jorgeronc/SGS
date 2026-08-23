@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { QRCodeSVG } from "qrcode.react";
 import { supabase } from "@/lib/supabaseClient";
 import ListaMaestra from "@/app/components/ListaMaestra";
 
@@ -54,6 +55,9 @@ function NuevoPunto({ onCreado }: { onCreado: () => void }) {
       </div>
       {sitios.length === 0 && <p className="dash-sub">Primero registra un sitio.</p>}
       {error && <p style={{ color: "#b00020" }}>{error}</p>}
+      <p style={{ marginTop: 8 }}>
+        <a href="/puntos-control/imprimir" target="_blank" rel="noopener noreferrer" className="qbtn2">🖨️ Imprimir todos los códigos QR ↗</a>
+      </p>
     </form>
   );
 }
@@ -89,7 +93,17 @@ export default function PuntosControlPage() {
             <dt>Orden</dt><dd>{r.orden ?? "—"}</dd>
             <dt>Descripción</dt><dd>{r.descripcion ?? "—"}</dd>
           </dl>
-          <p style={{ marginTop: 10 }}><Link href="/rondines" className="qbtn2">▤ Ver rondines →</Link></p>
+          {r.estatus === "activo" && r.codigo && (
+            <div style={{ marginTop: 12, textAlign: "center", padding: 12, border: "1px solid var(--sc-card-line)", borderRadius: 8 }}>
+              <QRCodeSVG value={r.codigo} size={160} includeMargin level="M" />
+              <div style={{ fontSize: 12, color: "#666", marginTop: 6 }}>Escanéalo desde la app en el rondín</div>
+            </div>
+          )}
+          <p style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <a href={`/puntos-control/imprimir?punto=${r.id}`} target="_blank" rel="noopener noreferrer" className="qbtn2">🖨️ Imprimir este QR ↗</a>
+            {r.sitio_id && <a href={`/puntos-control/imprimir?sitio=${r.sitio_id}`} target="_blank" rel="noopener noreferrer" className="qbtn2">🖨️ Imprimir QR del sitio ↗</a>}
+            <Link href="/rondines" className="qbtn2">▤ Ver rondines →</Link>
+          </p>
         </>
       )}
       editar={[
