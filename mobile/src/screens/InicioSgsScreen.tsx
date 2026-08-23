@@ -135,7 +135,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingTop: 6, paddingBottom: 12,
     borderBottomWidth: 1, borderBottomColor: T.borderSoft,
   },
-  logo: { width: 30, height: 34 },
+  logo: { width: 40, height: 40, backgroundColor: "#fff", borderRadius: 9, padding: 4 },
   marca: { color: T.text, fontSize: 17, fontWeight: "800" },
   headerRight: { flex: 1, flexDirection: "row", justifyContent: "flex-end", alignItems: "center", gap: 8 },
   pill: {
