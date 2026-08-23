@@ -141,9 +141,8 @@ export default function MapaReportes({
             ? L.marker([r.latitud, r.longitud], { icon: pinColor(L, r.color) })
             : L.marker([r.latitud, r.longitud])
           ).addTo(map);
-          m.bindPopup(
-            `<b>${r.folio ?? "s/folio"}</b><br>${r.titulo}<br><a href="${r.href}">Abrir registro →</a>`
-          );
+          const enlace = r.href && r.href !== "#" ? `<br><a href="${r.href}">Abrir registro →</a>` : "";
+          m.bindPopup(`<b>${r.folio ?? "s/folio"}</b><br>${r.titulo}${enlace}`);
           bounds.push([r.latitud, r.longitud]);
         });
 

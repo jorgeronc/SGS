@@ -45,6 +45,7 @@ export type RootStackParamList = {
 export type TabParamList = {
   Inicio: undefined;
   Buscar: undefined;
+  Supervision: undefined;
   Rondin: undefined;
   Chat: undefined;
   Perfil: undefined;

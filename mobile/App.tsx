@@ -26,6 +26,7 @@ import EvidenciaScreen from "./src/screens/EvidenciaScreen";
 import IncidenteScreen from "./src/screens/IncidenteScreen";
 import TransmisionScreen from "./src/screens/TransmisionScreen";
 import TareasScreen from "./src/screens/TareasScreen";
+import SupervisionScreen from "./src/screens/SupervisionScreen";
 import ChatScreen from "./src/screens/ChatScreen";
 import ChatCanalScreen from "./src/screens/ChatCanalScreen";
 
@@ -43,6 +44,7 @@ function abrirDesdeNotificacion(data: any) {
 const ICONO: Record<keyof TabParamList, { on: keyof typeof Ionicons.glyphMap; off: keyof typeof Ionicons.glyphMap }> = {
   Inicio: { on: "home", off: "home-outline" },
   Buscar: { on: "search", off: "search-outline" },
+  Supervision: { on: "eye", off: "eye-outline" },
   Rondin: { on: "qr-code", off: "qr-code-outline" },
   Chat: { on: "chatbubbles", off: "chatbubbles-outline" },
   Perfil: { on: "person", off: "person-outline" },
@@ -68,6 +70,7 @@ function Tabs() {
     >
       <Tab.Screen name="Inicio" component={InicioSgsScreen} />
       {mando && <Tab.Screen name="Buscar" component={BuscarScreen} />}
+      {mando && <Tab.Screen name="Supervision" component={SupervisionScreen} options={{ tabBarLabel: "Superv." }} />}
       <Tab.Screen name="Rondin" component={RondinScreen} options={{ tabBarLabel: "Rondín" }} />
       <Tab.Screen name="Chat" component={ChatScreen} />
       <Tab.Screen name="Perfil" component={PerfilScreen} />

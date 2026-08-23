@@ -13,7 +13,7 @@ declare
   v_persona  uuid;
   v_guardia  uuid;
   v_punto    uuid;
-  v_user     uuid := gen_random_uuid();   -- user_id ficticio para recorrido_gps (demo)
+  v_user     uuid := '00000000-0000-0000-0000-0000000000de';   -- user_id fijo (demo) para recorrido_gps
   d          date;
   i          int;
   k          int;
@@ -63,28 +63,32 @@ begin
 
   -- 4) Rondines + trayecto GPS de AYER y ANTIER ----------------------------------
   foreach d in array array[current_date - 1, current_date - 2] loop
-    -- Rondines (una lectura por punto, en orden, cada 12 min desde las 20:00).
-    if not exists (select 1 from rondines where personal_id = v_guardia and fecha_hora::date = d) then
+    -- Rondines (una lectura por punto, en orden, cada 12 min desde las 12:00;
+    -- mediodía evita cruces de medianoche por zona horaria en los filtros).
+    -- Se marcan como demo para no chocar con rondines reales del mismo día.
+    if not exists (select 1 from rondines where personal_id = v_guardia and fecha_hora::date = d
+                     and (datos_adicionales->>'demo') = 'true') then
       for i in 1..8 loop
-        insert into rondines (punto_id, personal_id, fecha_hora, latitud, longitud, novedad)
+        insert into rondines (punto_id, personal_id, fecha_hora, latitud, longitud, novedad, datos_adicionales)
           values (punto_ids[i], v_guardia,
-                  (d + time '20:00') + ((i-1) * interval '12 min'),
-                  lats[i], lngs[i], novs[i]);
+                  (d + time '12:00') + ((i-1) * interval '12 min'),
+                  lats[i], lngs[i], novs[i], '{"demo": true}'::jsonb);
       end loop;
     end if;
 
     -- Trayecto GPS: puntos en cada checkpoint + interpolados hacia el siguiente.
-    if not exists (select 1 from recorrido_gps where personal_id = v_guardia and fecha_hora::date = d) then
+    if not exists (select 1 from recorrido_gps where personal_id = v_guardia and fecha_hora::date = d
+                     and user_id = v_user) then
       for i in 1..8 loop
         insert into recorrido_gps (personal_id, user_id, latitud, longitud, fecha_hora)
-          values (v_guardia, v_user, lats[i], lngs[i], (d + time '20:00') + ((i-1) * interval '12 min'));
+          values (v_guardia, v_user, lats[i], lngs[i], (d + time '12:00') + ((i-1) * interval '12 min'));
         if i < 8 then
           for k in 1..3 loop
             insert into recorrido_gps (personal_id, user_id, latitud, longitud, fecha_hora)
               values (v_guardia, v_user,
                       lats[i] + (lats[i+1] - lats[i]) * k / 4.0,
                       lngs[i] + (lngs[i+1] - lngs[i]) * k / 4.0,
-                      (d + time '20:00') + ((i-1) * interval '12 min') + (k * interval '3 min'));
+                      (d + time '12:00') + ((i-1) * interval '12 min') + (k * interval '3 min'));
           end loop;
         end if;
       end loop;
