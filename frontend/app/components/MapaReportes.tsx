@@ -100,11 +100,14 @@ export default function MapaReportes({
   reportes,
   patrullas = [],
   guardias = [],
+  ruta = [],
   className = "mapbox",
 }: {
   reportes: ReporteMapa[];
   patrullas?: PatrullaMapa[];
   guardias?: GuardiaMapa[];
+  // Trayecto (polilínea) del recorrido GPS: pares [lat, lng] en orden cronológico.
+  ruta?: [number, number][];
   className?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -157,6 +160,12 @@ export default function MapaReportes({
           bounds.push([p.latitud, p.longitud]);
         });
 
+        // Trayecto (recorrido GPS): polilínea en orden cronológico.
+        if (ruta.length > 1) {
+          L.polyline(ruta, { color: "#1e88e5", weight: 4, opacity: 0.8 }).addTo(map);
+          ruta.forEach((p) => bounds.push([p[0], p[1]]));
+        }
+
         // Guardias en vivo: capa propia (se repinta en cada ping sin rehacer
         // el mapa). Se pinta desde el ref para sobrevivir a la reconstrucción.
         guardiasLayerRef.current = L.layerGroup().addTo(map);
@@ -173,7 +182,7 @@ export default function MapaReportes({
         mapRef.current = null;
       }
     };
-  }, [reportes, patrullas]);
+  }, [reportes, patrullas, ruta]);
 
   // Guardias en vivo: repinta solo su capa cuando llegan nuevas posiciones,
   // sin tocar el mapa base ni el zoom actual.

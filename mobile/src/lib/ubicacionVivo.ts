@@ -25,6 +25,7 @@ async function reportar(loc: Location.LocationObject): Promise<void> {
   const raw = await AsyncStorage.getItem(IDENT_KEY);
   if (!raw) return;
   const id = JSON.parse(raw) as Ident;
+  // Última posición viva (upsert) para el mapa de monitoreo.
   await supabase.from("ubicaciones_guardias").upsert(
     {
       personal_id: id.personalId,
@@ -41,6 +42,16 @@ async function reportar(loc: Location.LocationObject): Promise<void> {
     },
     { onConflict: "personal_id" }
   );
+  // Historial acumulado (trayecto) para supervisar el recorrido del rondín.
+  await supabase.from("recorrido_gps").insert({
+    personal_id: id.personalId,
+    user_id: id.userId,
+    latitud: loc.coords.latitude,
+    longitud: loc.coords.longitude,
+    precision_m: loc.coords.accuracy ?? null,
+    rumbo: loc.coords.heading ?? null,
+    velocidad: loc.coords.speed ?? null,
+  }).then(() => {}, () => {});
 }
 
 // Tarea de fondo (debe definirse a nivel de módulo, no dentro de un componente).
