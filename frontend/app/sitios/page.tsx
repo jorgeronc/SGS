@@ -5,6 +5,8 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import ListaMaestra from "@/app/components/ListaMaestra";
 import { CatalogoSelect } from "@/app/components/CatalogoSelect";
+import DireccionGeocode from "@/app/components/DireccionGeocode";
+import { getConfig } from "@/lib/config";
 
 const TIPOS = [
   "Corporativo / oficinas", "Residencial", "Industrial / planta", "Comercial / retail",
@@ -15,7 +17,8 @@ const TIPOS = [
 // cliente. Aquí se asignan guardias y turnos (módulos siguientes).
 function NuevoSitio({ onCreado }: { onCreado: () => void }) {
   const [clientes, setClientes] = useState<{ id: string; razon_social: string }[]>([]);
-  const [f, setF] = useState({ cliente_id: "", nombre: "", tipo: "", direccion: "", num_guardias: "", horario: "" });
+  const [f, setF] = useState({ cliente_id: "", nombre: "", tipo: "", direccion: "", lat: "", lng: "", num_guardias: "", horario: "" });
+  const [jur, setJur] = useState(""); const [paisJur, setPaisJur] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [creando, setCreando] = useState(false);
   const set = (k: string, v: string) => setF((p) => ({ ...p, [k]: v }));
@@ -23,6 +26,7 @@ function NuevoSitio({ onCreado }: { onCreado: () => void }) {
   useEffect(() => {
     supabase.from("clientes").select("id, razon_social").eq("estatus", "activo").order("razon_social")
       .then(({ data }) => setClientes((data as any[]) ?? []));
+    getConfig().then((c) => { if (c) { setJur(c.jurisdiccion ?? ""); setPaisJur(c.jurisdiccion_pais ?? ""); } });
   }, []);
 
   async function crear(e: React.FormEvent) {
@@ -36,6 +40,8 @@ function NuevoSitio({ onCreado }: { onCreado: () => void }) {
       nombre: f.nombre.trim(),
       tipo: f.tipo || null,
       direccion: f.direccion || null,
+      latitud: f.lat ? Number(f.lat) : null,
+      longitud: f.lng ? Number(f.lng) : null,
       num_guardias: f.num_guardias ? Number(f.num_guardias) : null,
       horario: f.horario || null,
     });
@@ -54,8 +60,11 @@ function NuevoSitio({ onCreado }: { onCreado: () => void }) {
         <input placeholder="Nombre del sitio" value={f.nombre} onChange={(e) => set("nombre", e.target.value)} required />
         <CatalogoSelect categoria="tipo_sitio" value={f.tipo} onChange={(v) => set("tipo", v)} placeholder="— Tipo —" />
       </div>
-      <div className="form-fila">
-        <input placeholder="Dirección" value={f.direccion} onChange={(e) => set("direccion", e.target.value)} style={{ flex: 2 }} />
+      <label className="dash-sub" style={{ display: "block", marginTop: 6 }}>Ubicación del sitio (búscala en el mapa para georreferenciarla)</label>
+      <DireccionGeocode direccion={f.direccion} lat={f.lat} lng={f.lng}
+        onDireccion={(v) => set("direccion", v)} onCoords={(la, lo) => setF((p) => ({ ...p, lat: la, lng: lo }))}
+        jurisdiccion={jur} pais={paisJur} size={80} />
+      <div className="form-fila" style={{ marginTop: 6 }}>
         <input placeholder="No. de guardias" type="number" min={0} value={f.num_guardias} onChange={(e) => set("num_guardias", e.target.value)} />
         <input placeholder="Horario (ej. 24/7)" value={f.horario} onChange={(e) => set("horario", e.target.value)} />
         <button type="submit" disabled={creando}>{creando ? "Creando…" : "Agregar sitio"}</button>
@@ -73,7 +82,7 @@ export default function SitiosPage() {
       subtitulo="Puestos de servicio (por cliente); ahí se asignan guardias y turnos"
       tabla="sitios"
       modulo="sitios"
-      select="id, folio, cliente_id, nombre, tipo, direccion, referencia, num_guardias, horario, estatus, creado_en, cliente:clientes(razon_social)"
+      select="id, folio, cliente_id, nombre, tipo, direccion, referencia, latitud, longitud, num_guardias, horario, estatus, creado_en, cliente:clientes(razon_social)"
       placeholderBuscar="Buscar sitio, cliente, dirección…"
       columnas={[
         { header: "Folio", celda: (r) => r.folio ?? "—" },
@@ -105,6 +114,8 @@ export default function SitiosPage() {
         { campo: "tipo", label: "Tipo", tipo: "select", opciones: TIPOS },
         { campo: "direccion", label: "Dirección" },
         { campo: "referencia", label: "Referencia" },
+        { campo: "latitud", label: "Latitud", tipo: "number" },
+        { campo: "longitud", label: "Longitud", tipo: "number" },
         { campo: "num_guardias", label: "No. de guardias", tipo: "number" },
         { campo: "horario", label: "Horario" },
         { campo: "notas", label: "Notas", tipo: "textarea" },

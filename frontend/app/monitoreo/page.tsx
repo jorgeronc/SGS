@@ -1,52 +1,64 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import MapaReportes, { type ReporteMapa } from "@/app/components/MapaReportes";
+import { useCallback, useEffect, useState } from "react";
+import MapaMonitoreo, { COL, type MSitio, type MPunto, type MIncidente } from "@/app/components/MapaMonitoreo";
 import { supabase } from "@/lib/supabaseClient";
 import { useGuardiasEnLinea } from "@/lib/guardiasVivo";
 
-// Monitoreo: mapa de sitios/puestos (pines naranja SGS) con los guardias que
-// están reportando ubicación en vivo (puntos azules). Solo mandos ven guardias
-// (la RLS de ubicaciones_guardias filtra por rol); a otros la capa llega vacía.
+// Monitoreo: mapa con sitios, puntos de control, guardias en vivo (GPS) e
+// incidencias/alertas abiertas — cada tipo con su color y puntero. Refresco
+// automático cada minuto SIN mover el mapa (el operador conserva su foco/zoom).
 export default function MonitoreoPage() {
-  const [sitios, setSitios] = useState<ReporteMapa[]>([]);
+  const [sitios, setSitios] = useState<MSitio[]>([]);
+  const [puntos, setPuntos] = useState<MPunto[]>([]);
+  const [incidentes, setIncidentes] = useState<MIncidente[]>([]);
+  const [actualizado, setActualizado] = useState<Date | null>(null);
   const guardias = useGuardiasEnLinea();
 
-  async function cargar() {
-    const { data } = await supabase.from("sitios")
-      .select("id, folio, nombre, direccion, latitud, longitud")
-      .eq("estatus", "activo").not("latitud", "is", null).not("longitud", "is", null);
-    setSitios(((data as any[]) ?? []).map((s) => ({
-      id: s.id, folio: s.folio ?? null,
-      titulo: `${s.nombre ?? "Sitio"}${s.direccion ? `<br>${s.direccion}` : ""}`,
-      latitud: Number(s.latitud), longitud: Number(s.longitud),
-      href: `/sitios/${s.id}`, color: "#f4a03f", // naranja SGS
-    })));
-  }
+  const cargar = useCallback(async () => {
+    const [{ data: s }, { data: p }, { data: i }] = await Promise.all([
+      supabase.from("sitios").select("id, nombre, latitud, longitud, cliente:clientes(razon_social)")
+        .eq("estatus", "activo").not("latitud", "is", null).not("longitud", "is", null),
+      supabase.from("puntos_control").select("id, nombre, codigo, latitud, longitud, sitio:sitios(nombre)")
+        .eq("estatus", "activo").not("latitud", "is", null).not("longitud", "is", null),
+      supabase.from("llamadas_cad").select("id, folio, tipo, prioridad, direccion, latitud, longitud")
+        .eq("estatus", "activo").in("estado_despacho", ["recibida", "despachada", "en_atencion"])
+        .not("latitud", "is", null).not("longitud", "is", null),
+    ]);
+    setSitios(((s as any[]) ?? []).map((x) => ({ id: x.id, nombre: x.nombre ?? "Sitio", cliente: x.cliente?.razon_social ?? null, latitud: Number(x.latitud), longitud: Number(x.longitud), href: `/sitios/${x.id}` })));
+    setPuntos(((p as any[]) ?? []).map((x) => ({ id: x.id, nombre: x.nombre ?? "Punto", sitio: x.sitio?.nombre ?? null, codigo: x.codigo ?? null, latitud: Number(x.latitud), longitud: Number(x.longitud) })));
+    setIncidentes(((i as any[]) ?? []).map((x) => ({ id: x.id, folio: x.folio, tipo: x.tipo, prioridad: x.prioridad, direccion: x.direccion, latitud: Number(x.latitud), longitud: Number(x.longitud), href: `/cad/${x.id}` })));
+    setActualizado(new Date());
+  }, []);
 
   useEffect(() => {
     cargar();
-    const t = setInterval(cargar, 30000);
+    const t = setInterval(cargar, 60000); // refresco automático cada minuto
     return () => clearInterval(t);
-  }, []);
+  }, [cargar]);
 
   return (
     <div className="cadmapa">
       <header className="cadmapa-top">
         <div className="cadmapa-title">
+          <img src="/escudo.png" alt="" className="cadmapa-escudo" />
           <div>
             <b>Monitoreo en vivo</b>
             <div className="cadmapa-meta">
-              {sitios.length} sitio{sitios.length === 1 ? "" : "s"} · {guardias.length} guardia{guardias.length === 1 ? "" : "s"} en línea
+              {sitios.length} sitios · {puntos.length} puntos · {guardias.length} guardias en línea · {incidentes.length} incidencias
+              {actualizado && ` · actualizado ${actualizado.toLocaleTimeString()}`}
             </div>
           </div>
         </div>
         <div className="cadmapa-legend">
-          <span className="cadmapa-leg"><i style={{ background: "#f4a03f" }} /> Sitio / puesto</span>
-          <span className="cadmapa-leg"><i style={{ background: "#1e88e5" }} /> Guardia en línea</span>
+          <span className="cadmapa-leg"><i style={{ background: COL.sitio, borderRadius: 2 }} /> Sitio</span>
+          <span className="cadmapa-leg"><i style={{ background: COL.punto, borderRadius: 2, transform: "rotate(45deg)" }} /> Punto de control</span>
+          <span className="cadmapa-leg"><i style={{ background: COL.guardia, borderRadius: "50%" }} /> Guardia (GPS)</span>
+          <span className="cadmapa-leg"><i style={{ background: COL.incidente, clipPath: "polygon(50% 0, 100% 100%, 0 100%)" }} /> Incidencia / alerta</span>
+          <button className="cadmapa-refresh" onClick={cargar}>↻ Actualizar</button>
         </div>
       </header>
-      <MapaReportes reportes={sitios} guardias={guardias} className="cadmapa-map" />
+      <MapaMonitoreo sitios={sitios} puntos={puntos} guardias={guardias} incidentes={incidentes} className="cadmapa-map" />
     </div>
   );
 }
