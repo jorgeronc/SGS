@@ -103,7 +103,10 @@ export default function SupervisionPage() {
 
   function toggle(k: string) { setAbiertos((s) => { const n = new Set(s); n.has(k) ? n.delete(k) : n.add(k); return n; }); }
   const novedades = pasos.filter((p) => conNovedad(p.novedad)).length;
-  const pdfHref = guardiaId ? `/supervision/imprimir?guardia=${guardiaId}&fecha=${fecha}` : "#";
+  // PDF: por guardia si hay uno elegido; si no, por sitio (todos los guardias).
+  const pdfHref = guardiaId
+    ? `/supervision/imprimir?guardia=${guardiaId}&fecha=${fecha}`
+    : sitioId ? `/supervision/imprimir?sitio=${sitioId}&fecha=${fecha}` : "#";
 
   return (
     <main className="contenedor">
@@ -134,7 +137,8 @@ export default function SupervisionPage() {
             </select>
           </label>
           <a href={pdfHref} target="_blank" rel="noopener noreferrer" className="cad-mapbtn"
-             style={{ pointerEvents: guardiaId && sitioId ? "auto" : "none", opacity: guardiaId && sitioId ? 1 : 0.5 }}>🖨️ PDF ↗</a>
+             style={{ pointerEvents: sitioId ? "auto" : "none", opacity: sitioId ? 1 : 0.5 }}
+             title={guardiaId ? "PDF del guardia" : "PDF del sitio (todos los guardias)"}>🖨️ PDF ↗</a>
         </div>
         {sitioId && (
           <div style={{ display: "flex", gap: 16, marginTop: 8, fontSize: 13, color: "#555" }}>
