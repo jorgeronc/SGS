@@ -1,47 +1,54 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
-import ListaMaestra from "@/app/components/ListaMaestra";
 import { CatalogoSelect } from "@/app/components/CatalogoSelect";
 
-const TIPOS = ["Diurno (08:00-20:00)", "Nocturno (20:00-08:00)", "24 horas", "Mixto / rolado"];
 const HORARIO: Record<string, [string, string]> = {
   "Diurno (08:00-20:00)": ["08:00", "20:00"],
   "Nocturno (20:00-08:00)": ["20:00", "08:00"],
   "24 horas": ["00:00", "23:59"],
   "Mixto / rolado": ["", ""],
 };
-const ESTADOS = ["programado", "cubierto", "falta", "relevado"];
-
 const hoyISO = () => new Date().toISOString().slice(0, 10);
-function estaSemana(fecha: string) {
-  const d = new Date(fecha + "T00:00:00");
-  const hoy = new Date(); const dia = (hoy.getDay() + 6) % 7; // lunes=0
-  const lun = new Date(hoy); lun.setDate(hoy.getDate() - dia); lun.setHours(0, 0, 0, 0);
-  const dom = new Date(lun); dom.setDate(lun.getDate() + 6); dom.setHours(23, 59, 59, 999);
-  return d >= lun && d <= dom;
+function nombre(p: any) {
+  const x = p?.persona;
+  return x ? `${x.nombre ?? ""} ${x.apellido_paterno ?? ""} ${x.apellido_materno ?? ""}`.trim() : "—";
 }
-function guardiaNombre(g: any) {
-  const p = g?.persona;
-  return p ? `${p.nombre ?? ""} ${p.apellido_paterno ?? ""} ${p.apellido_materno ?? ""}`.trim() : "—";
+function EstadoBadge({ e }: { e: string }) {
+  const c: Record<string, string> = { borrador: "#7a5c00", activo: "#0a7c2f", cerrado: "#555" };
+  return <span className={`cad-pill`} style={{ background: c[e] ?? "#607d8b", color: "#fff" }}>{e}</span>;
 }
 
-function NuevoTurno({ onCreado }: { onCreado: () => void }) {
-  const [sitios, setSitios] = useState<any[]>([]);
-  const [guardias, setGuardias] = useState<any[]>([]);
-  const [f, setF] = useState({ sitio_id: "", personal_id: "", fecha: hoyISO(), tipo_turno: "", hora_inicio: "", hora_fin: "" });
+// Rol de turnos (cabecera): un turno = supervisor + fecha + franja, con varios
+// guardias (se agregan al abrir el turno). Se crea en borrador y luego se activa.
+export default function TurnosPage() {
+  const router = useRouter();
+  const [turnos, setTurnos] = useState<any[]>([]);
+  const [supervisores, setSupervisores] = useState<any[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [f, setF] = useState({ supervisor_id: "", fecha: hoyISO(), tipo_turno: "", hora_inicio: "", hora_fin: "" });
   const [error, setError] = useState<string | null>(null);
   const [creando, setCreando] = useState(false);
   const set = (k: string, v: string) => setF((p) => ({ ...p, [k]: v }));
 
+  async function cargar() {
+    setCargando(true);
+    const { data } = await supabase.from("turnos")
+      .select("id, folio, fecha, tipo_turno, hora_inicio, hora_fin, estado, estatus, supervisor:personal!turnos_supervisor_id_fkey(persona:personas(nombre, apellido_paterno, apellido_materno)), turno_guardias(count)")
+      .eq("estatus", "activo").order("fecha", { ascending: false });
+    setTurnos((data as any[]) ?? []);
+    setCargando(false);
+  }
+
   useEffect(() => {
-    supabase.from("sitios").select("id, nombre, cliente:clientes(razon_social)").eq("estatus", "activo").order("nombre")
-      .then(({ data }) => setSitios((data as any[]) ?? []));
-    supabase.from("personal").select("id, numero_placa, categoria, persona:personas(nombre, apellido_paterno, apellido_materno)")
+    cargar();
+    supabase.from("personal").select("id, categoria, persona:personas(nombre, apellido_paterno, apellido_materno)")
       .eq("estatus", "activo").eq("estado_laboral", "activo")
-      .then(({ data }) => setGuardias((data as any[]) ?? []));
+      .then(({ data }) => setSupervisores((data as any[]) ?? []));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function pickTipo(v: string) {
@@ -52,107 +59,70 @@ function NuevoTurno({ onCreado }: { onCreado: () => void }) {
   async function crear(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!f.sitio_id) { setError("Elige el sitio."); return; }
-    if (!f.personal_id) { setError("Elige el guardia."); return; }
+    if (!f.supervisor_id) { setError("Elige el supervisor del turno."); return; }
     if (!f.fecha) { setError("Indica la fecha."); return; }
     setCreando(true);
-    const { error } = await supabase.from("turnos").insert({
-      sitio_id: f.sitio_id, personal_id: f.personal_id, fecha: f.fecha,
+    const { data, error } = await supabase.from("turnos").insert({
+      supervisor_id: f.supervisor_id, fecha: f.fecha, estado: "borrador",
       tipo_turno: f.tipo_turno || null, hora_inicio: f.hora_inicio || null, hora_fin: f.hora_fin || null,
-    });
+    }).select("id").single();
     setCreando(false);
     if (error) { setError(error.message); return; }
-    onCreado();
+    // Abre el turno para agregar los guardias.
+    router.push(`/turnos/${(data as any).id}`);
   }
 
-  return (
-    <form onSubmit={crear}>
-      <div className="form-fila">
-        <select value={f.sitio_id} onChange={(e) => set("sitio_id", e.target.value)} required style={{ flex: 2 }}>
-          <option value="">— Sitio —</option>
-          {sitios.map((s) => <option key={s.id} value={s.id}>{s.nombre}{s.cliente?.razon_social ? ` · ${s.cliente.razon_social}` : ""}</option>)}
-        </select>
-        <select value={f.personal_id} onChange={(e) => set("personal_id", e.target.value)} required style={{ flex: 2 }}>
-          <option value="">— Guardia —</option>
-          {guardias.map((g) => <option key={g.id} value={g.id}>{guardiaNombre(g)}{g.categoria ? ` · ${g.categoria}` : ""}</option>)}
-        </select>
-      </div>
-      <div className="form-fila">
-        <label className="dash-sub" style={{ display: "flex", flexDirection: "column" }}>Fecha
-          <input type="date" value={f.fecha} onChange={(e) => set("fecha", e.target.value)} required />
-        </label>
-        <CatalogoSelect categoria="tipo_turno" value={f.tipo_turno} onChange={pickTipo} placeholder="— Tipo de turno —" />
-        <label className="dash-sub" style={{ display: "flex", flexDirection: "column" }}>Inicio
-          <input type="time" value={f.hora_inicio} onChange={(e) => set("hora_inicio", e.target.value)} />
-        </label>
-        <label className="dash-sub" style={{ display: "flex", flexDirection: "column" }}>Fin
-          <input type="time" value={f.hora_fin} onChange={(e) => set("hora_fin", e.target.value)} />
-        </label>
-        <button type="submit" disabled={creando}>{creando ? "Creando…" : "Asignar turno"}</button>
-      </div>
-      {(sitios.length === 0 || guardias.length === 0) && (
-        <p className="dash-sub">Necesitas al menos un sitio y un guardia activos.</p>
-      )}
-      {error && <p style={{ color: "#b00020" }}>{error}</p>}
-    </form>
-  );
-}
+  const nGuardias = (t: any) => t.turno_guardias?.[0]?.count ?? 0;
 
-export default function TurnosPage() {
   return (
-    <ListaMaestra
-      titulo="Rol de turnos"
-      subtitulo="Asignación de guardias a sitios por fecha y turno"
-      tabla="turnos"
-      modulo="turnos"
-      orderBy="fecha"
-      select="id, fecha, tipo_turno, hora_inicio, hora_fin, estado, estatus, sitio_id, personal_id, sitio:sitios(nombre, cliente_id, cliente:clientes(razon_social)), guardia:personal(numero_placa, persona:personas(nombre, apellido_paterno, apellido_materno))"
-      placeholderBuscar="Buscar sitio, guardia, cliente…"
-      columnas={[
-        { header: "Fecha", celda: (r) => (r.fecha ? new Date(r.fecha + "T00:00:00").toLocaleDateString() : "—") },
-        { header: "Sitio", celda: (r) => r.sitio?.nombre ?? "—" },
-        { header: "Cliente", celda: (r) => r.sitio?.cliente?.razon_social ?? "—" },
-        { header: "Guardia", celda: (r) => guardiaNombre(r.guardia) },
-        { header: "Turno", celda: (r) => r.tipo_turno ?? "—" },
-        { header: "Horario", celda: (r) => (r.hora_inicio ? `${String(r.hora_inicio).slice(0, 5)}–${String(r.hora_fin ?? "").slice(0, 5)}` : "—") },
-        { header: "Estado", celda: (r) => <EstadoBadge e={r.estado} /> },
-        { header: "Estatus", celda: (r) => <span className={r.estatus === "activo" ? "badge-activo" : "badge-cancelado"}>{r.estatus}</span> },
-      ]}
-      textoBusqueda={(r) => `${r.sitio?.nombre ?? ""} ${r.sitio?.cliente?.razon_social ?? ""} ${guardiaNombre(r.guardia)} ${r.tipo_turno ?? ""}`}
-      detalleHref={(r) => `/clientes/${r.sitio?.cliente_id ?? ""}`}
-      filtros={[
-        { k: "todos", label: "Todos" },
-        { k: "hoy", label: "Hoy", test: (r) => r.fecha === hoyISO() },
-        { k: "semana", label: "Esta semana", test: (r) => !!r.fecha && estaSemana(r.fecha) },
-        { k: "programados", label: "Programados", test: (r) => r.estado === "programado" },
-        { k: "faltas", label: "Faltas", test: (r) => r.estado === "falta" },
-      ]}
-      quickView={(r) => (
-        <>
-          <h3 style={{ margin: "0 0 8px" }}>{r.sitio?.nombre ?? "Turno"} · {r.fecha ? new Date(r.fecha + "T00:00:00").toLocaleDateString() : ""}</h3>
-          <dl className="sc-kv">
-            <dt>Cliente</dt><dd>{r.sitio?.cliente?.razon_social ?? "—"}</dd>
-            <dt>Guardia</dt><dd>{guardiaNombre(r.guardia)}</dd>
-            <dt>Tipo de turno</dt><dd>{r.tipo_turno ?? "—"}</dd>
-            <dt>Horario</dt><dd>{r.hora_inicio ? `${String(r.hora_inicio).slice(0, 5)} – ${String(r.hora_fin ?? "").slice(0, 5)}` : "—"}</dd>
-            <dt>Estado</dt><dd><EstadoBadge e={r.estado} /></dd>
-          </dl>
-          {r.sitio?.cliente_id && <p style={{ marginTop: 10 }}><Link href={`/clientes/${r.sitio.cliente_id}`} className="qbtn2">▤ Ver cliente →</Link></p>}
-        </>
-      )}
-      editar={[
-        { campo: "estado", label: "Estado del turno", tipo: "select", opciones: ESTADOS },
-        { campo: "tipo_turno", label: "Tipo de turno", tipo: "select", opciones: TIPOS },
-        { campo: "hora_inicio", label: "Hora inicio (HH:MM)" },
-        { campo: "hora_fin", label: "Hora fin (HH:MM)" },
-        { campo: "notas", label: "Notas", tipo: "textarea" },
-      ]}
-      nuevo={(onCreado) => <NuevoTurno onCreado={onCreado} />}
-    />
-  );
-}
+    <main className="contenedor">
+      <h2>Rol de turnos</h2>
+      <p style={{ fontSize: 13, color: "#555" }}>Crea el turno con su supervisor; luego ábrelo para agregar los guardias y actívalo.</p>
 
-function EstadoBadge({ e }: { e: string }) {
-  const color: Record<string, string> = { programado: "#2f7cc4", cubierto: "#0a7c2f", falta: "#b00020", relevado: "#7a5c00" };
-  return <span style={{ color: color[e] ?? "#555", fontWeight: 600 }}>{e}</span>;
+      <form onSubmit={crear}>
+        <div className="dash-eyebrow">Nuevo turno</div>
+        <div className="form-fila">
+          <select value={f.supervisor_id} onChange={(e) => set("supervisor_id", e.target.value)} required style={{ flex: 2 }}>
+            <option value="">— Supervisor del turno —</option>
+            {supervisores.map((s) => <option key={s.id} value={s.id}>{nombre(s)}{s.categoria ? ` · ${s.categoria}` : ""}</option>)}
+          </select>
+          <label className="dash-sub" style={{ display: "flex", flexDirection: "column" }}>Fecha
+            <input type="date" value={f.fecha} onChange={(e) => set("fecha", e.target.value)} required />
+          </label>
+          <CatalogoSelect categoria="tipo_turno" value={f.tipo_turno} onChange={pickTipo} placeholder="— Tipo de turno —" />
+          <label className="dash-sub" style={{ display: "flex", flexDirection: "column" }}>Inicio
+            <input type="time" value={f.hora_inicio} onChange={(e) => set("hora_inicio", e.target.value)} />
+          </label>
+          <label className="dash-sub" style={{ display: "flex", flexDirection: "column" }}>Fin
+            <input type="time" value={f.hora_fin} onChange={(e) => set("hora_fin", e.target.value)} />
+          </label>
+          <button type="submit" disabled={creando}>{creando ? "Creando…" : "Crear y agregar guardias"}</button>
+        </div>
+        {supervisores.length === 0 && <p className="dash-sub">Necesitas al menos un guardia/supervisor activo.</p>}
+        {error && <p style={{ color: "#b00020" }}>{error}</p>}
+      </form>
+
+      <h3 style={{ marginTop: 18 }}>Turnos</h3>
+      {cargando ? <p>Cargando…</p> : turnos.length === 0 ? (
+        <p className="dash-sub">Aún no hay turnos.</p>
+      ) : (
+        <table>
+          <thead><tr><th>Folio</th><th>Fecha</th><th>Supervisor</th><th>Turno</th><th>Horario</th><th>Guardias</th><th>Estado</th></tr></thead>
+          <tbody>
+            {turnos.map((t) => (
+              <tr key={t.id}>
+                <td><Link href={`/turnos/${t.id}`} className="sc-folio">{t.folio ?? "s/folio"}</Link></td>
+                <td>{t.fecha ? new Date(t.fecha + "T00:00:00").toLocaleDateString() : "—"}</td>
+                <td>{nombre(t.supervisor)}</td>
+                <td>{t.tipo_turno ?? "—"}</td>
+                <td>{t.hora_inicio ? `${String(t.hora_inicio).slice(0, 5)}–${String(t.hora_fin ?? "").slice(0, 5)}` : "—"}</td>
+                <td>{nGuardias(t)}</td>
+                <td><EstadoBadge e={t.estado} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </main>
+  );
 }
