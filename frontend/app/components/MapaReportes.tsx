@@ -45,6 +45,8 @@ export interface GuardiaMapa {
   latitud: number;
   longitud: number;
   actualizado_en?: string | null;
+  estatus_servicio?: string | null;
+  motivo_pausa?: string | null;
 }
 
 // "hace N s / min" a partir de una marca de tiempo ISO.

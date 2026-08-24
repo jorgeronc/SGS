@@ -10,6 +10,7 @@ import { getMiOficial, getMiOficialValido, type MiOficial } from "../lib/oficial
 import { getMiUnidad } from "../lib/unidad";
 import { getMiBodycam } from "../lib/bodycam";
 import { ubicacionActual, panicoNuevoDespacho } from "../lib/panico";
+import { getEstatusServicio, setEstatusServicio, type EstatusServicio } from "../lib/ubicacionVivo";
 
 // Turno actual según la hora (diurno 06:00–18:00, nocturno 18:00–06:00).
 function turnoActual(): string {
@@ -22,7 +23,17 @@ export default function InicioSgsScreen() {
   const nav = useNavigation<any>();
   const [mio, setMio] = useState<MiOficial | null>(null);
   const [alertando, setAlertando] = useState(false);
-  useFocusEffect(useCallback(() => { getMiOficial().then(setMio); }, []));
+  const [estatus, setEstatus] = useState<EstatusServicio>("en_servicio");
+  const [motivoPausa, setMotivoPausa] = useState<string | null>(null);
+  useFocusEffect(useCallback(() => {
+    getMiOficial().then(setMio);
+    getEstatusServicio().then((e) => { setEstatus(e.estatus); setMotivoPausa(e.motivo); });
+  }, []));
+
+  function cambiarEstatus(e: EstatusServicio, motivo?: string | null) {
+    setEstatus(e); setMotivoPausa(motivo ?? null);
+    setEstatusServicio(e, motivo ?? null);
+  }
 
   // Enviar alerta (pánico): crea un despacho de emergencia con la ubicación del
   // guardia y arranca la transmisión de video en vivo hacia la central.
@@ -107,6 +118,29 @@ export default function InicioSgsScreen() {
           {mio?.etiqueta ? "Turno en curso · registra tus rondines" : "Selecciona tu elemento en Perfil para operar como guardia."}
         </Text>
 
+        {enLinea && (
+          <View style={styles.estadoBox}>
+            <Text style={styles.estadoLbl}>Mi estado</Text>
+            <View style={styles.estadoRow}>
+              {([["en_servicio", "En posición", "checkmark-circle"], ["en_rondin", "En rondín", "sync-circle"], ["en_pausa", "En pausa", "pause-circle"]] as const).map(([k, lbl, ic]) => (
+                <TouchableOpacity key={k} style={[styles.estChip, estatus === k && styles.estChipOn]} onPress={() => cambiarEstatus(k as EstatusServicio, k === "en_pausa" ? motivoPausa : null)}>
+                  <Ionicons name={ic as any} size={16} color={estatus === k ? T.white : T.textDim} />
+                  <Text style={[styles.estChipTxt, estatus === k && { color: T.white }]}>{lbl}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            {estatus === "en_pausa" && (
+              <View style={styles.motivoRow}>
+                {["Alimentos", "Baño", "Descanso", "Otro"].map((m) => (
+                  <TouchableOpacity key={m} style={[styles.motChip, motivoPausa === m && styles.motChipOn]} onPress={() => cambiarEstatus("en_pausa", m)}>
+                    <Text style={[styles.motChipTxt, motivoPausa === m && { color: T.accent, fontWeight: "800" }]}>{m}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+        )}
+
         <View style={styles.grid}>
           {accesos.map((a) => (
             <TouchableOpacity key={a.label} style={styles.card} onPress={() => nav.navigate(a.to)}>
@@ -148,7 +182,17 @@ const styles = StyleSheet.create({
   pillTxt: { color: T.textDim, fontSize: 12, fontWeight: "700" },
   dot: { width: 8, height: 8, borderRadius: 4 },
   hola: { color: T.text, fontSize: 22, fontWeight: "800" },
-  sub: { color: T.textDim, fontSize: 13.5, marginTop: 4, marginBottom: 18 },
+  sub: { color: T.textDim, fontSize: 13.5, marginTop: 4, marginBottom: 14 },
+  estadoBox: { backgroundColor: T.surface, borderColor: T.border, borderWidth: 1, borderRadius: 14, padding: 12, marginBottom: 16 },
+  estadoLbl: { color: T.textMute, fontSize: 12, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 8 },
+  estadoRow: { flexDirection: "row", gap: 8 },
+  estChip: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: T.border, backgroundColor: T.surfaceAlt },
+  estChipOn: { backgroundColor: T.accent, borderColor: T.accent },
+  estChipTxt: { color: T.textDim, fontWeight: "700", fontSize: 12.5 },
+  motivoRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 },
+  motChip: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, borderColor: T.border, backgroundColor: T.surfaceAlt },
+  motChipOn: { borderColor: T.accent, backgroundColor: T.accentBg },
+  motChipTxt: { color: T.textDim, fontWeight: "700", fontSize: 12.5 },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
   card: { width: "47%", backgroundColor: T.surface, borderColor: T.border, borderWidth: 1, borderRadius: 16, padding: 16, gap: 10 },
   icoBox: { width: 46, height: 46, borderRadius: 12, backgroundColor: T.accentBg, alignItems: "center", justifyContent: "center" },

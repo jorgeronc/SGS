@@ -8,8 +8,15 @@ export const COL = { sitio: "#f4a03f", punto: "#0e8f86", guardia: "#1e88e5", inc
 
 export interface MSitio { id: string; nombre: string; cliente?: string | null; latitud: number; longitud: number; href?: string }
 export interface MPunto { id: string; nombre: string; sitio?: string | null; codigo?: string | null; latitud: number; longitud: number }
-export interface MGuardia { personal_id: string; etiqueta: string | null; unidad?: string | null; latitud: number; longitud: number; actualizado_en?: string | null }
-export interface MIncidente { id: string; folio?: string | null; tipo?: string | null; prioridad?: string | null; direccion?: string | null; latitud: number; longitud: number; href?: string }
+export interface MGuardia { personal_id: string; etiqueta: string | null; unidad?: string | null; latitud: number; longitud: number; actualizado_en?: string | null; estatus_servicio?: string | null; motivo_pausa?: string | null }
+export interface MIncidente { id: string; folio?: string | null; tipo?: string | null; prioridad?: string | null; direccion?: string | null; estado?: string | null; latitud: number; longitud: number; href?: string }
+
+function labelServicio(s?: string | null, motivo?: string | null): string {
+  if (s === "en_rondin") return "🔁 En rondín";
+  if (s === "en_pausa") return `⏸ En pausa${motivo ? ` (${motivo})` : ""}`;
+  return "✓ En posición";
+}
+const DESP_LABEL: Record<string, string> = { recibida: "Recibida", despachada: "Despachado", en_atencion: "En atención", resuelta: "Resuelta" };
 
 function hace(iso?: string | null): string {
   if (!iso) return "";
@@ -84,13 +91,14 @@ export default function MapaMonitoreo({
     guardias.forEach((g) => {
       const m = L.circleMarker([g.latitud, g.longitud], { radius: 7, color: "#fff", weight: 2, fillColor: COL.guardia, fillOpacity: 1 }).addTo(c.guardias);
       const sub = [g.unidad ? `📍 ${g.unidad}` : "", hace(g.actualizado_en)].filter(Boolean).join(" · ");
-      m.bindPopup(`👷 <b>${g.etiqueta ?? "Guardia"}</b>${sub ? `<br>${sub}` : ""}`);
+      m.bindPopup(`👷 <b>${g.etiqueta ?? "Guardia"}</b><br>${labelServicio(g.estatus_servicio, g.motivo_pausa)}${sub ? `<br>${sub}` : ""}`);
     });
     // Incidentes / alertas
     c.incidentes.clearLayers();
     incidentes.forEach((it) => {
       const m = L.marker([it.latitud, it.longitud], { icon: iconIncidente(L) }).addTo(c.incidentes);
-      m.bindPopup(`🚨 <b>${it.tipo ?? "Incidencia"}</b> · ${it.prioridad ?? "—"}${it.direccion ? `<br>${it.direccion}` : ""}${it.href ? `<br><a href="${it.href}">Abrir →</a>` : ""}`);
+      const est = it.estado ? `<br>Estado: <b>${DESP_LABEL[it.estado] ?? it.estado}</b>` : "";
+      m.bindPopup(`🚨 <b>${it.tipo ?? "Incidencia"}</b> · prioridad ${it.prioridad ?? "—"}${est}${it.direccion ? `<br>${it.direccion}` : ""}${it.href ? `<br><a href="${it.href}">Abrir →</a>` : ""}`);
     });
   }
 

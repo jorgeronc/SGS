@@ -6,17 +6,31 @@ import { QRCodeSVG } from "qrcode.react";
 import { supabase } from "@/lib/supabaseClient";
 import ListaMaestra from "@/app/components/ListaMaestra";
 import DireccionGeocode from "@/app/components/DireccionGeocode";
+import MapaPicker from "@/app/components/MapaPicker";
 import { getConfig } from "@/lib/config";
+import { urlReverse } from "@/lib/geo";
 
 // Puntos de control (checkpoints) de un sitio. El `codigo` es lo que el guardia
 // escanea (QR / tag NFC) para registrar su paso. Ver migración 0053_rondines.
 function NuevoPunto({ onCreado }: { onCreado: () => void }) {
   const [sitios, setSitios] = useState<any[]>([]);
-  const [f, setF] = useState({ sitio_id: "", nombre: "", codigo: "", orden: "", descripcion: "", lat: "", lng: "", buscarDir: "", tipo_punto: "control", radio_m: "40" });
+  const [f, setF] = useState({ sitio_id: "", nombre: "", codigo: "", orden: "", descripcion: "", lat: "", lng: "", buscarDir: "", tipo_punto: "control", radio_m: "40", tipo_control: "qr", ubicacion_control: "" });
   const [jur, setJur] = useState(""); const [paisJur, setPaisJur] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [creando, setCreando] = useState(false);
   const set = (k: string, v: string) => setF((p) => ({ ...p, [k]: v }));
+
+  // Al elegir/mover el punto en el mapa: fija coordenadas y (si está vacío)
+  // rellena la descripción con el domicilio por geocodificación inversa.
+  async function pickEnMapa(la: number, lo: number) {
+    setF((p) => ({ ...p, lat: String(la), lng: String(lo) }));
+    try {
+      const r = await fetch(urlReverse(la, lo));
+      const j = await r.json();
+      const dir = j?.display_name as string | undefined;
+      if (dir) setF((p) => ({ ...p, descripcion: p.descripcion?.trim() ? p.descripcion : dir, buscarDir: dir }));
+    } catch { /* sin reverse: quedan solo las coordenadas */ }
+  }
 
   useEffect(() => {
     supabase.from("sitios").select("id, nombre, cliente:clientes(razon_social)").eq("estatus", "activo").order("nombre")
@@ -38,6 +52,7 @@ function NuevoPunto({ onCreado }: { onCreado: () => void }) {
       orden: f.orden ? Number(f.orden) : null, descripcion: f.descripcion || null,
       latitud: f.lat ? Number(f.lat) : null, longitud: f.lng ? Number(f.lng) : null,
       tipo_punto: f.tipo_punto || "control", radio_m: f.radio_m ? Number(f.radio_m) : 40,
+      tipo_control: f.tipo_control || "qr", ubicacion_control: f.ubicacion_control || null,
     });
     setCreando(false);
     if (error) { setError(error.message); return; }
@@ -60,6 +75,13 @@ function NuevoPunto({ onCreado }: { onCreado: () => void }) {
         <button type="submit" disabled={creando}>{creando ? "Creando…" : "Agregar punto"}</button>
       </div>
       <div className="form-fila">
+        <label className="dash-sub" style={{ display: "flex", flexDirection: "column" }}>Tipo de control
+          <select value={f.tipo_control} onChange={(e) => set("tipo_control", e.target.value)}>
+            <option value="qr">Código QR</option>
+            <option value="nfc">Etiqueta NFC</option>
+            <option value="ambos">Ambos (QR + NFC)</option>
+          </select>
+        </label>
         <label className="dash-sub" style={{ display: "flex", flexDirection: "column" }}>Tipo de punto
           <select value={f.tipo_punto} onChange={(e) => set("tipo_punto", e.target.value)}>
             <option value="control">Control</option>
@@ -71,10 +93,20 @@ function NuevoPunto({ onCreado }: { onCreado: () => void }) {
           <input type="number" min={5} max={2000} value={f.radio_m} onChange={(e) => set("radio_m", e.target.value)} />
         </label>
       </div>
-      <label className="dash-sub" style={{ display: "block", marginTop: 6 }}>Ubicación del punto (georreferénciala para el mapa de monitoreo y la validación de geocerca)</label>
+      <div className="form-fila">
+        <input placeholder="Ubicación del control (piso/nivel, área, espacio…)" value={f.ubicacion_control} onChange={(e) => set("ubicacion_control", e.target.value)} style={{ flex: 1 }} />
+      </div>
+      <div style={{ marginTop: 6, background: "var(--sc-surface-2, #f3f6f9)", border: "1px solid var(--sc-card-line, #e2e6ec)", borderRadius: 8, padding: 8 }}>
+        <div className="dash-sub" style={{ fontSize: 12.5, color: "#0b3d66", fontWeight: 700 }}>
+          Contenido de la etiqueta ({f.tipo_control === "nfc" ? "NFC" : f.tipo_control === "ambos" ? "QR + NFC" : "QR"}): <code>{f.codigo || "—"}</code>
+        </div>
+        <div className="dash-sub" style={{ fontSize: 12 }}>Este es el valor que valida el sistema al leer la etiqueta.</div>
+      </div>
+      <label className="dash-sub" style={{ display: "block", marginTop: 8 }}>Ubicación en el mapa — haz clic o arrastra el marcador para señalar el punto (obtiene domicilio y coordenadas):</label>
       <DireccionGeocode direccion={f.buscarDir} lat={f.lat} lng={f.lng}
-        onDireccion={(v) => set("buscarDir", v)} onCoords={(la, lo) => setF((p) => ({ ...p, lat: la, lng: lo }))}
+        onDireccion={(v) => set("buscarDir", v)} onCoords={(la, lo) => pickEnMapa(Number(la), Number(lo))}
         jurisdiccion={jur} pais={paisJur} size={80} />
+      <MapaPicker lat={f.lat ? Number(f.lat) : null} lng={f.lng ? Number(f.lng) : null} onPick={pickEnMapa} className="mapbox" />
       {sitios.length === 0 && <p className="dash-sub">Primero registra un sitio.</p>}
       {error && <p style={{ color: "#b00020" }}>{error}</p>}
       <p style={{ marginTop: 8 }}>
@@ -92,7 +124,7 @@ export default function PuntosControlPage() {
       tabla="puntos_control"
       modulo="puntos_control"
       orderBy="orden"
-      select="id, folio, nombre, codigo, orden, descripcion, latitud, longitud, tipo_punto, radio_m, estatus, creado_en, sitio_id, sitio:sitios(nombre, cliente_id, cliente:clientes(razon_social))"
+      select="id, folio, nombre, codigo, orden, descripcion, latitud, longitud, tipo_punto, radio_m, tipo_control, ubicacion_control, estatus, creado_en, sitio_id, sitio:sitios(nombre, cliente_id, cliente:clientes(razon_social))"
       placeholderBuscar="Buscar punto, código, sitio…"
       columnas={[
         { header: "Folio", celda: (r) => r.folio ?? "—" },
@@ -111,7 +143,11 @@ export default function PuntosControlPage() {
             <dt>Folio</dt><dd>{r.folio ?? "—"}</dd>
             <dt>Sitio</dt><dd>{r.sitio?.nombre ?? "—"}</dd>
             <dt>Cliente</dt><dd>{r.sitio?.cliente?.razon_social ?? "—"}</dd>
-            <dt>Código (QR/NFC)</dt><dd><code>{r.codigo}</code></dd>
+            <dt>Código (contenido)</dt><dd><code>{r.codigo}</code></dd>
+            <dt>Tipo de control</dt><dd>{r.tipo_control === "nfc" ? "NFC" : r.tipo_control === "ambos" ? "QR + NFC" : "QR"}</dd>
+            <dt>Tipo de punto</dt><dd>{r.tipo_punto ?? "control"}</dd>
+            <dt>Ubicación del control</dt><dd>{r.ubicacion_control ?? "—"}</dd>
+            <dt>Radio permitido</dt><dd>{r.radio_m != null ? `${r.radio_m} m` : "—"}</dd>
             <dt>Orden</dt><dd>{r.orden ?? "—"}</dd>
             <dt>Descripción</dt><dd>{r.descripcion ?? "—"}</dd>
           </dl>
@@ -132,7 +168,9 @@ export default function PuntosControlPage() {
         { campo: "nombre", label: "Nombre del punto" },
         { campo: "codigo", label: "Código (QR/NFC)" },
         { campo: "orden", label: "Orden", tipo: "number" },
+        { campo: "tipo_control", label: "Tipo de control", tipo: "select", opciones: ["qr", "nfc", "ambos"] },
         { campo: "tipo_punto", label: "Tipo de punto", tipo: "select", opciones: ["control", "entrada", "salida"] },
+        { campo: "ubicacion_control", label: "Ubicación del control (piso/área)" },
         { campo: "radio_m", label: "Radio permitido (m)", tipo: "number" },
         { campo: "latitud", label: "Latitud", tipo: "number" },
         { campo: "longitud", label: "Longitud", tipo: "number" },

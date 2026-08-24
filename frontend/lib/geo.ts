@@ -25,6 +25,13 @@ export function urlGeocode(consulta: string, countrycodes = ""): string {
     : `https://nominatim.openstreetmap.org/search?format=json&limit=5&accept-language=es${cc}&q=${q}`;
 }
 
+// URL de geocodificación inversa (coordenadas → domicilio).
+export function urlReverse(lat: number, lng: number): string {
+  return LOCATIONIQ_KEY
+    ? `https://us1.locationiq.com/v1/reverse?key=${LOCATIONIQ_KEY}&format=json&accept-language=es&lat=${lat}&lon=${lng}`
+    : `https://nominatim.openstreetmap.org/reverse?format=json&accept-language=es&lat=${lat}&lon=${lng}`;
+}
+
 // Imagen de mapa estático con un marcador (para el detalle de una ubicación).
 export function urlStaticMap(lat: number, lng: number, w = 600, h = 300, zoom = 16): string | null {
   if (!LOCATIONIQ_KEY) return null;

@@ -159,8 +159,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     <div className={`shell${colapsado ? " collapsed" : ""}`}>
       <aside className="shell-side">
         <Link href="/" className="shell-brand">
-          <span className="brand-name">Sistema de<br />Gestión de<br />Seguridad</span>
           <img src="/escudo.png" alt="Logo" className="brand-escudo" />
+          <span className="brand-name">Sistema de<br />Gestión de<br />Seguridad</span>
         </Link>
         <nav className="shell-nav">
           <Link href="/" className={pathname === "/" ? "on" : ""}>

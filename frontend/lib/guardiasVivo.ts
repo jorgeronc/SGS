@@ -14,7 +14,7 @@ export function useGuardiasEnLinea(): GuardiaMapa[] {
       const cutoff = new Date(Date.now() - ventanaSeg * 1000).toISOString();
       const { data } = await supabase
         .from("ubicaciones_guardias")
-        .select("personal_id, etiqueta, unidad, latitud, longitud, actualizado_en")
+        .select("personal_id, etiqueta, unidad, latitud, longitud, actualizado_en, estatus_servicio, motivo_pausa")
         .eq("en_linea", true)
         .gt("actualizado_en", cutoff);
       if (!cancelado) setGuardias((data as GuardiaMapa[]) ?? []);

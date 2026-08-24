@@ -12,6 +12,32 @@ import { getMiOficial, getMiCrp } from "./oficial";
 
 const TASK = "sgs-gps-guardia";
 const IDENT_KEY = "sgs_gps_ident";
+const EST_KEY = "sgs_estatus_servicio";
+
+export type EstatusServicio = "en_servicio" | "en_rondin" | "en_pausa";
+
+// Estatus de servicio elegido por el guardia (persistente). Se incluye en cada
+// reporte de ubicación para que el monitoreo lo muestre.
+export async function getEstatusServicio(): Promise<{ estatus: EstatusServicio; motivo: string | null }> {
+  try {
+    const raw = await AsyncStorage.getItem(EST_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch { /* ignore */ }
+  return { estatus: "en_servicio", motivo: null };
+}
+
+export async function setEstatusServicio(estatus: EstatusServicio, motivo?: string | null): Promise<void> {
+  await AsyncStorage.setItem(EST_KEY, JSON.stringify({ estatus, motivo: motivo ?? null }));
+  try {
+    const raw = await AsyncStorage.getItem(IDENT_KEY);
+    if (raw) {
+      const id = JSON.parse(raw) as Ident;
+      await supabase.from("ubicaciones_guardias")
+        .update({ estatus_servicio: estatus, motivo_pausa: motivo ?? null, actualizado_en: new Date().toISOString() })
+        .eq("personal_id", id.personalId);
+    }
+  } catch { /* se aplicará en el próximo reporte */ }
+}
 
 interface Ident {
   personalId: string;
@@ -25,6 +51,7 @@ async function reportar(loc: Location.LocationObject): Promise<void> {
   const raw = await AsyncStorage.getItem(IDENT_KEY);
   if (!raw) return;
   const id = JSON.parse(raw) as Ident;
+  const est = await getEstatusServicio();
   // Última posición viva (upsert) para el mapa de monitoreo.
   await supabase.from("ubicaciones_guardias").upsert(
     {
@@ -38,6 +65,8 @@ async function reportar(loc: Location.LocationObject): Promise<void> {
       rumbo: loc.coords.heading ?? null,
       velocidad: loc.coords.speed ?? null,
       en_linea: true,
+      estatus_servicio: est.estatus,
+      motivo_pausa: est.motivo,
       actualizado_en: new Date().toISOString(),
     },
     { onConflict: "personal_id" }

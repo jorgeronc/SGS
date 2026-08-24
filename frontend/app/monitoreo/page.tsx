@@ -21,13 +21,13 @@ export default function MonitoreoPage() {
         .eq("estatus", "activo").not("latitud", "is", null).not("longitud", "is", null),
       supabase.from("puntos_control").select("id, nombre, codigo, latitud, longitud, sitio:sitios(nombre)")
         .eq("estatus", "activo").not("latitud", "is", null).not("longitud", "is", null),
-      supabase.from("llamadas_cad").select("id, folio, tipo, prioridad, direccion, latitud, longitud")
+      supabase.from("llamadas_cad").select("id, folio, tipo, prioridad, direccion, estado_despacho, latitud, longitud")
         .eq("estatus", "activo").in("estado_despacho", ["recibida", "despachada", "en_atencion"])
         .not("latitud", "is", null).not("longitud", "is", null),
     ]);
     setSitios(((s as any[]) ?? []).map((x) => ({ id: x.id, nombre: x.nombre ?? "Sitio", cliente: x.cliente?.razon_social ?? null, latitud: Number(x.latitud), longitud: Number(x.longitud), href: `/sitios/${x.id}` })));
     setPuntos(((p as any[]) ?? []).map((x) => ({ id: x.id, nombre: x.nombre ?? "Punto", sitio: x.sitio?.nombre ?? null, codigo: x.codigo ?? null, latitud: Number(x.latitud), longitud: Number(x.longitud) })));
-    setIncidentes(((i as any[]) ?? []).map((x) => ({ id: x.id, folio: x.folio, tipo: x.tipo, prioridad: x.prioridad, direccion: x.direccion, latitud: Number(x.latitud), longitud: Number(x.longitud), href: `/cad/${x.id}` })));
+    setIncidentes(((i as any[]) ?? []).map((x) => ({ id: x.id, folio: x.folio, tipo: x.tipo, prioridad: x.prioridad, direccion: x.direccion, estado: x.estado_despacho, latitud: Number(x.latitud), longitud: Number(x.longitud), href: `/cad/${x.id}` })));
     setActualizado(new Date());
   }, []);
 
