@@ -18,8 +18,8 @@ const GRUPOS: { grupo: string; items: { href: string; label: string; ico: string
   {
     grupo: "Operaciones",
     items: [
-      { href: "/cad", label: "Central / Despacho", ico: "🎧", nueva: true },
-      { href: "/monitoreo", label: "Monitoreo (GPS)", ico: "🗺", nueva: true },
+      { href: "/cad", label: "Central / Despacho", ico: "🎧" },
+      { href: "/monitoreo", label: "Monitoreo en vivo", ico: "🗺" },
       { href: "/sitios", label: "Sitios / Puestos", ico: "📍" },
       { href: "/puntos-control", label: "Puntos de control", ico: "🚩" },
       { href: "/rondines", label: "Rondines", ico: "🔁" },

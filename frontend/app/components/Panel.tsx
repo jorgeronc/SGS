@@ -9,22 +9,19 @@ import MapaReportes, { type ReporteMapa } from "./MapaReportes";
 interface DefInd { key: string; label: string; href: string; tabla: string; fecha: string; color: string; ico: string; mod?: (q: any) => any; }
 // Indicadores del dominio SGS (seguridad privada).
 const INDS: DefInd[] = [
-  { key: "emergencias", label: "Emergencias / alertas", href: "/cad", tabla: "llamadas_cad", fecha: "fecha_recepcion", color: "c-red", ico: "🚨" },
+  // Solo las alertas que llegaron por el botón "Enviar alerta" del móvil (pánico).
+  { key: "emergencias", label: "Alertas de pánico (móvil)", href: "/cad", tabla: "llamadas_cad", fecha: "fecha_recepcion", color: "c-red", ico: "🚨", mod: (q: any) => q.eq("datos_adicionales->>origen", "panico_movil") },
+  { key: "incidentes", label: "Incidentes levantados", href: "/rondines", tabla: "incidentes", fecha: "creado_en", color: "c-amber", ico: "📝" },
   { key: "rondines", label: "Rondines registrados", href: "/rondines", tabla: "rondines", fecha: "creado_en", color: "c-blue", ico: "🔁" },
   { key: "fuera_rango", label: "Rondines fuera de rango", href: "/rondines", tabla: "rondines", fecha: "creado_en", color: "c-red", ico: "⚠", mod: (q: any) => q.eq("dentro_geocerca", false) },
   { key: "tareas", label: "Tareas nuevas", href: "/tareas", tabla: "tareas", fecha: "creado_en", color: "c-teal", ico: "✔" },
   { key: "evidencias", label: "Evidencias nuevas", href: "/evidencias", tabla: "evidencias", fecha: "creado_en", color: "c-purple", ico: "◧" },
-  { key: "turnos", label: "Turnos programados", href: "/turnos", tabla: "turnos", fecha: "creado_en", color: "c-amber", ico: "🗓" },
-  { key: "sitios", label: "Sitios nuevos", href: "/sitios", tabla: "sitios", fecha: "creado_en", color: "c-green", ico: "📍" },
 ];
 
 interface ItemReciente { id: string; titulo: string; sub: string; href: string; foto: string | null; iniciales: string; gradiente: string; }
 interface Dato { label: string; valor: number; }
-interface BitRow { usuario_id: string | null; tipo_accion: string; modulo: string | null; creado_en: string; }
 
 const PRIO_COLOR: Record<string, string> = { alta: "#d32f2f", media: "#f9a825", baja: "#2e7d32" };
-const DIAS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
-const MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 
 function inicioSemana(): string {
   const d = new Date();
@@ -33,7 +30,16 @@ function inicioSemana(): string {
   d.setHours(0, 0, 0, 0);
   return d.toISOString();
 }
-function inicioAnio(): string { return new Date(new Date().getFullYear(), 0, 1).toISOString(); }
+function inicioMes(): string { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1).toISOString(); }
+const dkey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+// Conteo por día de los últimos n días (para la gráfica de incidentes por día).
+function serieUltimosDias(fechas: string[], n = 14): Dato[] {
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  const idx: Record<string, number> = {}; const out: Dato[] = [];
+  for (let i = n - 1; i >= 0; i--) { const d = new Date(hoy); d.setDate(hoy.getDate() - i); idx[dkey(d)] = out.length; out.push({ label: `${d.getDate()}/${d.getMonth() + 1}`, valor: 0 }); }
+  for (const f of fechas) { const k = idx[dkey(new Date(f))]; if (k != null) out[k].valor++; }
+  return out;
+}
 
 async function contar(ind: DefInd, desde: string): Promise<number | null> {
   let q = supabase.from(ind.tabla).select("*", { count: "exact", head: true }).eq("estatus", "activo").gte(ind.fecha, desde);
@@ -43,37 +49,6 @@ async function contar(ind: DefInd, desde: string): Promise<number | null> {
 }
 function iniciales(nombre: string, def: string): string {
   return nombre.split(" ").map((s) => s[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || def;
-}
-function agrupar(rows: BitRow[], key: (r: BitRow) => string | null): Dato[] {
-  const m = new Map<string, number>();
-  for (const r of rows) { const k = key(r); if (!k) continue; m.set(k, (m.get(k) ?? 0) + 1); }
-  return Array.from(m.entries()).map(([label, valor]) => ({ label, valor })).sort((a, b) => b.valor - a.valor).slice(0, 8);
-}
-function porDia(rows: BitRow[]): Dato[] {
-  const c = [0, 0, 0, 0, 0, 0, 0];
-  for (const r of rows) { const d = new Date(r.creado_en).getDay(); c[d === 0 ? 6 : d - 1]++; }
-  return DIAS.map((label, i) => ({ label, valor: c[i] }));
-}
-function porMes(rows: BitRow[]): Dato[] {
-  const c = new Array(12).fill(0);
-  for (const r of rows) c[new Date(r.creado_en).getMonth()]++;
-  return MESES.map((label, i) => ({ label, valor: c[i] }));
-}
-
-function Barras({ titulo, datos, color }: { titulo: string; datos: Dato[]; color: string }) {
-  const max = Math.max(1, ...datos.map((d) => d.valor));
-  return (
-    <div className="chart-card">
-      <div className="chart-title">{titulo}</div>
-      {datos.length === 0 || datos.every((d) => d.valor === 0) ? <p className="dash-sub">Sin datos.</p> : datos.filter((d) => d.valor > 0).map((d) => (
-        <div key={d.label} className="chart-bar-row">
-          <span className="chart-bar-lbl" title={d.label}>{d.label}</span>
-          <span className="chart-bar-track"><span className="chart-bar-fill" style={{ width: `${(d.valor / max) * 100}%`, background: color }} /></span>
-          <span className="chart-bar-val">{d.valor}</span>
-        </div>
-      ))}
-    </div>
-  );
 }
 function Columnas({ titulo, datos, color }: { titulo: string; datos: Dato[]; color: string }) {
   const max = Math.max(1, ...datos.map((d) => d.valor));
@@ -95,28 +70,28 @@ function Columnas({ titulo, datos, color }: { titulo: string; datos: Dato[]; col
 
 export default function Panel({ correo }: { correo?: string | null }) {
   const [sem, setSem] = useState<Record<string, number | null>>({});
-  const [ano, setAno] = useState<Record<string, number | null>>({});
+  const [mes, setMes] = useState<Record<string, number | null>>({});
   const [guardias, setGuardias] = useState<ItemReciente[]>([]);
   const [evidencias, setEvidencias] = useState<ItemReciente[]>([]);
   const [tareas, setTareas] = useState<ItemReciente[]>([]);
   const [rondines, setRondines] = useState<ItemReciente[]>([]);
   const [reportes, setReportes] = useState<ReporteMapa[]>([]);
-  const [bitAnio, setBitAnio] = useState<BitRow[]>([]);
-  const [bitSem, setBitSem] = useState<BitRow[]>([]);
-  const [usuarios, setUsuarios] = useState<Record<string, string>>({});
+  const [guardiasTurno, setGuardiasTurno] = useState<number | null>(null);
+  const [guardiasLinea, setGuardiasLinea] = useState<number | null>(null);
+  const [incDia, setIncDia] = useState<Dato[]>([]);
   const [cargando, setCargando] = useState(true);
   const [refrescando, setRefrescando] = useState(false);
 
   const cargar = useCallback(async () => {
       setRefrescando(true);
       const desdeSem = inicioSemana();
-      const desdeAno = inicioAnio();
-      const [semVals, anoVals] = await Promise.all([
+      const desdeMes = inicioMes();
+      const [semVals, mesVals] = await Promise.all([
         Promise.all(INDS.map(async (i) => [i.key, await contar(i, desdeSem)] as const)),
-        Promise.all(INDS.map(async (i) => [i.key, await contar(i, desdeAno)] as const)),
+        Promise.all(INDS.map(async (i) => [i.key, await contar(i, desdeMes)] as const)),
       ]);
       setSem(Object.fromEntries(semVals));
-      setAno(Object.fromEntries(anoVals));
+      setMes(Object.fromEntries(mesVals));
 
       // Últimos guardias dados de alta.
       const { data: gs } = await supabase.from("personal")
@@ -157,18 +132,26 @@ export default function Panel({ correo }: { correo?: string | null }) {
         .order("fecha_recepcion", { ascending: false }).limit(60);
       setReportes(((cad as any[]) ?? []).map((c) => ({ id: c.id, folio: c.folio, titulo: `${c.tipo ?? "Reporte"} · prioridad ${c.prioridad ?? "—"}${c.direccion ? `<br>${c.direccion}` : ""}`, latitud: c.latitud, longitud: c.longitud, href: `/cad/${c.id}`, color: PRIO_COLOR[c.prioridad] ?? "#546e7a" })));
 
-      // Bitácora del año para las gráficas de análisis.
-      const { data: bit } = await supabase.from("bitacora").select("usuario_id, tipo_accion, modulo, creado_en").gte("creado_en", desdeAno).order("creado_en", { ascending: false }).limit(3000);
-      const filas = (bit as BitRow[]) ?? [];
-      setBitAnio(filas);
-      setBitSem(filas.filter((r) => r.creado_en >= desdeSem));
+      // Guardias en turno HOY (distintos guardias en turnos activos de la fecha).
+      const hoy = new Date().toISOString().slice(0, 10);
+      const { data: tHoy } = await supabase.from("turnos").select("id").eq("estatus", "activo").eq("fecha", hoy);
+      const turnoIds = ((tHoy as any[]) ?? []).map((t) => t.id);
+      if (turnoIds.length) {
+        const { data: tg } = await supabase.from("turno_guardias").select("personal_id").in("turno_id", turnoIds);
+        setGuardiasTurno(new Set(((tg as any[]) ?? []).map((x) => x.personal_id)).size);
+      } else setGuardiasTurno(0);
 
-      try {
-        const { data: us } = await supabase.rpc("rpc_listar_usuarios");
-        const umap: Record<string, string> = {};
-        ((us as any[]) ?? []).forEach((u) => { umap[u.id] = u.nombre || u.email || String(u.id).slice(0, 8); });
-        setUsuarios(umap);
-      } catch { /* sin permiso de admin */ }
+      // Guardias en línea (GPS reportando dentro de la ventana configurada).
+      const { data: cfg } = await supabase.from("config_sistema").select("gps_ventana_seg").eq("id", true).maybeSingle();
+      const ventana = Number((cfg as any)?.gps_ventana_seg ?? 180);
+      const cutoff = new Date(Date.now() - ventana * 1000).toISOString();
+      const { count: enLinea } = await supabase.from("ubicaciones_guardias").select("*", { count: "exact", head: true }).eq("en_linea", true).gt("actualizado_en", cutoff);
+      setGuardiasLinea(enLinea ?? 0);
+
+      // Incidentes por día (últimos 14 días).
+      const desde14 = new Date(Date.now() - 14 * 86400000).toISOString();
+      const { data: incs } = await supabase.from("incidentes").select("creado_en").eq("estatus", "activo").gte("creado_en", desde14);
+      setIncDia(serieUltimosDias(((incs as any[]) ?? []).map((x) => x.creado_en), 14));
 
       setCargando(false);
       setRefrescando(false);
@@ -242,7 +225,7 @@ export default function Panel({ correo }: { correo?: string | null }) {
       </div>
 
       <KpiGrupo titulo="Indicadores semanales (lunes a domingo)" sufijo="esta semana" datos={sem} />
-      <KpiGrupo titulo="Indicadores anuales" sufijo="este año" datos={ano} />
+      <KpiGrupo titulo="Indicadores mensuales (este mes)" sufijo="este mes" datos={mes} />
 
       <div className="dash-lower2">
         <div>
@@ -279,20 +262,23 @@ export default function Panel({ correo }: { correo?: string | null }) {
       </div>
 
       <div className="dash-eyebrow">Análisis de actividad</div>
+      <div className="dash-kpis una-fila" style={{ marginBottom: 12 }}>
+        <Link href="/turnos" className="dcard dkpi">
+          <div className="k-top"><span>🗓</span> Guardias en turno (hoy)</div>
+          <div className="rows"><div className="row"><span className="num c-blue">{cargando ? "…" : guardiasTurno ?? "—"}</span><span className="lbl">asignados hoy</span></div></div>
+        </Link>
+        <Link href="/monitoreo" className="dcard dkpi">
+          <div className="k-top"><span>📡</span> Guardias en línea</div>
+          <div className="rows"><div className="row"><span className="num c-green">{cargando ? "…" : guardiasLinea ?? "—"}</span><span className="lbl">GPS reportando</span></div></div>
+        </Link>
+      </div>
       {cargando ? (
         <p className="dash-sub">Cargando...</p>
-      ) : bitAnio.length === 0 ? (
-        <p className="dash-sub">Sin actividad visible (la bitácora es solo para supervisor/administrador).</p>
       ) : (
         <div className="dash-charts">
-          <Barras titulo="Semana · por tipo de acción" datos={agrupar(bitSem, (r) => r.tipo_accion)} color="#1f6feb" />
-          <Barras titulo="Semana · por módulo" datos={agrupar(bitSem, (r) => r.modulo)} color="#0e8f86" />
-          <Barras titulo="Semana · por usuario" datos={agrupar(bitSem, (r) => (r.usuario_id ? (usuarios[r.usuario_id] ?? String(r.usuario_id).slice(0, 8)) : null))} color="#8a5cf6" />
-          <Columnas titulo="Semana · por día" datos={porDia(bitSem)} color="#e65100" />
-          <Columnas titulo="Año · por mes" datos={porMes(bitAnio)} color="#2e7d32" />
+          <Columnas titulo="Incidentes por día (últimos 14 días)" datos={incDia} color="#e65100" />
         </div>
       )}
-      <p style={{ fontSize: 13, marginTop: 12 }}><Link href="/bitacora">Ver bitácora completa →</Link></p>
     </div>
   );
 }
