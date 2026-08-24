@@ -20,6 +20,7 @@ const GRUPOS: { grupo: string; items: { href: string; label: string; ico: string
     items: [
       { href: "/cad", label: "Central / Despacho", ico: "🎧" },
       { href: "/monitoreo", label: "Monitoreo en vivo", ico: "🗺" },
+      { href: "/videovigilancia", label: "Videovigilancia", ico: "📹" },
       { href: "/sitios", label: "Sitios / Puestos", ico: "📍" },
       { href: "/puntos-control", label: "Puntos de control", ico: "🚩" },
       { href: "/rondines", label: "Rondines", ico: "🔁" },

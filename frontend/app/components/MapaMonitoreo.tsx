@@ -4,12 +4,13 @@ import { useEffect, useRef } from "react";
 import { tileConfig } from "@/lib/geo";
 
 // Colores por tipo (coinciden con la leyenda del módulo de monitoreo).
-export const COL = { sitio: "#f4a03f", punto: "#0e8f86", guardia: "#1e88e5", incidente: "#d32f2f" };
+export const COL = { sitio: "#f4a03f", punto: "#0e8f86", guardia: "#1e88e5", incidente: "#d32f2f", camara: "#6a1b9a" };
 
 export interface MSitio { id: string; nombre: string; cliente?: string | null; latitud: number; longitud: number; href?: string }
 export interface MPunto { id: string; nombre: string; sitio?: string | null; codigo?: string | null; latitud: number; longitud: number }
 export interface MGuardia { personal_id: string; etiqueta: string | null; unidad?: string | null; latitud: number; longitud: number; actualizado_en?: string | null; estatus_servicio?: string | null; motivo_pausa?: string | null }
 export interface MIncidente { id: string; folio?: string | null; tipo?: string | null; prioridad?: string | null; direccion?: string | null; estado?: string | null; latitud: number; longitud: number; href?: string }
+export interface MCamara { id: string; nombre: string; sitio?: string | null; estado_operativo?: string | null; latitud: number; longitud: number }
 
 function labelServicio(s?: string | null, motivo?: string | null): string {
   if (s === "en_rondin") return "🔁 En rondín";
@@ -41,6 +42,11 @@ function iconIncidente(L: any) {
   return L.divIcon({ className: "mm-ic", iconSize: [22, 22], iconAnchor: [11, 20], popupAnchor: [0, -18],
     html: `<svg width="22" height="22" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg"><path d="M11 1 21 20 1 20 Z" fill="${COL.incidente}" stroke="#fff" stroke-width="1.5"/><rect x="10" y="8" width="2" height="6" fill="#fff"/><rect x="10" y="15.5" width="2" height="2" fill="#fff"/></svg>` });
 }
+function iconCamara(L: any) {
+  // Cámara (círculo morado con "cuerpo").
+  return L.divIcon({ className: "mm-ic", iconSize: [22, 22], iconAnchor: [11, 11], popupAnchor: [0, -12],
+    html: `<svg width="22" height="22" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg"><circle cx="11" cy="11" r="10" fill="${COL.camara}" stroke="#fff" stroke-width="1.6"/><rect x="5" y="8" width="8" height="6" rx="1" fill="#fff"/><path d="M13 9.5 17 7.5 17 14.5 13 12.5 Z" fill="#fff"/></svg>` });
+}
 
 let leafletPromise: Promise<any> | null = null;
 function cargarLeaflet(): Promise<any> {
@@ -59,20 +65,20 @@ function cargarLeaflet(): Promise<any> {
 // (sitios, puntos, guardias, incidentes) cuando cambian los datos, SIN mover ni
 // reencuadrar el mapa — así el operador conserva su foco/zoom durante el refresh.
 export default function MapaMonitoreo({
-  sitios = [], puntos = [], guardias = [], incidentes = [], className = "cadmapa-map",
+  sitios = [], puntos = [], guardias = [], incidentes = [], camaras = [], className = "cadmapa-map",
 }: {
-  sitios?: MSitio[]; puntos?: MPunto[]; guardias?: MGuardia[]; incidentes?: MIncidente[]; className?: string;
+  sitios?: MSitio[]; puntos?: MPunto[]; guardias?: MGuardia[]; incidentes?: MIncidente[]; camaras?: MCamara[]; className?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
-  const capas = useRef<{ sitios?: any; puntos?: any; guardias?: any; incidentes?: any }>({});
-  const datos = useRef({ sitios, puntos, guardias, incidentes });
+  const capas = useRef<{ sitios?: any; puntos?: any; guardias?: any; incidentes?: any; camaras?: any }>({});
+  const datos = useRef({ sitios, puntos, guardias, incidentes, camaras });
   const ajustado = useRef(false);
-  datos.current = { sitios, puntos, guardias, incidentes };
+  datos.current = { sitios, puntos, guardias, incidentes, camaras };
 
   function repintar(L: any) {
     const map = mapRef.current; if (!map) return;
-    const { sitios, puntos, guardias, incidentes } = datos.current;
+    const { sitios, puntos, guardias, incidentes, camaras } = datos.current;
     const c = capas.current;
     // Sitios
     c.sitios.clearLayers();
@@ -100,6 +106,13 @@ export default function MapaMonitoreo({
       const est = it.estado ? `<br>Estado: <b>${DESP_LABEL[it.estado] ?? it.estado}</b>` : "";
       m.bindPopup(`🚨 <b>${it.tipo ?? "Incidencia"}</b> · prioridad ${it.prioridad ?? "—"}${est}${it.direccion ? `<br>${it.direccion}` : ""}${it.href ? `<br><a href="${it.href}">Abrir →</a>` : ""}`);
     });
+    // Cámaras fijas (videovigilancia)
+    c.camaras.clearLayers();
+    camaras.forEach((cam) => {
+      const m = L.marker([cam.latitud, cam.longitud], { icon: iconCamara(L) }).addTo(c.camaras);
+      const est = cam.estado_operativo && cam.estado_operativo !== "activa" ? ` (${cam.estado_operativo})` : "";
+      m.bindPopup(`📹 <b>${cam.nombre}</b>${est}${cam.sitio ? `<br>${cam.sitio}` : ""}<br><a href="/videovigilancia/muro">Ver muro →</a>`);
+    });
   }
 
   // Construcción única del mapa.
@@ -110,7 +123,7 @@ export default function MapaMonitoreo({
       const map = L.map(ref.current).setView([25.6714, -100.309], 12);
       mapRef.current = map;
       const t = tileConfig(); L.tileLayer(t.url, t.opts).addTo(map);
-      capas.current = { sitios: L.layerGroup().addTo(map), puntos: L.layerGroup().addTo(map), guardias: L.layerGroup().addTo(map), incidentes: L.layerGroup().addTo(map) };
+      capas.current = { sitios: L.layerGroup().addTo(map), puntos: L.layerGroup().addTo(map), guardias: L.layerGroup().addTo(map), incidentes: L.layerGroup().addTo(map), camaras: L.layerGroup().addTo(map) };
       repintar(L);
       ajustarUnaVez(L);
       setTimeout(() => map.invalidateSize(), 120);
@@ -122,9 +135,9 @@ export default function MapaMonitoreo({
   // Encuadra una sola vez, cuando ya hay datos (no vuelve a moverse en los refresh).
   function ajustarUnaVez(L: any) {
     if (ajustado.current) return;
-    const { sitios, puntos, guardias, incidentes } = datos.current;
+    const { sitios, puntos, guardias, incidentes, camaras } = datos.current;
     const pts: any[] = [];
-    [...sitios, ...puntos, ...guardias, ...incidentes].forEach((x: any) => { if (x.latitud != null && x.longitud != null) pts.push([x.latitud, x.longitud]); });
+    [...sitios, ...puntos, ...guardias, ...incidentes, ...camaras].forEach((x: any) => { if (x.latitud != null && x.longitud != null) pts.push([x.latitud, x.longitud]); });
     if (pts.length === 1) { mapRef.current.setView(pts[0], 15); ajustado.current = true; }
     else if (pts.length > 1) { mapRef.current.fitBounds(pts, { padding: [40, 40] }); ajustado.current = true; }
   }
@@ -134,7 +147,7 @@ export default function MapaMonitoreo({
     const L = (window as any).L;
     if (L && mapRef.current) { repintar(L); ajustarUnaVez(L); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sitios, puntos, guardias, incidentes]);
+  }, [sitios, puntos, guardias, incidentes, camaras]);
 
   return <div ref={ref} className={className} />;
 }

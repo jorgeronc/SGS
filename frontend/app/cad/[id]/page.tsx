@@ -12,6 +12,7 @@ import { CatalogoSelect } from "@/app/components/CatalogoSelect";
 import DireccionGeocode from "@/app/components/DireccionGeocode";
 import VisorTransmision from "@/app/components/VisorTransmision";
 import GrabacionesTransmision from "@/app/components/GrabacionesTransmision";
+import CamarasCercanas from "@/app/components/CamarasCercanas";
 import HistorialCad from "@/app/components/HistorialCad";
 import { getConfig } from "@/lib/config";
 import { unidadesPorLlamada, DESPACHO_LABEL, DESPACHO_COLOR, type UnidadDespacho } from "@/lib/despachos";
@@ -307,6 +308,8 @@ export default function IncidenciaDetallePage() {
           <MapaUbicacion latitud={llamada.latitud} longitud={llamada.longitud} />
         </div>
       </div>
+
+      <CamarasCercanas latitud={llamada.latitud} longitud={llamada.longitud} />
 
       {barraAccion("bottom")}
       {mensaje && <p style={{ color: "#0a7c2f" }}>{mensaje}</p>}

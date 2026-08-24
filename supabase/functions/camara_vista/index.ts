@@ -1,0 +1,145 @@
+// Edge Function: camara_vista  (resuelve la señal de una cámara AL VUELO)
+//
+// Mantiene la API key del proveedor FUERA del navegador: el cliente pide la vista
+// de una cámara y recibe una URL de imagen/reproductor ya resuelta (efímera). Para
+// cámaras 'manual' devuelve su stream_url fija sin llamar a nadie.
+//
+// Acciones (body JSON):
+//   { accion: 'vista',    camara_id }                              -> VistaCamara
+//   { accion: 'importar', sitio_id, radio_km?, limite?, proveedor? } -> alta masiva
+//
+// Todo se hace con un cliente CON EL JWT DEL USUARIO, así la RLS aplica igual que
+// en el resto del sistema (ver = cualquiera; importar/alta = supervisor/admin).
+//
+// Requiere el secreto WINDY_API_KEY sólo si se usan cámaras del proveedor 'windy'
+// (las 'manual' no necesitan llave). npx supabase secrets set WINDY_API_KEY=...
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { json, preflight } from "../_shared/cors.ts";
+
+const WINDY_BASE = "https://api.windy.com/webcams/api/v3";
+
+// ---- Proveedor Windy (ejemplo de proveedor con llave) ---------------------
+async function windyGet(path: string, params: Record<string, string>): Promise<any> {
+  const key = Deno.env.get("WINDY_API_KEY") ?? "";
+  if (!key) throw { code: 503, msg: "Falta configurar el secreto WINDY_API_KEY en Supabase." };
+  const qs = new URLSearchParams(params).toString();
+  let resp: Response;
+  try {
+    resp = await fetch(`${WINDY_BASE}${path}?${qs}`, { headers: { "X-WINDY-API-KEY": key } });
+  } catch {
+    throw { code: 504, msg: "El proveedor de video no respondió (timeout/red)." };
+  }
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw { code: 502, msg: `Proveedor de video: HTTP ${resp.status}` };
+  return data;
+}
+
+async function windyVista(ref: string) {
+  const w = await windyGet(`/webcams/${ref}`, { include: "images,location,player", lang: "es" });
+  const actual = (w?.images ?? {}).current ?? {};
+  const player = w?.player ?? {};
+  return {
+    imagen_url: actual.preview ?? actual.thumbnail ?? null,
+    player_url: player.live ?? player.day ?? null,
+    en_vivo: Boolean(player.live),
+    actualizado_en: w?.lastUpdatedOn ?? null,
+    titulo: w?.title ?? null,
+    expira_en_s: 540, // refresca antes de ~10 min
+  };
+}
+
+async function windyCercanas(lat: number, lng: number, radio_km: number, limite: number) {
+  const data = await windyGet("/webcams", {
+    nearby: `${lat},${lng},${Math.min(radio_km, 250)}`,
+    include: "location,player",
+    limit: String(Math.min(limite, 50)),
+  });
+  return ((data?.webcams ?? []) as any[])
+    .filter((w) => w?.location)
+    .map((w) => ({
+      ref: String(w.webcamId),
+      nombre: w.title ?? "Cámara",
+      lat: Number(w.location.latitude),
+      lng: Number(w.location.longitude),
+    }));
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return preflight(req);
+  try {
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: req.headers.get("Authorization") ?? "" } } },
+    );
+
+    const body = await req.json().catch(() => ({}));
+    const accion = body?.accion ?? "vista";
+
+    // ---- VISTA: resolver imagen/reproductor de UNA cámara ----------------
+    if (accion === "vista") {
+      const camaraId = body?.camara_id;
+      if (!camaraId) return json({ error: "Falta camara_id." }, 400);
+      const { data: cam } = await supabase
+        .from("camaras")
+        .select("id, nombre, proveedor, proveedor_ref, stream_url, estado_operativo, estatus")
+        .eq("id", camaraId)
+        .maybeSingle();
+      if (!cam) return json({ error: "Cámara no encontrada." }, 404);
+      if (cam.estatus !== "activo" || cam.estado_operativo !== "activa")
+        return json({ error: `La cámara está ${cam.estado_operativo}.` }, 409);
+
+      // 'manual': stream fijo, sin llamar a nadie.
+      if (cam.proveedor === "manual") {
+        if (!cam.stream_url) return json({ error: "La cámara manual no tiene stream_url." }, 409);
+        return json({
+          nombre: cam.nombre, proveedor: "manual",
+          player_url: cam.stream_url, imagen_url: null, en_vivo: true,
+          actualizado_en: null, expira_en_s: null,
+        });
+      }
+      // Proveedor con llave.
+      if (cam.proveedor === "windy") {
+        if (!cam.proveedor_ref) return json({ error: "La cámara no tiene proveedor_ref." }, 409);
+        const v = await windyVista(cam.proveedor_ref);
+        return json({ nombre: cam.nombre, proveedor: "windy", ...v });
+      }
+      return json({ error: `Proveedor no soportado: ${cam.proveedor}.` }, 501);
+    }
+
+    // ---- IMPORTAR: alta masiva desde el proveedor (dedup por proveedor_ref) --
+    if (accion === "importar") {
+      const sitioId = body?.sitio_id;
+      const proveedor = body?.proveedor ?? "windy";
+      const radioKm = Number(body?.radio_km ?? 25);
+      const limite = Number(body?.limite ?? 10);
+      if (!sitioId) return json({ error: "Falta sitio_id." }, 400);
+      if (proveedor !== "windy") return json({ error: `Importación no soportada para: ${proveedor}.` }, 501);
+
+      const { data: sitio } = await supabase
+        .from("sitios").select("id, nombre, latitud, longitud").eq("id", sitioId).maybeSingle();
+      if (!sitio) return json({ error: "Sitio no encontrado." }, 404);
+      if (sitio.latitud == null || sitio.longitud == null)
+        return json({ error: "El sitio no tiene coordenadas para buscar cámaras cercanas." }, 409);
+
+      const externas = await windyCercanas(Number(sitio.latitud), Number(sitio.longitud), radioKm, limite);
+      let importadas = 0, omitidas = 0;
+      const creadas: any[] = [];
+      for (const e of externas) {
+        // La RLS (insert = mando) y el índice único (proveedor,proveedor_ref) protegen.
+        const { data, error } = await supabase.from("camaras").insert({
+          nombre: e.nombre, sitio_id: sitioId, latitud: e.lat, longitud: e.lng,
+          proveedor: "windy", proveedor_ref: e.ref,
+        }).select("id, folio, nombre").maybeSingle();
+        if (error) { omitidas++; continue; }
+        importadas++; if (data) creadas.push(data);
+      }
+      return json({ importadas, omitidas, camaras: creadas });
+    }
+
+    return json({ error: `Acción no reconocida: ${accion}.` }, 400);
+  } catch (e: any) {
+    if (e && typeof e === "object" && "code" in e) return json({ error: e.msg }, e.code);
+    return json({ error: e?.message ?? "Error inesperado." }, 500);
+  }
+});
