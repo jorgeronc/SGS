@@ -73,21 +73,27 @@ export default function RondinesPage() {
       tabla="rondines"
       modulo="rondines"
       orderBy="fecha_hora"
-      select="id, fecha_hora, novedad, latitud, longitud, estatus, creado_en, punto_id, personal_id, punto:puntos_control(nombre, codigo, sitio:sitios(nombre, cliente_id, cliente:clientes(razon_social))), guardia:personal(persona:personas(nombre, apellido_paterno, apellido_materno))"
+      select="id, fecha_hora, novedad, latitud, longitud, distancia_m, dentro_geocerca, metodo, tipo_evento, estatus, creado_en, punto_id, personal_id, punto:puntos_control(nombre, codigo, radio_m, sitio:sitios(nombre, cliente_id, cliente:clientes(razon_social))), guardia:personal(persona:personas(nombre, apellido_paterno, apellido_materno))"
       placeholderBuscar="Buscar punto, sitio, guardia…"
       columnas={[
         { header: "Fecha / hora", celda: (r) => (r.fecha_hora ? new Date(r.fecha_hora).toLocaleString() : "—") },
         { header: "Sitio", celda: (r) => r.punto?.sitio?.nombre ?? "—" },
         { header: "Punto", celda: (r) => r.punto?.nombre ?? "—" },
         { header: "Guardia", celda: (r) => guardiaNombre(r.guardia) },
+        { header: "Método", celda: (r) => (r.metodo === "nfc" ? "NFC" : r.metodo === "manual" ? "Manual" : "QR") },
+        { header: "Rango", celda: (r) => (r.dentro_geocerca == null
+          ? <span style={{ color: "#888" }}>s/GPS</span>
+          : r.dentro_geocerca
+            ? <span style={{ color: "#0a7c2f" }}>dentro</span>
+            : <span style={{ color: "#b00020", fontWeight: 700 }}>FUERA{r.distancia_m != null ? ` (${r.distancia_m} m)` : ""}</span>) },
         { header: "Novedad", celda: (r) => (conNovedad(r.novedad) ? <span style={{ color: "#b00020", fontWeight: 600 }}>{r.novedad}</span> : <span style={{ color: "#0a7c2f" }}>sin novedad</span>) },
-        { header: "GPS", celda: (r) => (r.latitud != null ? "📍" : "—") },
       ]}
       textoBusqueda={(r) => `${r.punto?.nombre ?? ""} ${r.punto?.sitio?.nombre ?? ""} ${guardiaNombre(r.guardia)} ${r.novedad ?? ""}`}
-      detalleHref={(r) => `/clientes/${r.punto?.sitio?.cliente_id ?? ""}`}
+      detalleHref={(r) => `/rondines/${r.id}`}
       filtros={[
         { k: "todos", label: "Todos" },
         { k: "hoy", label: "Hoy", test: (r) => !!r.fecha_hora && String(r.fecha_hora).slice(0, 10) === hoyISO() },
+        { k: "fuera", label: "Fuera de rango", test: (r) => r.dentro_geocerca === false },
         { k: "novedad", label: "Con novedad", test: (r) => conNovedad(r.novedad) },
       ]}
       quickView={(r) => (
@@ -99,10 +105,17 @@ export default function RondinesPage() {
             <dt>Cliente</dt><dd>{r.punto?.sitio?.cliente?.razon_social ?? "—"}</dd>
             <dt>Código</dt><dd><code>{r.punto?.codigo ?? "—"}</code></dd>
             <dt>Guardia</dt><dd>{guardiaNombre(r.guardia)}</dd>
+            <dt>Método</dt><dd>{r.metodo === "nfc" ? "NFC" : r.metodo === "manual" ? "Manual" : "QR"}</dd>
+            <dt>Rango (geocerca)</dt><dd>
+              {r.dentro_geocerca == null ? "Sin dato (sin GPS)" : r.dentro_geocerca
+                ? <span style={{ color: "#0a7c2f", fontWeight: 600 }}>Dentro de rango</span>
+                : <span style={{ color: "#b00020", fontWeight: 700 }}>FUERA DE RANGO</span>}
+              {r.distancia_m != null && ` · a ${r.distancia_m} m${r.punto?.radio_m != null ? ` (radio ${r.punto.radio_m} m)` : ""}`}
+            </dd>
             <dt>Novedad</dt><dd>{conNovedad(r.novedad) ? r.novedad : "sin novedad"}</dd>
             <dt>GPS</dt><dd>{r.latitud != null ? `${r.latitud}, ${r.longitud}` : "—"}</dd>
           </dl>
-          {r.punto?.sitio?.cliente_id && <p style={{ marginTop: 10 }}><Link href={`/clientes/${r.punto.sitio.cliente_id}`} className="qbtn2">▤ Ver cliente →</Link></p>}
+          <p style={{ marginTop: 10 }}><Link href={`/rondines/${r.id}`} className="qbtn2">▤ Ver registro →</Link></p>
         </>
       )}
       editar={[{ campo: "novedad", label: "Novedad", tipo: "textarea" }]}
