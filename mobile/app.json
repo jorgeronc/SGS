@@ -22,7 +22,9 @@
         "NSCameraUsageDescription": "Se usa la cámara para tomar fotos y video de evidencia.",
         "NSPhotoLibraryUsageDescription": "Se usa la galería para adjuntar fotos y video.",
         "NSMicrophoneUsageDescription": "Se usa el micrófono para grabar audio de evidencia.",
-        "UIBackgroundModes": ["location"]
+        "UIBackgroundModes": [
+          "location"
+        ]
       },
       "bitcode": false
     },
@@ -88,7 +90,8 @@
       "@config-plugins/react-native-webrtc",
       "expo-font",
       "expo-asset",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "react-native-nfc-manager"
     ],
     "extra": {
       "eas": {

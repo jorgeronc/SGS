@@ -13,6 +13,7 @@ import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./src/lib/supabase";
 import { registrarPush } from "./src/lib/push";
 import { iniciarRastreo, detenerRastreo } from "./src/lib/ubicacionVivo";
+import { iniciarGeocercas, detenerGeocercas } from "./src/lib/geocercas";
 import { getRolActual, esMando } from "./src/lib/rol";
 import type { RootStackParamList, TabParamList } from "./src/types";
 import { T } from "./src/theme";
@@ -125,8 +126,8 @@ export default function App() {
   // no hay elemento seleccionado (Perfil lo dispara al elegirlo).
   const logueado = !!session;
   useEffect(() => {
-    if (logueado) iniciarRastreo();
-    else detenerRastreo();
+    if (logueado) { iniciarRastreo(); iniciarGeocercas(); }
+    else { detenerRastreo(); detenerGeocercas(); }
   }, [logueado]);
 
   const contenido = cargando ? (

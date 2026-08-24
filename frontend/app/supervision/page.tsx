@@ -16,6 +16,7 @@ const PAL = ["#1e88e5", "#8e24aa", "#00897b", "#f4511e", "#3949ab", "#c0ca33", "
 interface Paso {
   id: string; fecha_hora: string; latitud: number | null; longitud: number | null; novedad: string | null;
   personalId: string; guardia: string; punto: string; sitio: string;
+  dentro: boolean | null; distancia: number | null; metodo: string | null;
 }
 
 // Supervisión de rondín: filtros en cascada (fecha → cliente → sitio → guardia
@@ -60,7 +61,7 @@ export default function SupervisionPage() {
       const ids = ((pts as any[]) ?? []).map((p) => p.id);
       if (ids.length === 0) { setPasos([]); setRuta([]); setCargando(false); return; }
       let q = supabase.from("rondines")
-        .select("id, fecha_hora, latitud, longitud, novedad, personal_id, punto:puntos_control(nombre, sitio:sitios(nombre)), guardia:personal(persona:personas(nombre, apellido_paterno, apellido_materno))")
+        .select("id, fecha_hora, latitud, longitud, novedad, personal_id, distancia_m, dentro_geocerca, metodo, punto:puntos_control(nombre, sitio:sitios(nombre)), guardia:personal(persona:personas(nombre, apellido_paterno, apellido_materno))")
         .in("punto_id", ids).eq("estatus", "activo")
         .gte("fecha_hora", desde).lte("fecha_hora", hasta).order("fecha_hora", { ascending: true });
       if (guardiaId) q = q.eq("personal_id", guardiaId);
@@ -68,6 +69,7 @@ export default function SupervisionPage() {
       setPasos(((data as any[]) ?? []).map((r) => ({
         id: r.id, fecha_hora: r.fecha_hora, latitud: r.latitud, longitud: r.longitud, novedad: r.novedad,
         personalId: r.personal_id, guardia: nombreGuardia(r.guardia), punto: r.punto?.nombre ?? "Punto", sitio: r.punto?.sitio?.nombre ?? "—",
+        dentro: r.dentro_geocerca, distancia: r.distancia_m, metodo: r.metodo,
       })));
 
       if (guardiaId) {
@@ -89,9 +91,9 @@ export default function SupervisionPage() {
 
   const reportes = useMemo<ReporteMapa[]>(() => pasos.filter((p) => p.latitud != null && p.longitud != null).map((p, i) => ({
     id: p.id, folio: `#${i + 1}`,
-    titulo: `👷 ${p.guardia}<br>${p.punto} · ${new Date(p.fecha_hora).toLocaleString()}${conNovedad(p.novedad) ? `<br>⚠ ${p.novedad}` : ""}`,
+    titulo: `👷 ${p.guardia}<br>${p.punto} · ${new Date(p.fecha_hora).toLocaleString()}${conNovedad(p.novedad) ? `<br>⚠ ${p.novedad}` : ""}${p.dentro === false ? `<br>⚠ Fuera de rango (${p.distancia ?? "?"} m)` : ""}`,
     latitud: Number(p.latitud), longitud: Number(p.longitud), href: `/rondines/${p.id}`,
-    color: conNovedad(p.novedad) ? "#d32f2f" : (colorGuardia[p.personalId] ?? "#f4a03f"),
+    color: (conNovedad(p.novedad) || p.dentro === false) ? "#d32f2f" : (colorGuardia[p.personalId] ?? "#f4a03f"),
   })), [pasos, colorGuardia]);
 
   // Agrupado: sitio → guardia → pasos.
@@ -189,7 +191,9 @@ export default function SupervisionPage() {
                                   <span className="cad-tl-estado">{i + 1}. {p.punto}</span>
                                   <span className="cad-tl-meta">
                                     {new Date(p.fecha_hora).toLocaleString()}
+                                    {p.metodo ? ` · ${p.metodo === "nfc" ? "NFC" : p.metodo === "manual" ? "Manual" : "QR"}` : ""}
                                     {conNovedad(p.novedad) ? ` · ⚠ ${p.novedad}` : " · Sin novedad"}
+                                    {p.dentro === false && <span style={{ color: "#b00020", fontWeight: 700 }}> · ⚠ fuera de rango ({p.distancia ?? "?"} m)</span>}
                                     {"  "}<Link href={`/rondines/${p.id}`}>ver registro →</Link>
                                   </span>
                                 </div>

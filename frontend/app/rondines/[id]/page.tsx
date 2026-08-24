@@ -21,7 +21,7 @@ export default function RondinDetallePage() {
 
   useEffect(() => {
     supabase.from("rondines")
-      .select("id, fecha_hora, latitud, longitud, novedad, foto, estatus, punto:puntos_control(nombre, codigo, sitio:sitios(nombre, cliente:clientes(razon_social))), guardia:personal(persona:personas(nombre, apellido_paterno, apellido_materno))")
+      .select("id, fecha_hora, latitud, longitud, novedad, foto, estatus, distancia_m, dentro_geocerca, tipo_evento, metodo, punto:puntos_control(nombre, codigo, radio_m, latitud, longitud, sitio:sitios(nombre, cliente:clientes(razon_social))), guardia:personal(persona:personas(nombre, apellido_paterno, apellido_materno))")
       .eq("id", params.id).maybeSingle()
       .then(({ data, error }) => { if (error) setError(error.message); setR(data); });
   }, [params.id]);
@@ -48,8 +48,17 @@ export default function RondinDetallePage() {
       <dl className="sc-kv" style={{ marginTop: 12 }}>
         <dt>Punto</dt><dd>{r.punto?.nombre ?? "—"}</dd>
         <dt>Código</dt><dd><code>{r.punto?.codigo ?? "—"}</code></dd>
+        <dt>Método</dt><dd>{r.metodo === "nfc" ? "NFC" : r.metodo === "manual" ? "Manual" : "QR"}</dd>
+        <dt>Tipo de evento</dt><dd>{r.tipo_evento ?? "control"}</dd>
+        <dt>Geocerca</dt><dd>
+          {r.dentro_geocerca == null ? "Sin dato (sin GPS)" : r.dentro_geocerca
+            ? <span style={{ color: "#0a7c2f", fontWeight: 600 }}>Dentro de rango</span>
+            : <span style={{ color: "#b00020", fontWeight: 700 }}>FUERA DE RANGO</span>}
+          {r.distancia_m != null && ` · a ${r.distancia_m} m del punto${r.punto?.radio_m != null ? ` (radio ${r.punto.radio_m} m)` : ""}`}
+        </dd>
         <dt>Novedad</dt><dd style={novedad ? { color: "#b00020", fontWeight: 600 } : undefined}>{r.novedad ?? "Sin novedad"}</dd>
-        <dt>Coordenadas</dt><dd>{r.latitud != null && r.longitud != null ? `${r.latitud}, ${r.longitud}` : "Sin GPS"}</dd>
+        <dt>Coordenadas del guardia</dt><dd>{r.latitud != null && r.longitud != null ? `${r.latitud}, ${r.longitud}` : "Sin GPS"}</dd>
+        <dt>Ubicación de la etiqueta</dt><dd>{r.punto?.latitud != null && r.punto?.longitud != null ? `${r.punto.latitud}, ${r.punto.longitud}` : "—"}</dd>
       </dl>
 
       {r.latitud != null && r.longitud != null && (

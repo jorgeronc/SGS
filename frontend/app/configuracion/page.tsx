@@ -15,6 +15,7 @@ const VACIA: ConfigSistema = {
   gps_activo: true,
   gps_intervalo_seg: 60,
   gps_ventana_seg: 180,
+  geofence_margen_m: 20,
 };
 
 // Parámetros de configuración del sistema (datos de la Corporación).
@@ -61,6 +62,7 @@ export default function ConfiguracionPage() {
         gps_activo: cfg.gps_activo,
         gps_intervalo_seg: Math.min(3600, Math.max(10, Number(cfg.gps_intervalo_seg) || 60)),
         gps_ventana_seg: Math.min(7200, Math.max(30, Number(cfg.gps_ventana_seg) || 180)),
+        geofence_margen_m: Math.min(500, Math.max(0, Number(cfg.geofence_margen_m) || 20)),
         actualizado_en: new Date().toISOString(),
       })
       .eq("id", true);
@@ -132,6 +134,10 @@ export default function ConfiguracionPage() {
             <label>Ventana “en línea” (segundos)
               <input type="number" min={30} max={7200} value={cfg.gps_ventana_seg}
                 onChange={(e) => set("gps_ventana_seg", Number(e.target.value))} placeholder="180" />
+            </label>
+            <label>Margen de geocerca (± metros)
+              <input type="number" min={0} max={500} value={cfg.geofence_margen_m}
+                onChange={(e) => set("geofence_margen_m", Number(e.target.value))} placeholder="20" />
             </label>
           </div>
 

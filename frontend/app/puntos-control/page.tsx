@@ -12,7 +12,7 @@ import { getConfig } from "@/lib/config";
 // escanea (QR / tag NFC) para registrar su paso. Ver migración 0053_rondines.
 function NuevoPunto({ onCreado }: { onCreado: () => void }) {
   const [sitios, setSitios] = useState<any[]>([]);
-  const [f, setF] = useState({ sitio_id: "", nombre: "", codigo: "", orden: "", descripcion: "", lat: "", lng: "", buscarDir: "" });
+  const [f, setF] = useState({ sitio_id: "", nombre: "", codigo: "", orden: "", descripcion: "", lat: "", lng: "", buscarDir: "", tipo_punto: "control", radio_m: "40" });
   const [jur, setJur] = useState(""); const [paisJur, setPaisJur] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [creando, setCreando] = useState(false);
@@ -37,6 +37,7 @@ function NuevoPunto({ onCreado }: { onCreado: () => void }) {
       sitio_id: f.sitio_id, nombre: f.nombre.trim(), codigo: f.codigo.trim(),
       orden: f.orden ? Number(f.orden) : null, descripcion: f.descripcion || null,
       latitud: f.lat ? Number(f.lat) : null, longitud: f.lng ? Number(f.lng) : null,
+      tipo_punto: f.tipo_punto || "control", radio_m: f.radio_m ? Number(f.radio_m) : 40,
     });
     setCreando(false);
     if (error) { setError(error.message); return; }
@@ -58,7 +59,19 @@ function NuevoPunto({ onCreado }: { onCreado: () => void }) {
         <input placeholder="Descripción / referencia" value={f.descripcion} onChange={(e) => set("descripcion", e.target.value)} style={{ flex: 2 }} />
         <button type="submit" disabled={creando}>{creando ? "Creando…" : "Agregar punto"}</button>
       </div>
-      <label className="dash-sub" style={{ display: "block", marginTop: 6 }}>Ubicación del punto (georreferénciala para el mapa de monitoreo)</label>
+      <div className="form-fila">
+        <label className="dash-sub" style={{ display: "flex", flexDirection: "column" }}>Tipo de punto
+          <select value={f.tipo_punto} onChange={(e) => set("tipo_punto", e.target.value)}>
+            <option value="control">Control</option>
+            <option value="entrada">Entrada (al lugar)</option>
+            <option value="salida">Salida (del lugar)</option>
+          </select>
+        </label>
+        <label className="dash-sub" style={{ display: "flex", flexDirection: "column" }}>Radio permitido (m)
+          <input type="number" min={5} max={2000} value={f.radio_m} onChange={(e) => set("radio_m", e.target.value)} />
+        </label>
+      </div>
+      <label className="dash-sub" style={{ display: "block", marginTop: 6 }}>Ubicación del punto (georreferénciala para el mapa de monitoreo y la validación de geocerca)</label>
       <DireccionGeocode direccion={f.buscarDir} lat={f.lat} lng={f.lng}
         onDireccion={(v) => set("buscarDir", v)} onCoords={(la, lo) => setF((p) => ({ ...p, lat: la, lng: lo }))}
         jurisdiccion={jur} pais={paisJur} size={80} />
@@ -79,7 +92,7 @@ export default function PuntosControlPage() {
       tabla="puntos_control"
       modulo="puntos_control"
       orderBy="orden"
-      select="id, folio, nombre, codigo, orden, descripcion, latitud, longitud, estatus, creado_en, sitio_id, sitio:sitios(nombre, cliente_id, cliente:clientes(razon_social))"
+      select="id, folio, nombre, codigo, orden, descripcion, latitud, longitud, tipo_punto, radio_m, estatus, creado_en, sitio_id, sitio:sitios(nombre, cliente_id, cliente:clientes(razon_social))"
       placeholderBuscar="Buscar punto, código, sitio…"
       columnas={[
         { header: "Folio", celda: (r) => r.folio ?? "—" },
@@ -119,6 +132,8 @@ export default function PuntosControlPage() {
         { campo: "nombre", label: "Nombre del punto" },
         { campo: "codigo", label: "Código (QR/NFC)" },
         { campo: "orden", label: "Orden", tipo: "number" },
+        { campo: "tipo_punto", label: "Tipo de punto", tipo: "select", opciones: ["control", "entrada", "salida"] },
+        { campo: "radio_m", label: "Radio permitido (m)", tipo: "number" },
         { campo: "latitud", label: "Latitud", tipo: "number" },
         { campo: "longitud", label: "Longitud", tipo: "number" },
         { campo: "descripcion", label: "Descripción", tipo: "textarea" },

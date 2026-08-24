@@ -12,6 +12,7 @@ export interface ConfigSistema {
   gps_activo: boolean;
   gps_intervalo_seg: number;
   gps_ventana_seg: number;
+  geofence_margen_m: number;
 }
 
 let cache: ConfigSistema | null = null;
