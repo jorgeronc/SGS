@@ -83,7 +83,13 @@ function palabrasClave(q: string): string[] {
   )).slice(0, 6);
 }
 
-const SYSTEM = `Eres el copiloto de investigación del Sistema Central Policial (SCP). Asistes a un usuario autorizado; no sustituyes su criterio.
+const NARRATIVA = `Eres el copiloto de análisis de SGS (Sistema de Gestión de Seguridad, seguridad privada). Con base ÚNICAMENTE en los datos entregados (rondines, novedades e incidentes reales del sistema para el lugar consultado), redacta una NARRATIVA de análisis para un supervisor:
+- Comportamiento de los rondines: cobertura, constancia (días con actividad), guardias involucrados, novedades detectadas y lecturas fuera de rango.
+- Incidentes: si los hay, cuántos y de qué tipo (cita su folio entre corchetes).
+- Conclusión general y, si aplica, recomendaciones concretas.
+Escribe en español, claro y objetivo. No inventes datos; si algún aspecto no tiene datos, dilo explícitamente. Devuelve SOLO el texto de la narrativa (sin JSON).`;
+
+const SYSTEM = `Eres el copiloto de investigación de SGS (Sistema de Gestión de Seguridad). Asistes a un usuario autorizado; no sustituyes su criterio.
 
 REGLAS ESTRICTAS:
 1. Responde ÚNICAMENTE con base en el CONTEXTO RECUPERADO que se te entrega (registros reales del sistema). No uses conocimiento externo ni inventes datos.
@@ -109,6 +115,70 @@ Deno.serve(async (req) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return json({ error: "No autorizado. Inicia sesión para usar el copiloto." }, 401);
     const auditar = async (fila: Record<string, unknown>) => { await supabase.from("ia_consultas").insert(fila); };
+
+    // 0) MODO ANÁLISIS por CLIENTE/SITIO: si la pregunta menciona un sitio o
+    // cliente, se arma una narrativa de rondines + incidentes de ese lugar.
+    const kwsEnt = palabrasClave(pregunta);
+    let sitioIds: string[] = [];
+    let entidad = "";
+    if (kwsEnt.length) {
+      const { data: sm } = await supabase.from("sitios")
+        .select("id, nombre").eq("estatus", "activo")
+        .or(kwsEnt.map((k) => `nombre.ilike.%${k}%`).join(",")).limit(5);
+      if (sm && (sm as any[]).length) {
+        sitioIds = (sm as any[]).map((s) => s.id);
+        entidad = (sm as any[]).map((s) => s.nombre).join(", ");
+      } else {
+        const { data: cm } = await supabase.from("clientes")
+          .select("id, razon_social").eq("estatus", "activo")
+          .or(kwsEnt.map((k) => `razon_social.ilike.%${k}%`).join(",")).limit(3);
+        if (cm && (cm as any[]).length) {
+          const cids = (cm as any[]).map((c) => c.id);
+          const { data: ss } = await supabase.from("sitios").select("id, nombre").eq("estatus", "activo").in("cliente_id", cids);
+          sitioIds = ((ss as any[]) ?? []).map((s) => s.id);
+          entidad = (cm as any[]).map((c) => c.razon_social).join(", ");
+        }
+      }
+    }
+
+    if (sitioIds.length) {
+      const desde = new Date(Date.now() - 30 * 86400000).toISOString();
+      const { data: pts } = await supabase.from("puntos_control").select("id").in("sitio_id", sitioIds).eq("estatus", "activo");
+      const puntoIds = ((pts as any[]) ?? []).map((p) => p.id);
+      // deno-lint-ignore no-explicit-any
+      let rond: any[] = [];
+      if (puntoIds.length) {
+        const { data } = await supabase.from("rondines")
+          .select("fecha_hora, novedad, dentro_geocerca, distancia_m, metodo, punto:puntos_control(nombre), guardia:personal(persona:personas(nombre, apellido_paterno))")
+          .in("punto_id", puntoIds).eq("estatus", "activo").gte("fecha_hora", desde)
+          .order("fecha_hora", { ascending: false }).limit(500);
+        rond = (data as any[]) ?? [];
+      }
+      const conNov = rond.filter((r) => r.novedad && !/^\s*sin novedad\s*$/i.test(String(r.novedad)));
+      const fuera = rond.filter((r) => r.dentro_geocerca === false);
+      const guardias = new Set(rond.map((r) => nom(r.guardia?.persona)).filter(Boolean));
+      const dias = new Set(rond.map((r) => String(r.fecha_hora).slice(0, 10)));
+      const { data: incs } = await supabase.from("incidentes")
+        .select("folio, tipo, narrativa, direccion, estado, fecha_incidente").eq("estatus", "activo").gte("creado_en", desde)
+        .or(kwsEnt.map((k) => `narrativa.ilike.%${k}%,direccion.ilike.%${k}%,tipo.ilike.%${k}%`).join(",")).limit(30);
+      const incidentes = (incs as any[]) ?? [];
+
+      const ctx = [
+        `ENTIDAD: ${entidad}`,
+        `PERIODO: últimos 30 días`,
+        `PUNTOS DE CONTROL: ${puntoIds.length}`,
+        `RONDINES: total ${rond.length}, en ${dias.size} días, ${guardias.size} guardias distintos, ${conNov.length} con novedad, ${fuera.length} fuera de rango.`,
+        `NOVEDADES (muestra): ${conNov.slice(0, 15).map((r) => `[${String(r.fecha_hora).slice(0, 10)} · ${r.punto?.nombre ?? "punto"}] ${r.novedad}`).join(" | ") || "ninguna"}`,
+        `LECTURAS FUERA DE RANGO (muestra): ${fuera.slice(0, 10).map((r) => `${r.punto?.nombre ?? "punto"} a ${r.distancia_m ?? "?"} m (${String(r.fecha_hora).slice(0, 10)})`).join(" | ") || "ninguna"}`,
+        `INCIDENTES relacionados (${incidentes.length}): ${incidentes.slice(0, 20).map((i) => `[${i.folio ?? "s/folio"}] ${i.tipo ?? "incidente"} — ${(i.narrativa ?? i.direccion ?? "").toString().slice(0, 120)} (estado: ${i.estado ?? "—"})`).join(" | ") || "ninguno detectado"}`,
+      ].join("\n");
+
+      if (!Deno.env.get("ANTHROPIC_API_KEY")) return json({ error: "Falta configurar el secreto ANTHROPIC_API_KEY en Supabase." }, 500);
+      const texto = await llamarClaude(Deno.env.get("ANTHROPIC_API_KEY")!, NARRATIVA, `SOLICITUD:\n${pregunta}\n\nDATOS DEL LUGAR:\n${ctx}`);
+      const nivel = rond.length || incidentes.length ? "media" : "sin_evidencia";
+      await auditar({ pregunta, respuesta: texto, citas: incidentes.map((i) => ({ fuente_tabla: "incidentes", fuente_id: null, folio: i.folio })), contexto_tipo: "sitio_cliente", contexto_id: null, nivel_confianza: nivel, modelo: MODELO });
+      return json({ ok: true, respuesta: texto, nivel_confianza: nivel, folios_citados: incidentes.map((i) => i.folio).filter(Boolean), fuentes: [] });
+    }
 
     // 1) Recuperación EN VIVO: por palabras clave (o registros recientes si no hay).
     const kws = palabrasClave(pregunta);
