@@ -11,6 +11,7 @@ interface DefInd { key: string; label: string; href: string; tabla: string; fech
 const INDS: DefInd[] = [
   { key: "emergencias", label: "Emergencias / alertas", href: "/cad", tabla: "llamadas_cad", fecha: "fecha_recepcion", color: "c-red", ico: "🚨" },
   { key: "rondines", label: "Rondines registrados", href: "/rondines", tabla: "rondines", fecha: "creado_en", color: "c-blue", ico: "🔁" },
+  { key: "fuera_rango", label: "Rondines fuera de rango", href: "/rondines", tabla: "rondines", fecha: "creado_en", color: "c-red", ico: "⚠", mod: (q: any) => q.eq("dentro_geocerca", false) },
   { key: "tareas", label: "Tareas nuevas", href: "/tareas", tabla: "tareas", fecha: "creado_en", color: "c-teal", ico: "✔" },
   { key: "evidencias", label: "Evidencias nuevas", href: "/evidencias", tabla: "evidencias", fecha: "creado_en", color: "c-purple", ico: "◧" },
   { key: "turnos", label: "Turnos programados", href: "/turnos", tabla: "turnos", fecha: "creado_en", color: "c-amber", ico: "🗓" },
