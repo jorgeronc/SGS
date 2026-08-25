@@ -208,7 +208,12 @@ export default function VideovigilanciaPage() {
               <VisorCamara camaraId={r.id} nombre={r.nombre} alto={200} />
             </div>
           )}
-          <p style={{ marginTop: 10 }}><Link href="/videovigilancia/muro" className="qbtn2">🖥 Ver muro de cámaras →</Link></p>
+          <p style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
+            {r.estatus === "activo" && r.estado_operativo === "activa" && (
+              <Link href={`/videovigilancia/muro?cam=${r.id}`} className="qbtn2">📺 Abrir en muro →</Link>
+            )}
+            <Link href="/videovigilancia/muro" className="qbtn2">🖥 Ver muro →</Link>
+          </p>
         </>
       )}
       editar={[

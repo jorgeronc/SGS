@@ -3,6 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type FSDoc = Document & { webkitFullscreenElement?: Element; webkitExitFullscreen?: () => void };
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type FSEl = HTMLElement & { webkitRequestFullscreen?: () => void };
+
 // Un mosaico/tile de UNA cámara. Resuelve la señal AL VUELO por la Edge Function
 // `camara_vista` (la API key del proveedor nunca baja al navegador), se auto-
 // refresca por debajo del vencimiento de la URL (~5 min) y hace cache-bust del
@@ -22,7 +27,9 @@ export default function VisorCamara({
   const [v, setV] = useState<Vista | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
+  const [fs, setFs] = useState(false);
   const primera = useRef(true);
+  const boxRef = useRef<HTMLDivElement>(null);
 
   const cargar = useCallback(async () => {
     if (primera.current) setCargando(true);
@@ -47,17 +54,40 @@ export default function VisorCamara({
     return () => clearInterval(t);
   }, [cargar, refrescoMs]);
 
+  // Sincroniza el estado de pantalla completa (por si el usuario sale con Esc).
+  useEffect(() => {
+    const onFs = () => {
+      const doc = document as FSDoc;
+      setFs((doc.fullscreenElement ?? doc.webkitFullscreenElement) === boxRef.current);
+    };
+    document.addEventListener("fullscreenchange", onFs);
+    document.addEventListener("webkitfullscreenchange", onFs);
+    return () => { document.removeEventListener("fullscreenchange", onFs); document.removeEventListener("webkitfullscreenchange", onFs); };
+  }, []);
+
+  function alternarPantallaCompleta() {
+    const doc = document as FSDoc;
+    const el = boxRef.current as FSEl | null;
+    if (doc.fullscreenElement || doc.webkitFullscreenElement) {
+      (doc.exitFullscreen ?? doc.webkitExitFullscreen)?.call(doc);
+    } else {
+      (el?.requestFullscreen ?? el?.webkitRequestFullscreen)?.call(el);
+    }
+  }
+
   const titulo = nombre ?? v?.nombre ?? "Cámara";
   const bust = (u: string) => `${u}${u.includes("?") ? "&" : "?"}_t=${Date.now()}`;
+  const altoMedia = fs ? "calc(100vh - 30px)" : alto;
 
   return (
-    <div style={{ border: "1px solid var(--sc-card-line, #e2e6ec)", borderRadius: 8, overflow: "hidden", background: "#0b1220" }}>
+    <div ref={boxRef} style={{ border: "1px solid var(--sc-card-line, #e2e6ec)", borderRadius: fs ? 0 : 8, overflow: "hidden", background: "#0b1220", height: fs ? "100vh" : undefined, display: fs ? "flex" : undefined, flexDirection: fs ? "column" : undefined }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 8px", background: "#11223C", color: "#fff", fontSize: 12.5 }}>
         {v?.en_vivo ? <span style={{ color: "#ff5252", fontWeight: 800 }}>● EN VIVO</span> : <span style={{ opacity: 0.7 }}>◦ Snapshot</span>}
         <b style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{titulo}</b>
-        <button onClick={cargar} title="Actualizar" style={{ marginLeft: "auto", background: "transparent", border: "none", color: "#fff", cursor: "pointer" }}>↻</button>
+        <button onClick={cargar} title="Actualizar" style={{ marginLeft: "auto", background: "transparent", border: "none", color: "#fff", cursor: "pointer", fontSize: 14 }}>↻</button>
+        <button onClick={alternarPantallaCompleta} title={fs ? "Salir de pantalla completa" : "Pantalla completa"} style={{ background: "transparent", border: "none", color: "#fff", cursor: "pointer", fontSize: 14 }}>{fs ? "🡼" : "⛶"}</button>
       </div>
-      <div style={{ height: alto, display: "flex", alignItems: "center", justifyContent: "center", color: "#8a94a6", fontSize: 13 }}>
+      <div style={{ height: altoMedia, flex: fs ? 1 : undefined, display: "flex", alignItems: "center", justifyContent: "center", color: "#8a94a6", fontSize: 13 }}>
         {cargando && "Cargando señal…"}
         {!cargando && error && <span style={{ color: "#ff8a80", padding: 10, textAlign: "center" }}>⚠ {error}</span>}
         {!cargando && !error && v?.imagen_url && (

@@ -111,7 +111,7 @@ export default function MapaMonitoreo({
     camaras.forEach((cam) => {
       const m = L.marker([cam.latitud, cam.longitud], { icon: iconCamara(L) }).addTo(c.camaras);
       const est = cam.estado_operativo && cam.estado_operativo !== "activa" ? ` (${cam.estado_operativo})` : "";
-      m.bindPopup(`📹 <b>${cam.nombre}</b>${est}${cam.sitio ? `<br>${cam.sitio}` : ""}<br><a href="/videovigilancia/muro">Ver muro →</a>`);
+      m.bindPopup(`📹 <b>${cam.nombre}</b>${est}${cam.sitio ? `<br>${cam.sitio}` : ""}<br><a href="/videovigilancia/muro?cam=${cam.id}">Abrir en muro →</a>`);
     });
   }
 
