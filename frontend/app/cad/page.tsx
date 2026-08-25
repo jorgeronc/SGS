@@ -6,10 +6,9 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import type { LlamadaCad } from "@/lib/types";
 import { CatalogoSelect } from "@/app/components/CatalogoSelect";
-import DireccionGeocode from "@/app/components/DireccionGeocode";
+import MapaPicker from "@/app/components/MapaPicker";
 import { reportesCercanos, type RegistroSimilar } from "@/lib/duplicados";
 import AvisoDuplicados from "@/app/components/AvisoDuplicados";
-import { getConfig } from "@/lib/config";
 import { unidadesPorLlamada, DESPACHO_LABEL, DESPACHO_COLOR, type UnidadDespacho } from "@/lib/despachos";
 
 const DESP_LABEL: Record<string, string> = {
@@ -121,14 +120,14 @@ export default function CentralDespachoPage() {
   const [latitud, setLatitud] = useState("");
   const [longitud, setLongitud] = useState("");
   const [reportesUbic, setReportesUbic] = useState<RegistroSimilar[]>([]);
-  // Jurisdicción de la corporación (rige la búsqueda de domicilios).
-  const [jurisdiccion, setJurisdiccion] = useState("");
-  const [paisJur, setPaisJur] = useState("");
+  // Catálogo de sitios (el incidente se ancla a un sitio registrado).
+  const [sitios, setSitios] = useState<any[]>([]);
+  const [sitioId, setSitioId] = useState("");
 
   useEffect(() => {
-    getConfig().then((c) => {
-      if (c) { setJurisdiccion(c.jurisdiccion ?? ""); setPaisJur(c.jurisdiccion_pais ?? ""); }
-    });
+    supabase.from("sitios").select("id, nombre, latitud, longitud, cliente:clientes(razon_social)")
+      .eq("estatus", "activo").order("nombre")
+      .then(({ data }) => setSitios((data as any[]) ?? []));
   }, []);
 
   // Alerta de "punto caliente": incidencias previas cerca de la ubicación.
@@ -199,8 +198,8 @@ export default function CentralDespachoPage() {
     e.preventDefault();
     setError(null);
 
-    if (!direccion.trim()) {
-      setError("La ubicación de la incidencia es obligatoria.");
+    if (!sitioId) {
+      setError("Elige el sitio donde ocurrió la incidencia.");
       return;
     }
     if (telefono && telefono.length !== 10) {
@@ -208,15 +207,18 @@ export default function CentralDespachoPage() {
       return;
     }
 
+    const s = sitios.find((x) => x.id === sitioId);
     const { data, error } = await supabase.from("llamadas_cad").insert({
       tipo: tipo || null,
       prioridad,
       reportante: reportante || null,
       telefono: telefono || null,
       descripcion: descripcion || null,
-      direccion: direccion.trim(),
-      latitud: latitud ? Number(latitud) : null,
-      longitud: longitud ? Number(longitud) : null,
+      sitio_id: sitioId,
+      direccion: direccion.trim() || s?.nombre || "Sitio",
+      latitud: latitud ? Number(latitud) : (s?.latitud ?? null),
+      longitud: longitud ? Number(longitud) : (s?.longitud ?? null),
+      datos_adicionales: { origen: "central_operador" },
     }).select("id").single();
 
     if (error) {
@@ -246,20 +248,28 @@ export default function CentralDespachoPage() {
         </div>
 
         <label className="dash-sub">
-          Ubicación de la incidencia <span style={{ color: "#b00020" }}>*</span> (escribe el domicilio y búscalo en el mapa)
-          {jurisdiccion && <span style={{ color: "#667" }}> — se busca en {jurisdiccion}{paisJur ? `, ${paisJur}` : ""}</span>}
+          Sitio donde ocurrió <span style={{ color: "#b00020" }}>*</span> (el incidente se ancla a un sitio registrado)
         </label>
-        <DireccionGeocode
-          direccion={direccion}
-          lat={latitud}
-          lng={longitud}
-          onDireccion={setDireccion}
-          onCoords={(la, lo) => { setLatitud(la); setLongitud(lo); }}
-          jurisdiccion={jurisdiccion}
-          pais={paisJur}
-          size={100}
-        />
-        <AvisoDuplicados titulo="Esta ubicación ya tiene incidencias previas cercanas" registros={reportesUbic} />
+        <div className="form-fila">
+          <select value={sitioId} onChange={(e) => {
+            const id = e.target.value; setSitioId(id);
+            const s = sitios.find((x) => x.id === id);
+            if (s?.latitud != null && s?.longitud != null) { setLatitud(String(s.latitud)); setLongitud(String(s.longitud)); } else { setLatitud(""); setLongitud(""); }
+            setDireccion(s?.nombre ?? "");
+          }} required style={{ flex: 1, minWidth: 260 }}>
+            <option value="">— Sitio —</option>
+            {sitios.map((s) => <option key={s.id} value={s.id}>{s.nombre}{s.cliente?.razon_social ? ` · ${s.cliente.razon_social}` : ""}</option>)}
+          </select>
+          <input placeholder="Referencia dentro del sitio (opcional)" value={direccion} onChange={(e) => setDireccion(e.target.value)} style={{ flex: 1, minWidth: 220 }} />
+        </div>
+        {sitioId && (
+          <>
+            <label className="dash-sub" style={{ display: "block", marginTop: 6 }}>Punto exacto — haz clic o arrastra el marcador alrededor del sitio:</label>
+            <MapaPicker lat={latitud ? Number(latitud) : null} lng={longitud ? Number(longitud) : null}
+              onPick={(la, lo) => { setLatitud(String(la)); setLongitud(String(lo)); }} className="mapbox" />
+          </>
+        )}
+        <AvisoDuplicados titulo="Este sitio ya tiene incidencias previas cercanas" registros={reportesUbic} />
 
         <label className="dash-sub">Descripción</label>
         <div className="form-fila">

@@ -26,6 +26,10 @@ export type RootStackParamList = {
   Evidencia: { incidenteId?: string } | undefined;
   // Levantar incidente desde el campo.
   Incidente: undefined;
+  // Incidentes propios (guardia) o de mis guardias (supervisor).
+  MisIncidentes: undefined;
+  // Detalle de un incidente con novedades.
+  IncidenteDetalle: { id: string };
   Tareas: undefined;
   // Conversación de un canal de chat.
   ChatCanal: { canalId: string; nombre: string };

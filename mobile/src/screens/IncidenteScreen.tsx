@@ -35,13 +35,39 @@ export default function IncidenteScreen() {
   const [lng, setLng] = useState<number | null>(null);
   const [fotos, setFotos] = useState<Foto[]>([]);
   const [enviando, setEnviando] = useState(false);
+  const [telefono, setTelefono] = useState<string | null>(null);
+  const [sitioId, setSitioId] = useState<string>("");
+  const [sitioNombre, setSitioNombre] = useState<string | null>(null);
+  const [sitios, setSitios] = useState<any[]>([]);
 
   useEffect(() => {
     // Tipos desde el catálogo administrable (mismo que Central/Despacho).
     supabase.from("cat_opciones").select("valor").eq("categoria", "tipo_incidencia").eq("activo", true).order("orden")
       .then(({ data }) => { const v = ((data as any[]) ?? []).map((o) => o.valor); if (v.length) setTipos(v); });
     obtenerUbicacion();
+    resolverSitioYTelefono();
   }, []);
+
+  // Toma el teléfono del guardia y el sitio de su turno activo hoy. Si no tiene
+  // turno activo, ofrece elegir el sitio de una lista (el lugar siempre es un sitio).
+  async function resolverSitioYTelefono() {
+    const g = await getMiOficialValido();
+    if (!g) return;
+    const { data: per } = await supabase.from("personal").select("telefono").eq("id", g.personalId).maybeSingle();
+    setTelefono((per as any)?.telefono ?? null);
+    const hoy = new Date().toISOString().slice(0, 10);
+    const { data: tg } = await supabase.from("turno_guardias")
+      .select("sitio_id, sitios(nombre), turnos!inner(fecha, estado, estatus)")
+      .eq("personal_id", g.personalId)
+      .eq("turnos.fecha", hoy).eq("turnos.estado", "activo").eq("turnos.estatus", "activo")
+      .limit(1);
+    const row = ((tg as any[]) ?? [])[0];
+    if (row?.sitio_id) { setSitioId(row.sitio_id); setSitioNombre(row.sitios?.nombre ?? null); }
+    else {
+      const { data: ss } = await supabase.from("sitios").select("id, nombre").eq("estatus", "activo").order("nombre");
+      setSitios((ss as any[]) ?? []);
+    }
+  }
 
   async function obtenerUbicacion() {
     try {
@@ -76,21 +102,24 @@ export default function IncidenteScreen() {
 
   async function enviar() {
     if (!tipo && !narrativa.trim()) return Alert.alert("Falta información", "Indica el tipo o la narrativa del incidente.");
+    if (!sitioId) return Alert.alert("Falta el sitio", "Elige el sitio donde ocurrió el incidente.");
     setEnviando(true);
     try {
       const guardia = await getMiOficialValido();
-      const dir = direccion.trim() || (lat != null && lng != null ? `GPS ${lat}, ${lng}` : "Reportado desde app móvil");
+      const dir = direccion.trim() || sitioNombre || (lat != null && lng != null ? `GPS ${lat}, ${lng}` : "Reportado desde app móvil");
       const datos: Record<string, any> = {
         origen: "incidente_movil",
         personal_id: guardia?.personalId ?? null,
         elemento: guardia?.etiqueta ?? null,
       };
       // Se registra como incidencia de Central/Despacho, en estado "recibida"
-      // para que la central la triaje o despache.
+      // para que la central la triaje o despache. El trigger arma el chat.
       const { data: ll, error } = await supabase.from("llamadas_cad").insert({
         tipo: tipo || null,
         prioridad: "media",
         reportante: guardia?.etiqueta ?? null,
+        telefono: telefono || null,
+        sitio_id: sitioId,
         descripcion: narrativa.trim() || null,
         direccion: dir,
         latitud: lat, longitud: lng,
@@ -131,6 +160,20 @@ export default function IncidenteScreen() {
             </TouchableOpacity>
           ))}
         </View>
+
+        <Text style={styles.label}>Sitio</Text>
+        {sitioNombre ? (
+          <Text style={styles.gps}>📍 {sitioNombre} (de tu turno)</Text>
+        ) : (
+          <View style={styles.chips}>
+            {sitios.map((s) => (
+              <TouchableOpacity key={s.id} style={[styles.chip, sitioId === s.id && styles.chipOn]} onPress={() => setSitioId(s.id)}>
+                <Text style={[styles.chipTxt, sitioId === s.id && styles.chipTxtOn]}>{s.nombre}</Text>
+              </TouchableOpacity>
+            ))}
+            {sitios.length === 0 && <Text style={styles.gps}>No hay sitios disponibles.</Text>}
+          </View>
+        )}
 
         <Text style={styles.label}>Narrativa</Text>
         <TextInput style={[styles.input, styles.textarea]} placeholder="¿Qué ocurrió?" placeholderTextColor={T.textMute} value={narrativa} onChangeText={setNarrativa} multiline />

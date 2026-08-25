@@ -160,6 +160,8 @@ export default function PerfilScreen() {
     setEditandoOficial(false);
     setMiBodycamState(r.folio ?? null);
     await setMiOficial({ personalId: o.id, etiqueta: o.etiqueta });
+    // Liga este elemento con la cuenta de login (para el chat de incidentes).
+    await supabase.rpc("rpc_vincular_usuario_elemento", { p_personal: o.id });
     await actualizarPersonalPush(o.id);
     await cargarMiFoto(o.id);
     iniciarRastreo(); // empieza a compartir ubicación con central

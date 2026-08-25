@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import type { LlamadaCad, EstadoDespachoLlamada } from "@/lib/types";
 import VinculosPanel from "@/app/components/VinculosPanel";
@@ -29,7 +29,10 @@ const MOTIVOS_CANCELADO = ["Cancelada por el cliente", "Reporte duplicado", "Sin
 
 export default function IncidenciaDetallePage() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const [llamada, setLlamada] = useState<LlamadaCad | null>(null);
+  const [sitioNombre, setSitioNombre] = useState<string | null>(null);
+  const [abriendoChat, setAbriendoChat] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
@@ -125,12 +128,28 @@ export default function IncidenciaDetallePage() {
       estado_despacho: l.estado_despacho ?? "recibida",
     });
 
+    if (l.sitio_id) {
+      const { data: sit } = await supabase.from("sitios").select("nombre").eq("id", l.sitio_id).maybeSingle();
+      setSitioNombre((sit as any)?.nombre ?? null);
+    } else setSitioNombre(null);
+
     await supabase.rpc("rpc_registrar_bitacora", {
       p_tipo_accion: "CONSULTAR",
       p_entidad_tipo: "llamadas_cad",
       p_entidad_id: params.id,
       p_modulo: "cad",
     });
+  }
+
+  // El operador se une al chat del incidente y navega a él.
+  async function irAlChat() {
+    if (!llamada) return;
+    setAbriendoChat(true);
+    const { data, error } = await supabase.rpc("rpc_incidente_unir_chat", { p_llamada: llamada.id });
+    setAbriendoChat(false);
+    if (error) { setError(error.message); return; }
+    const canal = data as string | null;
+    router.push(canal ? `/chat?canal=${canal}` : "/chat");
   }
 
   useEffect(() => {
@@ -253,6 +272,16 @@ export default function IncidenciaDetallePage() {
         <p style={{ fontSize: 13, margin: "0 0 6px", display: "inline-block", background: "#eef4fb", color: "#0b3d66", border: "1px solid #cfe0f0", borderRadius: 6, padding: "3px 8px" }}>
           📱 Incidente levantado en campo{(llamada as any).datos_adicionales?.elemento ? ` · ${(llamada as any).datos_adicionales.elemento}` : ""}
         </p>
+      )}
+      {sitioNombre && (
+        <p style={{ fontSize: 13, color: "#333", margin: "0 0 6px" }}>📍 Sitio: <b>{sitioNombre}</b></p>
+      )}
+      {llamada.estatus === "activo" && (
+        <div style={{ margin: "8px 0" }}>
+          <button className="qbtn2" onClick={irAlChat} disabled={abriendoChat}>
+            💬 {abriendoChat ? "Abriendo…" : "Ir al chat del incidente"}
+          </button>
+        </div>
       )}
 
       {txActiva && (

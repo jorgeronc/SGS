@@ -123,6 +123,15 @@ export default function ChatPage() {
     setNoLeidos((p) => ({ ...p, [canalId]: 0 }));
   }
 
+  // Deep-link: al llegar con ?canal=<id> (p. ej. desde un incidente), abre ese canal.
+  useEffect(() => {
+    if (sel || canales.length === 0) return;
+    let canalUrl: string | null = null;
+    try { canalUrl = new URLSearchParams(window.location.search).get("canal"); } catch { /* */ }
+    if (canalUrl && canales.some((c) => c.id === canalUrl)) abrir(canalUrl);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canales, sel]);
+
   // --- Realtime global: detecta mensajes en CUALQUIER canal mío ---
   useEffect(() => {
     const canal = supabase

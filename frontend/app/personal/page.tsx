@@ -44,6 +44,7 @@ function NuevoGuardia({ onCreado }: { onCreado: () => void }) {
   const [foto, setFoto] = useState<File | null>(null);
   const [gafete, setGafete] = useState("");
   const [categoria, setCategoria] = useState("");
+  const [telefono, setTelefono] = useState("");
   const [estado, setEstado] = useState("activo");
   const [error, setError] = useState<string | null>(null);
   const [creando, setCreando] = useState(false);
@@ -86,6 +87,7 @@ function NuevoGuardia({ onCreado }: { onCreado: () => void }) {
       persona_id: persona.id,
       numero_placa: gafete || null,
       categoria: categoria || null,
+      telefono: telefono.trim() || null,
       estado_laboral: estado,
     });
     setCreando(false);
@@ -132,6 +134,7 @@ function NuevoGuardia({ onCreado }: { onCreado: () => void }) {
       <div className="form-fila">
         <input placeholder="No. de gafete / ID" value={gafete} onChange={(e) => setGafete(e.target.value)} />
         <CatalogoSelect categoria="categoria_guardia" value={categoria} onChange={setCategoria} placeholder="— Categoría —" />
+        <input placeholder="Teléfono de contacto" value={telefono} onChange={(e) => setTelefono(e.target.value.replace(/\D/g, "").slice(0, 10))} inputMode="numeric" maxLength={10} style={{ width: "16ch" }} />
         <select value={estado} onChange={(e) => setEstado(e.target.value)}>
           <option value="activo">Activo</option>
           <option value="licencia">Licencia</option>
@@ -152,7 +155,7 @@ export default function GuardiasPage() {
       subtitulo="Guardias de seguridad (ligado a Personas)"
       tabla="personal"
       modulo="personal"
-      select="id, numero_placa, categoria, registro_autoridad, registro_vigencia, control_confianza, control_confianza_vigencia, porta_arma, licencia_colectiva, contacto_emergencia_nombre, contacto_emergencia_tel, estado_laboral, estatus, creado_en, persona:personas(nombre, apellido_paterno, apellido_materno, fotografias)"
+      select="id, numero_placa, categoria, telefono, registro_autoridad, registro_vigencia, control_confianza, control_confianza_vigencia, porta_arma, licencia_colectiva, contacto_emergencia_nombre, contacto_emergencia_tel, estado_laboral, estatus, creado_en, persona:personas(nombre, apellido_paterno, apellido_materno, fotografias)"
       miniatura={(r) => r.persona?.fotografias}
       placeholderBuscar="Buscar gafete, categoría, nombre…"
       columnas={[
@@ -182,6 +185,7 @@ export default function GuardiasPage() {
           <dl className="sc-kv">
             <dt>Gafete / ID</dt><dd>{r.numero_placa ?? "—"}</dd>
             <dt>Categoría</dt><dd>{r.categoria ?? "—"}</dd>
+            <dt>Teléfono</dt><dd>{r.telefono ?? "—"}</dd>
             <dt>Registro autoridad</dt><dd>{r.registro_autoridad ?? "—"}</dd>
             <dt>Vigencia registro</dt><dd><Vigencia fecha={r.registro_vigencia} /></dd>
             <dt>Control y confianza</dt><dd>{r.control_confianza ?? "—"}</dd>
@@ -196,6 +200,7 @@ export default function GuardiasPage() {
       editar={[
         { campo: "numero_placa", label: "Gafete / ID" },
         { campo: "categoria", label: "Categoría", tipo: "select", opciones: CATEGORIAS },
+        { campo: "telefono", label: "Teléfono de contacto" },
         { campo: "estado_laboral", label: "Estado laboral", tipo: "select", opciones: ["activo", "licencia", "suspendido", "baja"] },
         { campo: "registro_autoridad", label: "Registro / credencial (autoridad)" },
         { campo: "registro_vigencia", label: "Vigencia del registro", tipo: "date" },

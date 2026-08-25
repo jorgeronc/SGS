@@ -84,6 +84,7 @@ export default function InicioSgsScreen() {
   const accesos: { label: string; icon: keyof typeof Ionicons.glyphMap; to: string }[] = [
     { label: "Registrar rondín", icon: "qr-code", to: "Rondin" },
     { label: "Levantar incidente", icon: "alert-circle", to: "Incidente" },
+    { label: "Mis incidentes", icon: "list", to: "MisIncidentes" },
     { label: "Nueva evidencia", icon: "camera", to: "Evidencia" },
     { label: "Mis tareas", icon: "checkbox", to: "Tareas" },
     { label: "Descargar bodycam", icon: "cloud-upload", to: "Perfil" },
