@@ -44,8 +44,19 @@ async function windyGet(path: string, params: Record<string, string>): Promise<a
   return data;
 }
 
-async function windyVista(ref: string) {
-  const w = await windyGet(`/webcams/${encodeURIComponent(ref)}`, { include: "images,player" });
+// El webcamId de Windy es un entero. Acepta que en proveedor_ref se haya
+// guardado una URL o texto con el id y extrae el número (el último largo).
+function windyRef(ref: string): string {
+  const t = String(ref ?? "").trim();
+  if (/^\d+$/.test(t)) return t;
+  const nums = t.match(/\d{4,}/g);
+  return nums && nums.length ? nums[nums.length - 1] : t;
+}
+
+async function windyVista(refCrudo: string) {
+  const ref = windyRef(refCrudo);
+  if (!/^\d+$/.test(ref)) throw { code: 409, msg: `El proveedor_ref no es un webcamId numérico de Windy: "${refCrudo}".` };
+  const w = await windyGet(`/webcams/${ref}`, { include: "images,player" });
   const actual = (w?.images ?? {}).current ?? {};
   const player = w?.player ?? {};
   return {
