@@ -7,36 +7,28 @@ import ListaMaestra from "@/app/components/ListaMaestra";
 import MapaPicker from "@/app/components/MapaPicker";
 import VisorCamara from "@/app/components/VisorCamara";
 
-const PROVEEDORES = [
-  { v: "manual", label: "Manual (NVR/DVR del cliente · HLS/MJPEG/embed)" },
-  { v: "windy", label: "Windy (webcams públicas · requiere API key)" },
-];
 const proveedorLabel = (p: string) => (p === "windy" ? "Windy" : "Manual");
-
-// Acepta el ID numérico de la webcam o una URL de Windy (ej.
-// https://www.windy.com/webcams/.../1734567890) y extrae el webcamId.
-function extraerWindyRef(s: string): string {
-  const t = (s ?? "").trim();
-  if (/^\d+$/.test(t)) return t;
-  const nums = t.match(/\d{5,}/g);           // los webcamId de Windy son numéricos largos
-  return nums ? nums[nums.length - 1] : t;    // el id suele ser el último número de la URL
-}
 const estadoLabel = (e: string) => (e === "inactiva" ? "Inactiva" : e === "mantenimiento" ? "Mantenimiento" : "Activa");
+const RADIOS_M = [500, 1000, 3000, 5000, 10000, 25000]; // metros a la redonda del sitio
 
 // Cámaras fijas (CCTV) ancladas a un sitio. El video NO se almacena: la señal la
 // resuelve al vuelo la Edge Function `camara_vista`. Ver migración 0061.
+//
+// FLUJO PRINCIPAL (como en SOME): eliges el sitio, se toman sus coordenadas y se
+// buscan/agregan las cámaras de Windy alrededor — sin capturar ningún ID/URL.
+// El alta MANUAL (stream del NVR/DVR del cliente) es la opción secundaria.
 function NuevaCamara({ onCreado }: { onCreado: () => void }) {
   const [sitios, setSitios] = useState<any[]>([]);
-  const [f, setF] = useState({
-    sitio_id: "", nombre: "", proveedor: "manual", stream_url: "", proveedor_ref: "",
-    ubicacion_desc: "", estado_operativo: "activa", lat: "", lng: "",
-  });
+  // Búsqueda por sitio (Windy).
+  const [d, setD] = useState({ sitio_id: "", radio_m: "5000", limite: "20" });
+  const [dMsg, setDMsg] = useState<string | null>(null);
+  const [dOk, setDOk] = useState(false);
+  const [buscando, setBuscando] = useState(false);
+  // Alta manual (secundaria).
+  const [manualAbierto, setManualAbierto] = useState(false);
+  const [f, setF] = useState({ sitio_id: "", nombre: "", stream_url: "", ubicacion_desc: "", estado_operativo: "activa", lat: "", lng: "" });
   const [error, setError] = useState<string | null>(null);
   const [creando, setCreando] = useState(false);
-  // Importación masiva desde el proveedor (Windy).
-  const [imp, setImp] = useState({ abierto: false, sitio_id: "", radio_km: "25", limite: "10" });
-  const [impMsg, setImpMsg] = useState<string | null>(null);
-  const [importando, setImportando] = useState(false);
   const set = (k: string, v: string) => setF((p) => ({ ...p, [k]: v }));
 
   useEffect(() => {
@@ -44,119 +36,129 @@ function NuevaCamara({ onCreado }: { onCreado: () => void }) {
       .then(({ data }) => setSitios((data as any[]) ?? []));
   }, []);
 
-  // Al elegir el sitio, si aún no hay coordenadas, hereda las del sitio.
-  function elegirSitio(id: string) {
-    const s = sitios.find((x) => x.id === id);
-    setF((p) => ({
-      ...p, sitio_id: id,
-      lat: p.lat || (s?.latitud != null ? String(s.latitud) : ""),
-      lng: p.lng || (s?.longitud != null ? String(s.longitud) : ""),
-    }));
+  const sitioSel = sitios.find((x) => x.id === d.sitio_id);
+  const sitioSinCoords = !!sitioSel && (sitioSel.latitud == null || sitioSel.longitud == null);
+
+  // Busca en Windy alrededor del sitio y da de alta las que falten.
+  async function buscarYAgregar() {
+    setDMsg(null); setDOk(false);
+    if (!d.sitio_id) { setDMsg("Elige el sitio."); return; }
+    if (sitioSinCoords) { setDMsg("El sitio no tiene coordenadas. Georreferéncialo primero en Sitios."); return; }
+    setBuscando(true);
+    const radioKm = Math.max(1, Math.round(Number(d.radio_m) / 1000)); // Windy busca en km
+    const { data, error } = await supabase.functions.invoke("camara_vista", {
+      body: { accion: "importar", sitio_id: d.sitio_id, radio_km: radioKm, limite: Number(d.limite), proveedor: "windy" },
+    });
+    setBuscando(false);
+    if (error || (data as any)?.error) {
+      let msg = (data as any)?.error ?? error?.message ?? "No se pudo buscar.";
+      try { const ctx = (error as any)?.context; if (ctx?.json) { const b = await ctx.json(); if (b?.error) msg = b.error; } } catch { /* */ }
+      setDMsg(msg); return;
+    }
+    const n = (data as any).importadas ?? 0, om = (data as any).omitidas ?? 0;
+    setDOk(true);
+    setDMsg(n === 0 && om === 0
+      ? "No se encontraron cámaras de Windy en ese radio. Prueba ampliándolo."
+      : `Agregadas ${n} cámara(s)${om ? ` · ${om} ya existían` : ""}.`);
+    if (n > 0) onCreado();
   }
 
-  async function crear(e: React.FormEvent) {
+  // Alta manual (NVR/DVR del cliente): requiere stream_url.
+  async function crearManual(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     if (!f.sitio_id) { setError("Elige el sitio."); return; }
     if (!f.nombre.trim()) { setError("El nombre de la cámara es obligatorio."); return; }
-    if (f.proveedor === "manual" && !f.stream_url.trim()) { setError("Una cámara manual requiere la URL del stream (HLS/MJPEG/embed)."); return; }
-    const refWindy = f.proveedor === "windy" ? extraerWindyRef(f.proveedor_ref) : f.proveedor_ref.trim();
-    if (f.proveedor !== "manual" && !refWindy) { setError("Indica el ID o la URL de la cámara en el proveedor."); return; }
-    if (f.proveedor === "windy" && !/^\d+$/.test(refWindy)) { setError("No pude extraer el webcamId de Windy. Pega el ID numérico o la URL completa de la webcam."); return; }
+    if (!f.stream_url.trim()) { setError("Una cámara manual requiere la URL del stream (HLS/MJPEG/embed)."); return; }
     setCreando(true);
     const { error } = await supabase.from("camaras").insert({
-      sitio_id: f.sitio_id, nombre: f.nombre.trim(), proveedor: f.proveedor,
-      stream_url: f.proveedor === "manual" ? f.stream_url.trim() : null,
-      proveedor_ref: f.proveedor !== "manual" ? refWindy : null,
+      sitio_id: f.sitio_id, nombre: f.nombre.trim(), proveedor: "manual", stream_url: f.stream_url.trim(),
       ubicacion_desc: f.ubicacion_desc.trim() || null, estado_operativo: f.estado_operativo,
       latitud: f.lat ? Number(f.lat) : null, longitud: f.lng ? Number(f.lng) : null,
     });
     setCreando(false);
     if (error) { setError(error.message); return; }
+    setF({ sitio_id: "", nombre: "", stream_url: "", ubicacion_desc: "", estado_operativo: "activa", lat: "", lng: "" });
     onCreado();
   }
 
-  async function importar() {
-    setImpMsg(null);
-    if (!imp.sitio_id) { setImpMsg("Elige el sitio para buscar cámaras cercanas."); return; }
-    setImportando(true);
-    const { data, error } = await supabase.functions.invoke("camara_vista", {
-      body: { accion: "importar", sitio_id: imp.sitio_id, radio_km: Number(imp.radio_km), limite: Number(imp.limite), proveedor: "windy" },
-    });
-    setImportando(false);
-    if (error || (data as any)?.error) {
-      let msg = (data as any)?.error ?? error?.message ?? "No se pudo importar.";
-      try { const ctx = (error as any)?.context; if (ctx?.json) { const b = await ctx.json(); if (b?.error) msg = b.error; } } catch { /* */ }
-      setImpMsg(msg); return;
-    }
-    setImpMsg(`Importadas ${(data as any).importadas}, omitidas ${(data as any).omitidas}.`);
-    onCreado();
+  function elegirSitioManual(id: string) {
+    const s = sitios.find((x) => x.id === id);
+    setF((p) => ({ ...p, sitio_id: id,
+      lat: p.lat || (s?.latitud != null ? String(s.latitud) : ""),
+      lng: p.lng || (s?.longitud != null ? String(s.longitud) : "") }));
   }
 
   return (
-    <form onSubmit={crear}>
+    <div>
+      {/* FLUJO PRINCIPAL: buscar cámaras alrededor del sitio (Windy) */}
+      <h4 style={{ margin: "0 0 8px" }}>Buscar cámaras alrededor de un sitio</h4>
+      <p className="dash-sub" style={{ fontSize: 12.5, marginTop: 0 }}>
+        Se toman las coordenadas del sitio y se buscan las cámaras de Windy a la redonda; las nuevas se agregan automáticamente (sin capturar ID ni URL).
+      </p>
       <div className="form-fila">
-        <select value={f.sitio_id} onChange={(e) => elegirSitio(e.target.value)} required style={{ flex: 2 }}>
+        <select value={d.sitio_id} onChange={(e) => { setD((p) => ({ ...p, sitio_id: e.target.value })); setDMsg(null); }} style={{ flex: 2 }}>
           <option value="">— Sitio —</option>
           {sitios.map((s) => <option key={s.id} value={s.id}>{s.nombre}{s.cliente?.razon_social ? ` · ${s.cliente.razon_social}` : ""}</option>)}
         </select>
-        <input placeholder="Nombre (ej. Acceso norte)" value={f.nombre} onChange={(e) => set("nombre", e.target.value)} required style={{ flex: 2 }} />
-      </div>
-      <div className="form-fila">
-        <label className="dash-sub" style={{ display: "flex", flexDirection: "column" }}>Proveedor
-          <select value={f.proveedor} onChange={(e) => set("proveedor", e.target.value)}>
-            {PROVEEDORES.map((p) => <option key={p.v} value={p.v}>{p.label}</option>)}
+        <label className="dash-sub" style={{ display: "flex", flexDirection: "column" }}>Radio a la redonda
+          <select value={d.radio_m} onChange={(e) => setD((p) => ({ ...p, radio_m: e.target.value }))}>
+            {RADIOS_M.map((m) => <option key={m} value={m}>{m >= 1000 ? `${m / 1000} km` : `${m} m`}</option>)}
           </select>
         </label>
-        <label className="dash-sub" style={{ display: "flex", flexDirection: "column" }}>Estado
-          <select value={f.estado_operativo} onChange={(e) => set("estado_operativo", e.target.value)}>
-            <option value="activa">Activa</option>
-            <option value="inactiva">Inactiva</option>
-            <option value="mantenimiento">Mantenimiento</option>
-          </select>
+        <label className="dash-sub" style={{ display: "flex", flexDirection: "column" }}>Máx. cámaras
+          <input type="number" min={1} max={50} value={d.limite} onChange={(e) => setD((p) => ({ ...p, limite: e.target.value }))} style={{ maxWidth: 90 }} />
         </label>
-      </div>
-      {f.proveedor === "manual" ? (
-        <div className="form-fila">
-          <input placeholder="URL del stream (HLS .m3u8 / MJPEG / embed)" value={f.stream_url} onChange={(e) => set("stream_url", e.target.value)} style={{ flex: 3 }} />
-        </div>
-      ) : (
-        <div className="form-fila">
-          <input placeholder={f.proveedor === "windy" ? "ID numérico o URL de la webcam de Windy (ej. https://www.windy.com/webcams/…/1734567890)" : "ID de la cámara en el proveedor (proveedor_ref)"} value={f.proveedor_ref} onChange={(e) => set("proveedor_ref", e.target.value)} style={{ flex: 3 }} />
-        </div>
-      )}
-      <div className="form-fila">
-        <input placeholder="Ubicación / referencia (piso, área, orientación…)" value={f.ubicacion_desc} onChange={(e) => set("ubicacion_desc", e.target.value)} style={{ flex: 2 }} />
-        <button type="submit" disabled={creando}>{creando ? "Creando…" : "Agregar cámara"}</button>
-      </div>
-      <label className="dash-sub" style={{ display: "block", marginTop: 8 }}>Ubicación en el mapa — haz clic o arrastra el marcador (por defecto hereda la del sitio):</label>
-      <MapaPicker lat={f.lat ? Number(f.lat) : null} lng={f.lng ? Number(f.lng) : null}
-        onPick={(la, lo) => setF((p) => ({ ...p, lat: String(la), lng: String(lo) }))} className="mapbox" />
-      {sitios.length === 0 && <p className="dash-sub">Primero registra un sitio.</p>}
-      {error && <p style={{ color: "#b00020" }}>{error}</p>}
-
-      {/* Alta masiva desde el proveedor (Windy) */}
-      <div style={{ marginTop: 12, borderTop: "1px dashed var(--sc-card-line)", paddingTop: 10 }}>
-        <button type="button" className="qbtn2" onClick={() => setImp((p) => ({ ...p, abierto: !p.abierto }))}>
-          {imp.abierto ? "▾" : "▸"} Importar cámaras del proveedor (Windy)
+        <button type="button" onClick={buscarYAgregar} disabled={buscando} style={{ alignSelf: "flex-end" }}>
+          {buscando ? "Buscando…" : "🔍 Buscar y agregar"}
         </button>
-        {imp.abierto && (
-          <div style={{ marginTop: 8 }}>
+      </div>
+      {sitioSel && (
+        <p className="dash-sub" style={{ fontSize: 12 }}>
+          {sitioSinCoords
+            ? <span style={{ color: "#b00020" }}>⚠ Este sitio no tiene coordenadas — georreferéncialo en Sitios para poder buscar.</span>
+            : `📍 Centro de búsqueda: ${sitioSel.latitud}, ${sitioSel.longitud}`}
+        </p>
+      )}
+      {dMsg && <p style={{ color: dOk ? "#0a7c2f" : "#b00020", fontSize: 13 }}>{dMsg}</p>}
+      {sitios.length === 0 && <p className="dash-sub">Primero registra un sitio.</p>}
+
+      {/* OPCIÓN SECUNDARIA: alta manual (NVR/DVR del cliente) */}
+      <div style={{ marginTop: 14, borderTop: "1px dashed var(--sc-card-line)", paddingTop: 10 }}>
+        <button type="button" className="qbtn2" onClick={() => setManualAbierto((v) => !v)}>
+          {manualAbierto ? "▾" : "▸"} Agregar una cámara manual (NVR/DVR del cliente)
+        </button>
+        {manualAbierto && (
+          <form onSubmit={crearManual} style={{ marginTop: 8 }}>
             <div className="form-fila">
-              <select value={imp.sitio_id} onChange={(e) => setImp((p) => ({ ...p, sitio_id: e.target.value }))} style={{ flex: 2 }}>
-                <option value="">— Sitio (centro de búsqueda) —</option>
-                {sitios.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+              <select value={f.sitio_id} onChange={(e) => elegirSitioManual(e.target.value)} required style={{ flex: 2 }}>
+                <option value="">— Sitio —</option>
+                {sitios.map((s) => <option key={s.id} value={s.id}>{s.nombre}{s.cliente?.razon_social ? ` · ${s.cliente.razon_social}` : ""}</option>)}
               </select>
-              <input type="number" min={1} max={250} value={imp.radio_km} onChange={(e) => setImp((p) => ({ ...p, radio_km: e.target.value }))} title="Radio km" style={{ maxWidth: 110 }} />
-              <input type="number" min={1} max={50} value={imp.limite} onChange={(e) => setImp((p) => ({ ...p, limite: e.target.value }))} title="Límite" style={{ maxWidth: 90 }} />
-              <button type="button" onClick={importar} disabled={importando}>{importando ? "Importando…" : "Importar"}</button>
+              <input placeholder="Nombre (ej. Acceso norte)" value={f.nombre} onChange={(e) => set("nombre", e.target.value)} style={{ flex: 2 }} />
+              <label className="dash-sub" style={{ display: "flex", flexDirection: "column" }}>Estado
+                <select value={f.estado_operativo} onChange={(e) => set("estado_operativo", e.target.value)}>
+                  <option value="activa">Activa</option>
+                  <option value="inactiva">Inactiva</option>
+                  <option value="mantenimiento">Mantenimiento</option>
+                </select>
+              </label>
             </div>
-            <p className="dash-sub" style={{ fontSize: 12 }}>Da de alta las cámaras públicas cercanas al sitio (dedup por proveedor). Requiere el secreto WINDY_API_KEY.</p>
-            {impMsg && <p style={{ color: impMsg.startsWith("Importadas") ? "#0a7c2f" : "#b00020", fontSize: 13 }}>{impMsg}</p>}
-          </div>
+            <div className="form-fila">
+              <input placeholder="URL del stream (HLS .m3u8 / MJPEG / embed)" value={f.stream_url} onChange={(e) => set("stream_url", e.target.value)} style={{ flex: 3 }} />
+            </div>
+            <div className="form-fila">
+              <input placeholder="Ubicación / referencia (piso, área, orientación…)" value={f.ubicacion_desc} onChange={(e) => set("ubicacion_desc", e.target.value)} style={{ flex: 2 }} />
+              <button type="submit" disabled={creando}>{creando ? "Creando…" : "Agregar cámara"}</button>
+            </div>
+            <label className="dash-sub" style={{ display: "block", marginTop: 8 }}>Ubicación en el mapa — clic o arrastra el marcador (por defecto hereda la del sitio):</label>
+            <MapaPicker lat={f.lat ? Number(f.lat) : null} lng={f.lng ? Number(f.lng) : null}
+              onPick={(la, lo) => setF((p) => ({ ...p, lat: String(la), lng: String(lo) }))} className="mapbox" />
+            {error && <p style={{ color: "#b00020" }}>{error}</p>}
+          </form>
         )}
       </div>
-    </form>
+    </div>
   );
 }
 
