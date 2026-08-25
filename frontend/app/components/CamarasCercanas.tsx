@@ -7,6 +7,8 @@ import VisorCamara from "@/app/components/VisorCamara";
 // Cámaras de videovigilancia cercanas a un punto (alerta/incidencia). Usa
 // rpc_camaras_cercanas (Haversine) para ofrecer las del entorno por distancia,
 // no todas. Al elegir una, se muestra su señal en vivo (VisorCamara).
+const RADIOS = [200, 500, 800, 1500, 3000, 5000]; // metros a la redonda
+
 export default function CamarasCercanas({
   latitud, longitud, radioM = 800,
 }: {
@@ -15,19 +17,28 @@ export default function CamarasCercanas({
   const [camaras, setCamaras] = useState<any[]>([]);
   const [cargando, setCargando] = useState(false);
   const [verId, setVerId] = useState<string | null>(null);
+  const [radio, setRadio] = useState(radioM);
 
   useEffect(() => {
     if (latitud == null || longitud == null) { setCamaras([]); return; }
     setCargando(true);
-    supabase.rpc("rpc_camaras_cercanas", { p_lat: latitud, p_lng: longitud, p_radio_m: radioM, p_limite: 20 })
+    supabase.rpc("rpc_camaras_cercanas", { p_lat: latitud, p_lng: longitud, p_radio_m: radio, p_limite: 50 })
       .then(({ data }) => { setCamaras((data as any[]) ?? []); setCargando(false); });
-  }, [latitud, longitud, radioM]);
+  }, [latitud, longitud, radio]);
 
   if (latitud == null || longitud == null) return null;
 
   return (
     <section style={{ marginTop: 16 }}>
-      <h3>📹 Cámaras cercanas <span className="dash-sub" style={{ fontWeight: 400 }}>(radio {radioM} m)</span></h3>
+      <h3 style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        📹 Cámaras cercanas
+        <label className="dash-sub" style={{ fontWeight: 400, fontSize: 13, display: "inline-flex", alignItems: "center", gap: 6 }}>
+          a la redonda:
+          <select value={radio} onChange={(e) => setRadio(Number(e.target.value))} style={{ padding: "2px 6px" }}>
+            {RADIOS.map((m) => <option key={m} value={m}>{m >= 1000 ? `${m / 1000} km` : `${m} m`}</option>)}
+          </select>
+        </label>
+      </h3>
       {cargando && <p className="dash-sub">Buscando cámaras…</p>}
       {!cargando && camaras.length === 0 && <p className="dash-sub">No hay cámaras de videovigilancia en el entorno.</p>}
       {camaras.length > 0 && (

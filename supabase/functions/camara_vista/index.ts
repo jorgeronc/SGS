@@ -19,28 +19,38 @@ import { json, preflight } from "../_shared/cors.ts";
 const WINDY_BASE = "https://api.windy.com/webcams/api/v3";
 
 // ---- Proveedor Windy (ejemplo de proveedor con llave) ---------------------
+// La API v3 de Windy espera las COMAS LITERALES en `include`/`nearby` (no las
+// admite URL-encodeadas como %2C), por eso el query se arma a mano y sólo se
+// codifican los valores que lo necesitan.
 async function windyGet(path: string, params: Record<string, string>): Promise<any> {
   const key = Deno.env.get("WINDY_API_KEY") ?? "";
   if (!key) throw { code: 503, msg: "Falta configurar el secreto WINDY_API_KEY en Supabase." };
-  const qs = new URLSearchParams(params).toString();
+  const qs = Object.entries(params)
+    .map(([k, v]) => `${k}=${v.replace(/ /g, "%20")}`)  // comas y signos quedan literales
+    .join("&");
   let resp: Response;
   try {
-    resp = await fetch(`${WINDY_BASE}${path}?${qs}`, { headers: { "X-WINDY-API-KEY": key } });
+    resp = await fetch(`${WINDY_BASE}${path}?${qs}`, {
+      headers: { "X-WINDY-API-KEY": key, "Accept": "application/json" },
+    });
   } catch {
     throw { code: 504, msg: "El proveedor de video no respondió (timeout/red)." };
   }
   const data = await resp.json().catch(() => ({}));
-  if (!resp.ok) throw { code: 502, msg: `Proveedor de video: HTTP ${resp.status}` };
+  if (!resp.ok) {
+    const detalle = data?.message ?? data?.error ?? data?.detail ?? "";
+    throw { code: 502, msg: `Proveedor de video: HTTP ${resp.status}${detalle ? ` — ${detalle}` : ""}` };
+  }
   return data;
 }
 
 async function windyVista(ref: string) {
-  const w = await windyGet(`/webcams/${ref}`, { include: "images,location,player", lang: "es" });
+  const w = await windyGet(`/webcams/${encodeURIComponent(ref)}`, { include: "images,player" });
   const actual = (w?.images ?? {}).current ?? {};
   const player = w?.player ?? {};
   return {
     imagen_url: actual.preview ?? actual.thumbnail ?? null,
-    player_url: player.live ?? player.day ?? null,
+    player_url: player.live ?? player.day ?? player.month ?? null,
     en_vivo: Boolean(player.live),
     actualizado_en: w?.lastUpdatedOn ?? null,
     titulo: w?.title ?? null,
@@ -50,7 +60,7 @@ async function windyVista(ref: string) {
 
 async function windyCercanas(lat: number, lng: number, radio_km: number, limite: number) {
   const data = await windyGet("/webcams", {
-    nearby: `${lat},${lng},${Math.min(radio_km, 250)}`,
+    nearby: `${lat},${lng},${Math.max(1, Math.min(Math.round(radio_km), 250))}`,
     include: "location,player",
     limit: String(Math.min(limite, 50)),
   });
