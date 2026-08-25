@@ -21,7 +21,10 @@ const TIPOS_FALLBACK = [
 interface Foto { id: string; uri: string; nombre: string; mime: string }
 
 // Levantar incidente (SGS): el guardia reporta una incidencia desde el campo.
-// Crea un registro en `incidentes` (con GPS y fotos) que la central ve en la web.
+// Crea una incidencia en CENTRAL/DESPACHO (tabla `llamadas_cad`, origen
+// "incidente_movil") con GPS y fotos, para que la central la triaje/despache
+// junto con el resto de reportes. Las fotos van al bucket público `fotos` y sus
+// rutas quedan en datos_adicionales.fotografias (la web las muestra).
 export default function IncidenteScreen() {
   const nav = useNavigation<any>();
   const [tipos, setTipos] = useState<string[]>(TIPOS_FALLBACK);
@@ -63,10 +66,10 @@ export default function IncidenteScreen() {
     setFotos((p) => [...p, { id: `${Date.now()}_${p.length}`, uri: a.uri, nombre: a.fileName ?? "foto.jpg", mime: a.mimeType ?? "image/jpeg" }]);
   }
 
-  async function subirFoto(f: Foto, incId: string): Promise<string | null> {
+  async function subirFoto(f: Foto, llamadaId: string): Promise<string | null> {
     const base64 = await FileSystem.readAsStringAsync(f.uri, { encoding: FileSystem.EncodingType.Base64 });
     const ext = (f.nombre.match(/\.([a-z0-9]+)$/i)?.[1] ?? "jpg").toLowerCase();
-    const path = `incidentes/${incId}/${Date.now()}_${f.id}.${ext}`;
+    const path = `cad/${llamadaId}/${Date.now()}_${f.id}.${ext}`;
     const { error } = await supabase.storage.from(BUCKET_FOTOS).upload(path, decode(base64), { contentType: f.mime });
     return error ? null : path;
   }
@@ -76,25 +79,36 @@ export default function IncidenteScreen() {
     setEnviando(true);
     try {
       const guardia = await getMiOficialValido();
-      const { data: inc, error } = await supabase.from("incidentes").insert({
+      const dir = direccion.trim() || (lat != null && lng != null ? `GPS ${lat}, ${lng}` : "Reportado desde app móvil");
+      const datos: Record<string, any> = {
+        origen: "incidente_movil",
+        personal_id: guardia?.personalId ?? null,
+        elemento: guardia?.etiqueta ?? null,
+      };
+      // Se registra como incidencia de Central/Despacho, en estado "recibida"
+      // para que la central la triaje o despache.
+      const { data: ll, error } = await supabase.from("llamadas_cad").insert({
         tipo: tipo || null,
-        narrativa: narrativa.trim() || null,
-        direccion: direccion.trim() || null,
+        prioridad: "media",
+        reportante: guardia?.etiqueta ?? null,
+        descripcion: narrativa.trim() || null,
+        direccion: dir,
         latitud: lat, longitud: lng,
-        oficial_personal_id: guardia?.personalId ?? null,
-        estado: "abierto",
-        fecha_incidente: new Date().toISOString(),
-        datos_adicionales: { origen: "app_movil" },
+        estado_despacho: "recibida",
+        datos_adicionales: datos,
       }).select("id, folio").single();
       if (error) throw error;
 
       if (fotos.length) {
         const rutas: string[] = [];
-        for (const f of fotos) { const p = await subirFoto(f, inc.id); if (p) rutas.push(p); }
-        if (rutas.length) await supabase.from("incidentes").update({ fotografias: rutas, actualizado_en: new Date().toISOString() }).eq("id", inc.id);
+        for (const f of fotos) { const p = await subirFoto(f, ll.id); if (p) rutas.push(p); }
+        if (rutas.length) await supabase.from("llamadas_cad").update({
+          datos_adicionales: { ...datos, fotografias: rutas },
+          actualizado_en: new Date().toISOString(),
+        }).eq("id", ll.id);
       }
 
-      Alert.alert("Incidente levantado", `Folio ${inc.folio ?? "asignado"}. La central ya puede verlo.`, [
+      Alert.alert("Incidente reportado", `Folio ${ll.folio ?? "asignado"}. La central ya lo ve en Central/Despacho.`, [
         { text: "OK", onPress: () => nav.goBack() },
       ]);
     } catch (e: any) {

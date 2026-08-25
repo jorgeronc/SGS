@@ -249,6 +249,11 @@ export default function IncidenciaDetallePage() {
         Recepción: {new Date(llamada.fecha_recepcion).toLocaleString()}
         {llamada.fecha_cierre ? ` · Cierre: ${new Date(llamada.fecha_cierre).toLocaleString()}` : ""}
       </p>
+      {(llamada as any).datos_adicionales?.origen === "incidente_movil" && (
+        <p style={{ fontSize: 13, margin: "0 0 6px", display: "inline-block", background: "#eef4fb", color: "#0b3d66", border: "1px solid #cfe0f0", borderRadius: 6, padding: "3px 8px" }}>
+          📱 Incidente levantado en campo{(llamada as any).datos_adicionales?.elemento ? ` · ${(llamada as any).datos_adicionales.elemento}` : ""}
+        </p>
+      )}
 
       {txActiva && (
         <section className="tx-live">
@@ -308,6 +313,28 @@ export default function IncidenciaDetallePage() {
           <MapaUbicacion latitud={llamada.latitud} longitud={llamada.longitud} />
         </div>
       </div>
+
+      {(() => {
+        const dd = (llamada as any).datos_adicionales ?? {};
+        const fotos: string[] = Array.isArray(dd.fotografias) ? dd.fotografias : [];
+        if (!fotos.length) return null;
+        return (
+          <section style={{ marginTop: 16 }}>
+            <h3>📷 Fotografías del reporte</h3>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+              {fotos.map((p, i) => {
+                const url = supabase.storage.from("fotos").getPublicUrl(p).data.publicUrl;
+                return (
+                  <a key={i} href={url} target="_blank" rel="noopener noreferrer">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={url} alt={`Foto ${i + 1}`} style={{ width: 160, height: 160, objectFit: "cover", borderRadius: 8, border: "1px solid var(--sc-card-line)" }} />
+                  </a>
+                );
+              })}
+            </div>
+          </section>
+        );
+      })()}
 
       <CamarasCercanas latitud={llamada.latitud} longitud={llamada.longitud} />
 

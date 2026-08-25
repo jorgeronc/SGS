@@ -11,7 +11,7 @@ interface DefInd { key: string; label: string; href: string; tabla: string; fech
 const INDS: DefInd[] = [
   // Solo las alertas que llegaron por el botón "Enviar alerta" del móvil (pánico).
   { key: "emergencias", label: "Alertas de pánico (móvil)", href: "/cad", tabla: "llamadas_cad", fecha: "fecha_recepcion", color: "c-red", ico: "🚨", mod: (q: any) => q.eq("datos_adicionales->>origen", "panico_movil") },
-  { key: "incidentes", label: "Incidentes levantados", href: "/rondines", tabla: "incidentes", fecha: "creado_en", color: "c-amber", ico: "📝" },
+  { key: "incidentes", label: "Incidentes levantados", href: "/cad", tabla: "llamadas_cad", fecha: "fecha_recepcion", color: "c-amber", ico: "📝", mod: (q: any) => q.eq("datos_adicionales->>origen", "incidente_movil") },
   { key: "rondines", label: "Rondines registrados", href: "/rondines", tabla: "rondines", fecha: "creado_en", color: "c-blue", ico: "🔁" },
   { key: "fuera_rango", label: "Rondines fuera de rango", href: "/rondines", tabla: "rondines", fecha: "creado_en", color: "c-red", ico: "⚠", mod: (q: any) => q.eq("dentro_geocerca", false) },
   { key: "tareas", label: "Tareas nuevas", href: "/tareas", tabla: "tareas", fecha: "creado_en", color: "c-teal", ico: "✔" },
@@ -148,10 +148,12 @@ export default function Panel({ correo }: { correo?: string | null }) {
       const { count: enLinea } = await supabase.from("ubicaciones_guardias").select("*", { count: "exact", head: true }).eq("en_linea", true).gt("actualizado_en", cutoff);
       setGuardiasLinea(enLinea ?? 0);
 
-      // Incidentes por día (últimos 14 días).
+      // Incidentes levantados en campo por día (últimos 14 días).
       const desde14 = new Date(Date.now() - 14 * 86400000).toISOString();
-      const { data: incs } = await supabase.from("incidentes").select("creado_en").eq("estatus", "activo").gte("creado_en", desde14);
-      setIncDia(serieUltimosDias(((incs as any[]) ?? []).map((x) => x.creado_en), 14));
+      const { data: incs } = await supabase.from("llamadas_cad")
+        .select("fecha_recepcion").eq("estatus", "activo")
+        .eq("datos_adicionales->>origen", "incidente_movil").gte("fecha_recepcion", desde14);
+      setIncDia(serieUltimosDias(((incs as any[]) ?? []).map((x) => x.fecha_recepcion), 14));
 
       setCargando(false);
       setRefrescando(false);
