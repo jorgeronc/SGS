@@ -12,6 +12,15 @@ const PROVEEDORES = [
   { v: "windy", label: "Windy (webcams públicas · requiere API key)" },
 ];
 const proveedorLabel = (p: string) => (p === "windy" ? "Windy" : "Manual");
+
+// Acepta el ID numérico de la webcam o una URL de Windy (ej.
+// https://www.windy.com/webcams/.../1734567890) y extrae el webcamId.
+function extraerWindyRef(s: string): string {
+  const t = (s ?? "").trim();
+  if (/^\d+$/.test(t)) return t;
+  const nums = t.match(/\d{5,}/g);           // los webcamId de Windy son numéricos largos
+  return nums ? nums[nums.length - 1] : t;    // el id suele ser el último número de la URL
+}
 const estadoLabel = (e: string) => (e === "inactiva" ? "Inactiva" : e === "mantenimiento" ? "Mantenimiento" : "Activa");
 
 // Cámaras fijas (CCTV) ancladas a un sitio. El video NO se almacena: la señal la
@@ -51,12 +60,14 @@ function NuevaCamara({ onCreado }: { onCreado: () => void }) {
     if (!f.sitio_id) { setError("Elige el sitio."); return; }
     if (!f.nombre.trim()) { setError("El nombre de la cámara es obligatorio."); return; }
     if (f.proveedor === "manual" && !f.stream_url.trim()) { setError("Una cámara manual requiere la URL del stream (HLS/MJPEG/embed)."); return; }
-    if (f.proveedor !== "manual" && !f.proveedor_ref.trim()) { setError("Indica el ID de la cámara en el proveedor (proveedor_ref)."); return; }
+    const refWindy = f.proveedor === "windy" ? extraerWindyRef(f.proveedor_ref) : f.proveedor_ref.trim();
+    if (f.proveedor !== "manual" && !refWindy) { setError("Indica el ID o la URL de la cámara en el proveedor."); return; }
+    if (f.proveedor === "windy" && !/^\d+$/.test(refWindy)) { setError("No pude extraer el webcamId de Windy. Pega el ID numérico o la URL completa de la webcam."); return; }
     setCreando(true);
     const { error } = await supabase.from("camaras").insert({
       sitio_id: f.sitio_id, nombre: f.nombre.trim(), proveedor: f.proveedor,
       stream_url: f.proveedor === "manual" ? f.stream_url.trim() : null,
-      proveedor_ref: f.proveedor !== "manual" ? f.proveedor_ref.trim() : null,
+      proveedor_ref: f.proveedor !== "manual" ? refWindy : null,
       ubicacion_desc: f.ubicacion_desc.trim() || null, estado_operativo: f.estado_operativo,
       latitud: f.lat ? Number(f.lat) : null, longitud: f.lng ? Number(f.lng) : null,
     });
@@ -111,7 +122,7 @@ function NuevaCamara({ onCreado }: { onCreado: () => void }) {
         </div>
       ) : (
         <div className="form-fila">
-          <input placeholder="ID de la cámara en el proveedor (proveedor_ref)" value={f.proveedor_ref} onChange={(e) => set("proveedor_ref", e.target.value)} style={{ flex: 3 }} />
+          <input placeholder={f.proveedor === "windy" ? "ID numérico o URL de la webcam de Windy (ej. https://www.windy.com/webcams/…/1734567890)" : "ID de la cámara en el proveedor (proveedor_ref)"} value={f.proveedor_ref} onChange={(e) => set("proveedor_ref", e.target.value)} style={{ flex: 3 }} />
         </div>
       )}
       <div className="form-fila">
