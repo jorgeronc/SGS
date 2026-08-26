@@ -72,6 +72,9 @@ const TABLAS: Cfg[] = [
     titulo: (r) => r.asunto ?? r.tipo ?? "Orden", texto: (r) => linea(r.tipo ? `tipo: ${r.tipo}` : "", r.autoridad_emisora, `estado: ${r.estado}`) },
   { t: "evidencias", cols: ["tipo", "descripcion"], sel: "id, folio, tipo, descripcion, estado_evidencia",
     titulo: (r) => r.tipo ?? "Evidencia", texto: (r) => linea(r.descripcion, `estado: ${r.estado_evidencia ?? "—"}`) },
+  { t: "accesos", cols: ["visitante_nombre", "tipo_persona", "motivo", "placa"], sel: "id, folio, tipo, visitante_nombre, tipo_persona, motivo, resultado, placa, fecha_evento, persona:personas(nombre, apellido_paterno)",
+    titulo: (r) => `Acceso ${r.tipo === "salida" ? "salida" : "entrada"} · ${nom(r.persona) || r.placa || r.visitante_nombre || "—"}`,
+    texto: (r) => linea(r.tipo_persona, r.motivo, r.placa ? `placa: ${r.placa}` : "", `resultado: ${r.resultado}`, r.fecha_evento ? new Date(r.fecha_evento).toLocaleString() : "") },
 ];
 
 const STOP = new Set(["para", "como", "donde", "cuando", "cuales", "cual", "que", "los", "las", "del", "con", "una", "uno",

@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import Link from "next/link";
 import ListaMaestra from "@/app/components/ListaMaestra";
 import { CatalogoSelect } from "@/app/components/CatalogoSelect";
+import CamarasCercanas from "@/app/components/CamarasCercanas";
 
 const hoyISO = () => new Date().toISOString().slice(0, 10);
 const personaNombre = (r: any) => (r.persona
@@ -157,7 +159,7 @@ export default function AccesosPage() {
       tabla="accesos"
       modulo="accesos"
       orderBy="fecha_evento"
-      select="id, folio, tipo, persona_id, visitante_nombre, tipo_persona, motivo, resultado, placa, anden, fecha_evento, estatus, creado_en, sitio:sitios(nombre), punto:puntos_control(nombre), persona:personas(nombre, apellido_paterno, apellido_materno), vehiculo:vehiculos(placas)"
+      select="id, folio, tipo, sitio_id, persona_id, visitante_nombre, tipo_persona, motivo, resultado, placa, anden, latitud, longitud, fecha_evento, estatus, creado_en, sitio:sitios(nombre, latitud, longitud), punto:puntos_control(nombre), persona:personas(nombre, apellido_paterno, apellido_materno), vehiculo:vehiculos(placas)"
       placeholderBuscar="Buscar persona, visitante, motivo…"
       columnas={[
         { header: "Folio", celda: (r) => r.folio ?? "—" },
@@ -190,6 +192,10 @@ export default function AccesosPage() {
             <dt>Caseta</dt><dd>{r.punto?.nombre ?? "—"}</dd>
             <dt>Resultado</dt><dd>{(RES[r.resultado] ?? { t: r.resultado }).t}</dd>
           </dl>
+          <CamarasCercanas latitud={r.latitud ?? r.sitio?.latitud ?? null} longitud={r.longitud ?? r.sitio?.longitud ?? null} radioM={500} />
+          <p style={{ marginTop: 10 }}>
+            <Link href={`/accesos/imprimir?${r.sitio_id ? `sitio=${r.sitio_id}&` : ""}desde=${String(r.fecha_evento ?? "").slice(0, 10) || hoyISO()}`} target="_blank" rel="noopener noreferrer" className="qbtn2">🖨️ Imprimir bitácora (este sitio / día) ↗</Link>
+          </p>
         </>
       )}
       nuevo={(onCreado) => <NuevoAcceso onCreado={onCreado} />}

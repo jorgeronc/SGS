@@ -36,6 +36,7 @@ const GRUPOS: { grupo: string; items: { href: string; label: string; ico: string
       { href: "/citas", label: "Citas (CEDIS)", ico: "📅" },
       { href: "/transportistas", label: "Transportistas", ico: "🚚" },
       { href: "/credenciales", label: "Credenciales", ico: "🎫" },
+      { href: "/zonas", label: "Zonas", ico: "🗺" },
     ],
   },
   {
