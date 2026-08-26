@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import { primeraFoto } from "@/lib/fotos";
+import { computeReporteSla } from "@/lib/sla";
 import MapaReportes, { type ReporteMapa } from "./MapaReportes";
 
 interface DefInd { key: string; label: string; href: string; tabla: string; fecha: string; color: string; ico: string; mod?: (q: any) => any; }
@@ -108,6 +109,7 @@ export default function Panel({ correo }: { correo?: string | null }) {
   const [tend, setTend] = useState<{ actual: number; previa: number }>({ actual: 0, previa: 0 });
   const [tResp, setTResp] = useState<number | null>(null);
   const [atencion, setAtencion] = useState<Atencion[]>([]);
+  const [indice, setIndice] = useState<number | null>(null);
   const [incDia, setIncDia] = useState<Dato[]>([]);
   const [cargando, setCargando] = useState(true);
   const [refrescando, setRefrescando] = useState(false);
@@ -236,6 +238,9 @@ export default function Panel({ correo }: { correo?: string | null }) {
       ((fr as any[]) ?? []).forEach((r) => feed.push({ nivel: "medio", texto: `Rondín fuera de rango: ${r.punto?.nombre ?? "punto"}${r.punto?.sitio?.nombre ? ` · ${r.punto.sitio.nombre}` : ""}`, href: `/rondines/${r.id}` }));
       feed.sort((a, b) => (a.nivel === b.nivel ? 0 : a.nivel === "alto" ? -1 : 1));
       setAtencion(feed);
+
+      // Índice de Cumplimiento de Seguridad (global, este mes).
+      try { const rep = await computeReporteSla(null, desdeMes, new Date().toISOString()); setIndice(rep.index); } catch { setIndice(null); }
 
       setCargando(false);
       setRefrescando(false);
@@ -367,6 +372,18 @@ export default function Panel({ correo }: { correo?: string | null }) {
         </>
       ) : (
         <>
+          {/* Índice de Cumplimiento de Seguridad (global, este mes) */}
+          <div className="dash-eyebrow">Índice de cumplimiento de seguridad (este mes)</div>
+          <Link href="/reporte-sla" className="dcard" style={{ display: "flex", alignItems: "center", gap: 18, padding: "16px 20px", marginBottom: 12 }}>
+            <div style={{ fontSize: 44, fontWeight: 900, lineHeight: 1, color: indice == null ? "#607d8b" : indice >= 90 ? "#2e7d32" : indice >= 75 ? "#f9a825" : "#d32f2f" }}>
+              {cargando ? "…" : indice ?? "—"}
+            </div>
+            <div>
+              <div style={{ fontWeight: 700, color: "var(--sc-text, #1f2937)" }}>de 100 — cumplimiento global</div>
+              <div className="dash-sub" style={{ fontSize: 12.5 }}>Combina cobertura, rondines, tiempo de respuesta e incidentes críticos. Ver reporte por cliente →</div>
+            </div>
+          </Link>
+
           {/* Incidentes por severidad + tendencia + tiempo de respuesta */}
           <div className="dash-eyebrow">Incidentes y respuesta (esta semana)</div>
           <div className="dash-kpis una-fila">

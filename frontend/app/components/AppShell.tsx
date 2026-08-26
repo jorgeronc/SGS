@@ -64,6 +64,8 @@ const GRUPOS: { grupo: string; items: { href: string; label: string; ico: string
       { href: "/clientes", label: "Clientes", ico: "🏢" },
       { href: "/personal", label: "Guardias", ico: "★" },
       { href: "/turnos", label: "Rol de turnos", ico: "🗓" },
+      { href: "/sla", label: "Metas de SLA", ico: "🎯" },
+      { href: "/reporte-sla", label: "Reporte mensual", ico: "📄" },
       { href: "/kardex", label: "Kardex", ico: "▤" },
       { href: "/bitacora", label: "Bitácora", ico: "▥" },
       { href: "/admin", label: "Administración", ico: "⚙" },
