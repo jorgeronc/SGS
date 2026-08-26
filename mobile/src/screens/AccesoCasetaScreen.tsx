@@ -39,6 +39,13 @@ export default function AccesoCasetaScreen() {
   const [personalId, setPersonalId] = useState<string | null>(null);
   const [escaneando, setEscaneando] = useState(false);
   const [enviando, setEnviando] = useState(false);
+  // Modo vehículo (Fase 2): placa + cita + andén.
+  const [modo, setModo] = useState<"persona" | "vehiculo">("persona");
+  const [placa, setPlaca] = useState("");
+  const [remolque, setRemolque] = useState("");
+  const [anden, setAnden] = useState("");
+  const [citaId, setCitaId] = useState("");
+  const [citas, setCitas] = useState<any[]>([]);
 
   useEffect(() => {
     supabase.from("cat_opciones").select("valor").eq("categoria", "tipo_persona_acceso").eq("activo", true).order("orden")
@@ -47,6 +54,15 @@ export default function AccesoCasetaScreen() {
       .then(({ data }) => setMotivos(((data as any[]) ?? []).map((o) => o.valor)));
     resolverCaseta();
   }, []);
+
+  // Citas activas del sitio (para ligar el acceso del camión a su cita).
+  useEffect(() => {
+    if (!sitioId) { setCitas([]); return; }
+    supabase.from("citas").select("id, folio, placa, anden, vehiculo:vehiculos(placas)")
+      .eq("estatus", "activo").eq("sitio_id", sitioId)
+      .not("estado", "in", "(finalizada,salida,cancelada)").order("programada_en").limit(100)
+      .then(({ data }) => setCitas((data as any[]) ?? []));
+  }, [sitioId]);
 
   async function resolverCaseta() {
     const g = await getMiOficialValido();
@@ -122,6 +138,7 @@ export default function AccesoCasetaScreen() {
 
   function validar(): string | null {
     if (!sitioId) return "No se detectó tu sitio/caseta (¿tienes turno activo hoy?).";
+    if (modo === "vehiculo") { if (!placa.trim() && !citaId) return "Captura la placa o elige la cita del camión."; return null; }
     if (!cred && !visitante.trim()) return "Escanea la credencial o escribe el nombre del visitante.";
     return null;
   }
@@ -134,13 +151,17 @@ export default function AccesoCasetaScreen() {
       tipo,
       persona_id: cred?.persona_id ?? null,
       visitante_nombre: cred?.persona_id ? null : (visitante.trim() || cred?.descripcion || null),
-      tipo_persona: tipoPersona || null,
       sitio_id: sitioId,
       punto_id: puntoId,
       personal_id: personalId,
       credencial_id: cred?.id ?? null,
+      tipo_persona: tipoPersona || (modo === "vehiculo" ? "Transportista" : null),
       motivo: motivo || null,
       resultado: res,
+      placa: modo === "vehiculo" ? (placa.trim() || null) : null,
+      cita_id: modo === "vehiculo" ? (citaId || null) : null,
+      anden: modo === "vehiculo" ? (anden.trim() || null) : null,
+      remolque_placa: modo === "vehiculo" ? (remolque.trim() || null) : null,
       latitud: g.lat, longitud: g.lng,
       datos_adicionales: { origen: "caseta_movil" },
     }).select("id, folio").single();
@@ -218,6 +239,38 @@ export default function AccesoCasetaScreen() {
           ))}
         </View>
 
+        <View style={[styles.seg, { marginTop: 10 }]}>
+          {(["persona", "vehiculo"] as const).map((m) => (
+            <TouchableOpacity key={m} style={[styles.segBtn, modo === m && styles.segOn]} onPress={() => setModo(m)}>
+              <Text style={[styles.segTxt, modo === m && styles.segTxtOn]}>{m === "persona" ? "Persona" : "Vehículo"}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {modo === "vehiculo" && (
+          <>
+            <Text style={styles.label}>Vehículo</Text>
+            <TextInput style={styles.input} placeholder="Placa" placeholderTextColor={T.textMute} value={placa} onChangeText={setPlaca} autoCapitalize="characters" />
+            <TextInput style={styles.input} placeholder="Placa de remolque (opcional)" placeholderTextColor={T.textMute} value={remolque} onChangeText={setRemolque} autoCapitalize="characters" />
+            <TextInput style={styles.input} placeholder="Andén (opcional)" placeholderTextColor={T.textMute} value={anden} onChangeText={setAnden} />
+            {citas.length > 0 && (
+              <>
+                <Text style={styles.label}>Cita (opcional)</Text>
+                <View style={styles.chips}>
+                  {citas.map((c) => (
+                    <TouchableOpacity key={c.id} style={[styles.chip, citaId === c.id && styles.chipOn]} onPress={() => { setCitaId(citaId === c.id ? "" : c.id); if (!placa) setPlaca(c.placa ?? c.vehiculo?.placas ?? ""); if (c.anden && !anden) setAnden(c.anden); }}>
+                      <Text style={[styles.chipTxt, citaId === c.id && styles.chipTxtOn]}>{c.folio ?? "cita"}{(c.placa ?? c.vehiculo?.placas) ? ` · ${c.placa ?? c.vehiculo?.placas}` : ""}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </>
+            )}
+            <Text style={styles.label}>Operador</Text>
+            <TextInput style={styles.input} placeholder="Nombre del operador" placeholderTextColor={T.textMute} value={visitante} onChangeText={setVisitante} />
+          </>
+        )}
+
+        {modo === "persona" && (<>
         <Text style={styles.label}>Credencial</Text>
         {escaneando && enfocada && permiso?.granted ? (
           <View style={styles.cam}>
@@ -239,6 +292,7 @@ export default function AccesoCasetaScreen() {
             <TextInput style={styles.input} placeholder="Nombre del visitante" placeholderTextColor={T.textMute} value={visitante} onChangeText={setVisitante} />
           </>
         )}
+        </>)}
 
         <Text style={styles.label}>Tipo de persona</Text>
         {chips(tiposPersona, tipoPersona, setTipoPersona)}

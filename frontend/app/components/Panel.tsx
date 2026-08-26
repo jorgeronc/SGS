@@ -18,6 +18,7 @@ const INDS: DefInd[] = [
   { key: "evidencias", label: "Evidencias nuevas", href: "/evidencias", tabla: "evidencias", fecha: "creado_en", color: "c-purple", ico: "◧" },
   { key: "accesos", label: "Accesos (mes)", href: "/accesos", tabla: "accesos", fecha: "fecha_evento", color: "c-teal", ico: "🚧" },
   { key: "accesos_rechazados", label: "Accesos rechazados", href: "/accesos", tabla: "accesos", fecha: "fecha_evento", color: "c-red", ico: "⛔", mod: (q: any) => q.eq("resultado", "rechazado") },
+  { key: "citas", label: "Citas (mes)", href: "/citas", tabla: "citas", fecha: "creado_en", color: "c-blue", ico: "📅" },
 ];
 
 interface ItemReciente { id: string; titulo: string; sub: string; href: string; foto: string | null; iniciales: string; gradiente: string; }
@@ -81,6 +82,7 @@ export default function Panel({ correo }: { correo?: string | null }) {
   const [guardiasTurno, setGuardiasTurno] = useState<number | null>(null);
   const [guardiasLinea, setGuardiasLinea] = useState<number | null>(null);
   const [personasDentro, setPersonasDentro] = useState<number | null>(null);
+  const [vehiculosDentro, setVehiculosDentro] = useState<number | null>(null);
   const [incDia, setIncDia] = useState<Dato[]>([]);
   const [cargando, setCargando] = useState(true);
   const [refrescando, setRefrescando] = useState(false);
@@ -154,6 +156,8 @@ export default function Panel({ correo }: { correo?: string | null }) {
       // Personas actualmente dentro (control de accesos).
       const { count: dentro } = await supabase.from("v_personas_dentro").select("*", { count: "exact", head: true });
       setPersonasDentro(dentro ?? 0);
+      const { count: vdentro } = await supabase.from("v_vehiculos_dentro").select("*", { count: "exact", head: true });
+      setVehiculosDentro(vdentro ?? 0);
 
       // Incidentes levantados en campo por día (últimos 14 días).
       const desde14 = new Date(Date.now() - 14 * 86400000).toISOString();
@@ -283,6 +287,10 @@ export default function Panel({ correo }: { correo?: string | null }) {
         <Link href="/accesos" className="dcard dkpi">
           <div className="k-top"><span>🚧</span> Personas dentro</div>
           <div className="rows"><div className="row"><span className="num c-blue">{cargando ? "…" : personasDentro ?? "—"}</span><span className="lbl">ahora en sitios</span></div></div>
+        </Link>
+        <Link href="/citas" className="dcard dkpi">
+          <div className="k-top"><span>🚚</span> Vehículos dentro</div>
+          <div className="rows"><div className="row"><span className="num c-teal">{cargando ? "…" : vehiculosDentro ?? "—"}</span><span className="lbl">ahora en sitios</span></div></div>
         </Link>
       </div>
       {cargando ? (
