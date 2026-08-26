@@ -11,6 +11,7 @@ import { getMiUnidad } from "../lib/unidad";
 import { getMiBodycam } from "../lib/bodycam";
 import { ubicacionActual, panicoNuevoDespacho } from "../lib/panico";
 import { getEstatusServicio, setEstatusServicio, type EstatusServicio } from "../lib/ubicacionVivo";
+import { bodycamDisponible, bodycamGrabando, iniciarBodycam, detenerBodycam, pedirPermisosBodycam } from "../lib/bodycamHd";
 
 // Turno actual según la hora (diurno 06:00–18:00, nocturno 18:00–06:00).
 function turnoActual(): string {
@@ -25,10 +26,30 @@ export default function InicioSgsScreen() {
   const [alertando, setAlertando] = useState(false);
   const [estatus, setEstatus] = useState<EstatusServicio>("en_servicio");
   const [motivoPausa, setMotivoPausa] = useState<string | null>(null);
+  const [grabando, setGrabando] = useState(false);
   useFocusEffect(useCallback(() => {
     getMiOficial().then(setMio);
     getEstatusServicio().then((e) => { setEstatus(e.estatus); setMotivoPausa(e.motivo); });
+    setGrabando(bodycamGrabando());
+    const i = setInterval(() => setGrabando(bodycamGrabando()), 1500);
+    return () => clearInterval(i);
   }, []));
+
+  // Bodycam HD (activar/detener) como acceso rápido. Solo en build de Android.
+  async function toggleBodycam() {
+    if (grabando || bodycamGrabando()) {
+      await detenerBodycam();
+      setGrabando(false);
+      Alert.alert("Bodycam detenida", "Los videos quedaron en el teléfono. Descárgalos en Perfil → «Descargar bodycam».");
+      return;
+    }
+    const ok = await pedirPermisosBodycam();
+    if (!ok) { Alert.alert("Permiso", "Se requiere cámara y micrófono para la bodycam."); return; }
+    const r = await iniciarBodycam(null);
+    if (!r.ok) { Alert.alert("Bodycam", r.error ?? "No se pudo iniciar."); return; }
+    setGrabando(true);
+    Alert.alert("🔴 Bodycam activa", "Grabando en HD en segundo plano. Puedes bloquear la pantalla.");
+  }
 
   function cambiarEstatus(e: EstatusServicio, motivo?: string | null) {
     setEstatus(e); setMotivoPausa(motivo ?? null);
@@ -150,6 +171,20 @@ export default function InicioSgsScreen() {
               <Text style={styles.cardTxt}>{a.label}</Text>
             </TouchableOpacity>
           ))}
+          {/* Acceso rápido: bodycam (activar/detener) — solo build Android */}
+          {bodycamDisponible && (
+            <TouchableOpacity style={styles.card} onPress={toggleBodycam}>
+              <View style={[styles.icoBox, grabando && { backgroundColor: T.dangerBg }]}>
+                <Ionicons name={grabando ? "stop-circle" : "videocam"} size={26} color={grabando ? T.danger : T.accent} />
+              </View>
+              <Text style={styles.cardTxt}>{grabando ? "Detener bodycam" : "Activar bodycam"}</Text>
+            </TouchableOpacity>
+          )}
+          {/* Acceso rápido: enviar alerta (pánico) */}
+          <TouchableOpacity style={styles.card} onPress={enviarAlerta}>
+            <View style={[styles.icoBox, { backgroundColor: T.dangerBg }]}><Ionicons name="warning" size={26} color={T.danger} /></View>
+            <Text style={styles.cardTxt}>Enviar alerta</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Enviar alerta (pánico) → despacho de emergencia + transmisión en vivo */}
