@@ -16,6 +16,8 @@ const INDS: DefInd[] = [
   { key: "fuera_rango", label: "Rondines fuera de rango", href: "/rondines", tabla: "rondines", fecha: "creado_en", color: "c-red", ico: "⚠", mod: (q: any) => q.eq("dentro_geocerca", false) },
   { key: "tareas", label: "Tareas nuevas", href: "/tareas", tabla: "tareas", fecha: "creado_en", color: "c-teal", ico: "✔" },
   { key: "evidencias", label: "Evidencias nuevas", href: "/evidencias", tabla: "evidencias", fecha: "creado_en", color: "c-purple", ico: "◧" },
+  { key: "accesos", label: "Accesos (mes)", href: "/accesos", tabla: "accesos", fecha: "fecha_evento", color: "c-teal", ico: "🚧" },
+  { key: "accesos_rechazados", label: "Accesos rechazados", href: "/accesos", tabla: "accesos", fecha: "fecha_evento", color: "c-red", ico: "⛔", mod: (q: any) => q.eq("resultado", "rechazado") },
 ];
 
 interface ItemReciente { id: string; titulo: string; sub: string; href: string; foto: string | null; iniciales: string; gradiente: string; }
@@ -78,6 +80,7 @@ export default function Panel({ correo }: { correo?: string | null }) {
   const [reportes, setReportes] = useState<ReporteMapa[]>([]);
   const [guardiasTurno, setGuardiasTurno] = useState<number | null>(null);
   const [guardiasLinea, setGuardiasLinea] = useState<number | null>(null);
+  const [personasDentro, setPersonasDentro] = useState<number | null>(null);
   const [incDia, setIncDia] = useState<Dato[]>([]);
   const [cargando, setCargando] = useState(true);
   const [refrescando, setRefrescando] = useState(false);
@@ -147,6 +150,10 @@ export default function Panel({ correo }: { correo?: string | null }) {
       const cutoff = new Date(Date.now() - ventana * 1000).toISOString();
       const { count: enLinea } = await supabase.from("ubicaciones_guardias").select("*", { count: "exact", head: true }).eq("en_linea", true).gt("actualizado_en", cutoff);
       setGuardiasLinea(enLinea ?? 0);
+
+      // Personas actualmente dentro (control de accesos).
+      const { count: dentro } = await supabase.from("v_personas_dentro").select("*", { count: "exact", head: true });
+      setPersonasDentro(dentro ?? 0);
 
       // Incidentes levantados en campo por día (últimos 14 días).
       const desde14 = new Date(Date.now() - 14 * 86400000).toISOString();
@@ -272,6 +279,10 @@ export default function Panel({ correo }: { correo?: string | null }) {
         <Link href="/monitoreo" className="dcard dkpi">
           <div className="k-top"><span>📡</span> Guardias en línea</div>
           <div className="rows"><div className="row"><span className="num c-green">{cargando ? "…" : guardiasLinea ?? "—"}</span><span className="lbl">GPS reportando</span></div></div>
+        </Link>
+        <Link href="/accesos" className="dcard dkpi">
+          <div className="k-top"><span>🚧</span> Personas dentro</div>
+          <div className="rows"><div className="row"><span className="num c-blue">{cargando ? "…" : personasDentro ?? "—"}</span><span className="lbl">ahora en sitios</span></div></div>
         </Link>
       </div>
       {cargando ? (

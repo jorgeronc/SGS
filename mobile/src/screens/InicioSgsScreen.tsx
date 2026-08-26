@@ -85,6 +85,7 @@ export default function InicioSgsScreen() {
     { label: "Registrar rondín", icon: "qr-code", to: "Rondin" },
     { label: "Levantar incidente", icon: "alert-circle", to: "Incidente" },
     { label: "Mis incidentes", icon: "list", to: "MisIncidentes" },
+    { label: "Control de acceso", icon: "id-card", to: "AccesoCaseta" },
     { label: "Nueva evidencia", icon: "camera", to: "Evidencia" },
     { label: "Mis tareas", icon: "checkbox", to: "Tareas" },
     { label: "Descargar bodycam", icon: "cloud-upload", to: "Perfil" },

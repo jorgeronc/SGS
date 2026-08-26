@@ -87,6 +87,7 @@ function NuevoPunto({ onCreado }: { onCreado: () => void }) {
             <option value="control">Control</option>
             <option value="entrada">Entrada (al lugar)</option>
             <option value="salida">Salida (del lugar)</option>
+            <option value="caseta">Caseta (control de accesos)</option>
           </select>
         </label>
         <label className="dash-sub" style={{ display: "flex", flexDirection: "column" }}>Radio permitido (m)
@@ -169,7 +170,7 @@ export default function PuntosControlPage() {
         { campo: "codigo", label: "Código (QR/NFC)" },
         { campo: "orden", label: "Orden", tipo: "number" },
         { campo: "tipo_control", label: "Tipo de control", tipo: "select", opciones: ["qr", "nfc", "ambos"] },
-        { campo: "tipo_punto", label: "Tipo de punto", tipo: "select", opciones: ["control", "entrada", "salida"] },
+        { campo: "tipo_punto", label: "Tipo de punto", tipo: "select", opciones: ["control", "entrada", "salida", "caseta"] },
         { campo: "ubicacion_control", label: "Ubicación del control (piso/área)" },
         { campo: "radio_m", label: "Radio permitido (m)", tipo: "number" },
         { campo: "latitud", label: "Latitud", tipo: "number" },

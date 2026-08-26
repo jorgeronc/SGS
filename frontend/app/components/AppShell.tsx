@@ -30,6 +30,13 @@ const GRUPOS: { grupo: string; items: { href: string; label: string; ico: string
     ],
   },
   {
+    grupo: "Control de accesos",
+    items: [
+      { href: "/accesos", label: "Accesos", ico: "🚧" },
+      { href: "/credenciales", label: "Credenciales", ico: "🎫" },
+    ],
+  },
+  {
     grupo: "Registros Maestros",
     items: [
       { href: "/personas", label: "Personas", ico: "☷" },
