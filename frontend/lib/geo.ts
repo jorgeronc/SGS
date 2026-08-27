@@ -15,19 +15,27 @@ export function temaMapa(): "light" | "dark" {
 }
 
 // Tiles para Leaflet (mapas del dashboard, CAD, incidentes). Theme-aware:
-// LocationIQ 'dark' en modo oscuro, 'streets' en claro.
+//  - Oscuro: CARTO Dark Matter (basado en OSM, sin llave; el estilo 'dark' de
+//    LocationIQ requiere un plan superior y devuelve un tile de "API key").
+//  - Claro: LocationIQ 'streets' (con la llave ya configurada), o OSM sin llave.
 export function tileConfig(): { url: string; opts: Record<string, unknown> } {
   const dark = temaMapa() === "dark";
+  if (dark) {
+    return {
+      url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+      opts: { maxZoom: 20, subdomains: ["a", "b", "c", "d"], attribution: "© OpenStreetMap · © CARTO" },
+    };
+  }
   if (LOCATIONIQ_KEY) {
     return {
-      url: `https://{s}-tiles.locationiq.com/v3/${dark ? "dark" : "streets"}/r/{z}/{x}/{y}.png?key=${LOCATIONIQ_KEY}`,
+      url: `https://{s}-tiles.locationiq.com/v3/streets/r/{z}/{x}/{y}.png?key=${LOCATIONIQ_KEY}`,
       opts: { maxZoom: 19, subdomains: ["a", "b", "c"], attribution: "© LocationIQ · © OpenStreetMap" },
     };
   }
-  // Fallback sin llave: OSM en claro, CARTO Dark Matter en oscuro.
-  return dark
-    ? { url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", opts: { maxZoom: 19, subdomains: ["a", "b", "c", "d"], attribution: "© OpenStreetMap · © CARTO" } }
-    : { url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", opts: { maxZoom: 19, attribution: "© OpenStreetMap" } };
+  return {
+    url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    opts: { maxZoom: 19, attribution: "© OpenStreetMap" },
+  };
 }
 
 // URL de búsqueda de direcciones (forward geocoding).
