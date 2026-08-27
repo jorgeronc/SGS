@@ -1,29 +1,33 @@
 // Estilo de mapa para MapLibre (migración a mapas vectoriales).
 //
-// FASE 0: la base es raster (CARTO dark/light) para no depender de nada aún.
-// Cuando exista NEXT_PUBLIC_PMTILES_URL (un archivo .pmtiles de OSM auto-hosteado,
-// p. ej. en Supabase Storage/CDN), se sustituye por el estilo VECTORIAL propio
-// "Security Dark" (+ variante clara) sobre Protomaps. Ver lib/theme.ts para el tema.
+// Cuando existe NEXT_PUBLIC_PMTILES_URL (un .pmtiles de OSM — local con
+// `pmtiles serve` o hosteado), se usa el estilo VECTORIAL propio "Security Dark"
+// (paleta del cliente) sobre Protomaps. Si no hay pmtiles, cae a una base raster
+// (CARTO dark/light) para no romper nada. Theme-aware (ver lib/theme.ts).
 
 import type { Map as MapLibreMap } from "maplibre-gl";
+import { DARK, LIGHT, layers, type Flavor } from "@protomaps/basemaps";
 
 export const PMTILES_URL = process.env.NEXT_PUBLIC_PMTILES_URL ?? "";
 
-// Paleta "Security Dark" (para cuando se autore el estilo vectorial).
-export const SECURITY_DARK = {
-  fondo: "#0B1118", edificios: "#151E29", callesPrin: "#283442",
-  callesSec: "#1C2732", nombres: "#8796A8", agua: "#071522",
-};
+// Assets públicos de Protomaps (fuentes/sprites). Para on-prem se auto-hostean.
+const GLYPHS = "https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf";
+const SPRITE = "https://protomaps.github.io/basemaps-assets/sprites/v4/light";
 
-let protoListo = false;
-// Registra el protocolo pmtiles:// en MapLibre (solo si hay URL configurada).
-export async function registrarPmtiles(maplibre: typeof import("maplibre-gl")): Promise<void> {
-  if (protoListo || !PMTILES_URL) return;
-  const { Protocol } = await import("pmtiles");
-  const p = new Protocol();
-  maplibre.addProtocol("pmtiles", p.tile);
-  protoListo = true;
-}
+// Paleta "Security Dark" del cliente.
+const P = { fondo: "#0B1118", edificios: "#151E29", callesPrin: "#283442", callesSec: "#1C2732", nombres: "#8796A8", agua: "#071522" };
+
+// Flavor "Security Dark": parte del DARK de Protomaps y sobreescribe los colores clave.
+const SECURITY_DARK: Flavor = {
+  ...DARK,
+  background: P.fondo, earth: P.fondo, water: P.agua, buildings: P.edificios,
+  highway: P.callesPrin, major: P.callesPrin, link: P.callesPrin, other: P.callesSec,
+  minor_a: P.callesSec, minor_b: P.callesSec, minor_service: P.callesSec,
+  highway_casing_early: P.fondo, highway_casing_late: P.fondo, major_casing_early: P.fondo, major_casing_late: P.fondo,
+  minor_casing: P.fondo, minor_service_casing: P.fondo, link_casing: P.fondo,
+  city_label: P.nombres, state_label: P.nombres, country_label: P.nombres, subplace_label: P.nombres,
+  roads_label_major: P.nombres, roads_label_minor: P.nombres, address_label: P.nombres, ocean_label: P.nombres,
+};
 
 function raster(style: string) {
   return {
@@ -37,21 +41,41 @@ function raster(style: string) {
   };
 }
 
-// Estilo MapLibre según el tema. Hoy raster; el vectorial "Security Dark" entra
-// aquí en cuanto haya PMTILES_URL (sin tocar los componentes que lo consumen).
+let protoListo = false;
+// Registra el protocolo pmtiles:// en MapLibre (solo si hay URL configurada).
+export async function registrarPmtiles(maplibre: typeof import("maplibre-gl")): Promise<void> {
+  if (protoListo || !PMTILES_URL) return;
+  const { Protocol } = await import("pmtiles");
+  const p = new Protocol();
+  maplibre.addProtocol("pmtiles", p.tile);
+  protoListo = true;
+}
+
+// Estilo MapLibre según el tema. Vectorial "Security Dark"/claro sobre Protomaps
+// cuando hay pmtiles; si no, base raster.
 export function estiloMapa(dark: boolean): any {
+  if (PMTILES_URL) {
+    const src = PMTILES_URL.startsWith("pmtiles://") ? PMTILES_URL : `pmtiles://${PMTILES_URL}`;
+    return {
+      version: 8,
+      glyphs: GLYPHS,
+      sprite: SPRITE,
+      sources: { protomaps: { type: "vector", url: src, attribution: "© OpenStreetMap" } },
+      layers: layers("protomaps", dark ? SECURITY_DARK : LIGHT, { lang: "es" }),
+    };
+  }
   return {
     version: 8,
     sources: { base: raster(dark ? "dark_all" : "light_all") },
     layers: [
-      { id: "fondo", type: "background", paint: { "background-color": dark ? SECURITY_DARK.fondo : "#e7edf4" } },
+      { id: "fondo", type: "background", paint: { "background-color": dark ? P.fondo : "#e7edf4" } },
       { id: "base", type: "raster", source: "base" },
     ],
   };
 }
 
 // Cambia el estilo base cuando el usuario cambia el tema, conservando las capas
-// de datos (fuentes/markers) que haya agregado el componente.
+// de datos que haya agregado el componente (se re-agregan en 'styledata').
 export function aplicarEstilo(map: MapLibreMap, dark: boolean): void {
   map.setStyle(estiloMapa(dark), { diff: false });
 }
