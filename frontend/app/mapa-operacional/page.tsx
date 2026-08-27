@@ -44,7 +44,7 @@ export default function MapaOperacionalPage() {
   const [sitios, setSitios] = useState<any[]>([]);
   const [dentro, setDentro] = useState({ personas: 0, vehiculos: 0, rechazos: 0 });
   const [indice, setIndice] = useState<number | null>(null);
-  const [ultima, setUltima] = useState<Date>(new Date());
+  const [ultima, setUltima] = useState<Date | null>(null); // null hasta montar (evita mismatch de hidratación)
   const [selInc, setSelInc] = useState<any | null>(null);
   const [capas, setCapas] = useState({ guardias: true, incidentes: true, camaras: true, geofences: true });
 
@@ -140,7 +140,7 @@ export default function MapaOperacionalPage() {
           </label>
         ))}
         <div style={{ borderTop: "1px solid var(--sc-card-line)", margin: "6px 10px 0", paddingTop: 8, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
-          <span style={{ fontSize: 10, color: "var(--sc-text-faint)" }}>Actualizado {ultima.toLocaleTimeString()}</span>
+          <span style={{ fontSize: 10, color: "var(--sc-text-faint)" }}>Actualizado {ultima ? ultima.toLocaleTimeString() : "—"}</span>
           <button onClick={() => cargar()} title="Actualizar ahora" style={{ background: "transparent", border: "1px solid var(--sc-card-line)", color: "var(--sc-text-soft)", borderRadius: 6, padding: "2px 8px", fontSize: 11, cursor: "pointer" }}>⟳</button>
         </div>
       </div>
