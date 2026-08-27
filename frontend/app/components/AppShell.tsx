@@ -19,7 +19,7 @@ const GRUPOS: { grupo: string; items: { href: string; label: string; ico: string
     grupo: "Operaciones",
     items: [
       { href: "/cad", label: "Central / Despacho", ico: "🎧" },
-      { href: "/monitoreo", label: "Monitoreo en vivo", ico: "🗺" },
+      { href: "/mapa-operacional", label: "Mapa Operacional", ico: "🗺" },
       { href: "/videovigilancia", label: "Videovigilancia", ico: "📹" },
       { href: "/sitios", label: "Sitios / Puestos", ico: "📍" },
       { href: "/puntos-control", label: "Puntos de control", ico: "🚩" },

@@ -54,6 +54,8 @@
 :root[data-theme="dark"] .c-purple { color: #ab7ee6; }
 :root[data-theme="dark"] .est-cerrado { background: #2b5364; color: #d9eef7; }
 
+@keyframes mo-pulse { 0%,100% { transform: scale(.8); opacity: .9; } 50% { transform: scale(1.3); opacity: .35; } }
+
 * {
   box-sizing: border-box;
 }
