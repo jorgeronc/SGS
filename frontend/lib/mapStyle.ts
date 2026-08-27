@@ -29,21 +29,15 @@ const SECURITY_DARK: Flavor = {
   roads_label_major: P.nombres, roads_label_minor: P.nombres, address_label: P.nombres, ocean_label: P.nombres,
 };
 
-function raster(style: string) {
-  return {
-    type: "raster" as const,
-    tiles: [
-      `https://a.basemaps.cartocdn.com/${style}/{z}/{x}/{y}@2x.png`,
-      `https://b.basemaps.cartocdn.com/${style}/{z}/{x}/{y}@2x.png`,
-    ],
-    tileSize: 256,
-    attribution: "© OpenStreetMap · © CARTO",
-  };
-}
+// Estilos gratuitos de OpenFreeMap (vector, sin API key, sin límites de uso,
+// datos OSM => uso comercial OK, CORS habilitado). Se usan como base cuando aún
+// no hay un .pmtiles propio (Protomaps) hosteado. 'dark' nativo / Positron claro.
+const OPENFREEMAP_DARK = "https://tiles.openfreemap.org/styles/dark";
+const OPENFREEMAP_LIGHT = "https://tiles.openfreemap.org/styles/positron";
 
 let protoListo = false;
 // Registra el protocolo pmtiles:// en MapLibre (solo si hay URL configurada).
-export async function registrarPmtiles(maplibre: typeof import("maplibre-gl")): Promise<void> {
+export async function registrarPmtiles(maplibre: any): Promise<void> {
   if (protoListo || !PMTILES_URL) return;
   const { Protocol } = await import("pmtiles");
   const p = new Protocol();
@@ -64,14 +58,7 @@ export function estiloMapa(dark: boolean): any {
       layers: layers("protomaps", dark ? SECURITY_DARK : LIGHT, { lang: "es" }),
     };
   }
-  return {
-    version: 8,
-    sources: { base: raster(dark ? "dark_all" : "light_all") },
-    layers: [
-      { id: "fondo", type: "background", paint: { "background-color": dark ? P.fondo : "#e7edf4" } },
-      { id: "base", type: "raster", source: "base" },
-    ],
-  };
+  return dark ? OPENFREEMAP_DARK : OPENFREEMAP_LIGHT;
 }
 
 // Cambia el estilo base cuando el usuario cambia el tema, conservando las capas

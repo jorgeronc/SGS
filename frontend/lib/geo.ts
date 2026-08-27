@@ -14,27 +14,17 @@ export function temaMapa(): "light" | "dark" {
   return "light";
 }
 
-// Tiles para Leaflet (mapas del dashboard, CAD, incidentes). Theme-aware:
-//  - Oscuro: CARTO Dark Matter (basado en OSM, sin llave; el estilo 'dark' de
-//    LocationIQ requiere un plan superior y devuelve un tile de "API key").
-//  - Claro: LocationIQ 'streets' (con la llave ya configurada), o OSM sin llave.
+// Tiles para Leaflet (mapas del dashboard, CAD, incidentes). Theme-aware con
+// Esri Canvas (raster, SIN API key, CORS habilitado): Dark Gray en oscuro y
+// Light Gray en claro. Se evita CARTO (ahora estampa "API KEY REQUIRED") y
+// LocationIQ (su estilo devuelve tile de "API key" según plan). LocationIQ se
+// sigue usando solo para geocoding (ver urlGeocode/urlReverse). Nota: la URL de
+// Esri usa el orden {z}/{y}/{x}.
 export function tileConfig(): { url: string; opts: Record<string, unknown> } {
-  const dark = temaMapa() === "dark";
-  if (dark) {
-    return {
-      url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-      opts: { maxZoom: 20, subdomains: ["a", "b", "c", "d"], attribution: "© OpenStreetMap · © CARTO" },
-    };
-  }
-  if (LOCATIONIQ_KEY) {
-    return {
-      url: `https://{s}-tiles.locationiq.com/v3/streets/r/{z}/{x}/{y}.png?key=${LOCATIONIQ_KEY}`,
-      opts: { maxZoom: 19, subdomains: ["a", "b", "c"], attribution: "© LocationIQ · © OpenStreetMap" },
-    };
-  }
+  const base = temaMapa() === "dark" ? "World_Dark_Gray_Base" : "World_Light_Gray_Base";
   return {
-    url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-    opts: { maxZoom: 19, attribution: "© OpenStreetMap" },
+    url: `https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/${base}/MapServer/tile/{z}/{y}/{x}`,
+    opts: { maxZoom: 16, attribution: "© Esri · © OpenStreetMap" },
   };
 }
 
