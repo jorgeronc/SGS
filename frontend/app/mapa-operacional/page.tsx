@@ -44,6 +44,7 @@ export default function MapaOperacionalPage() {
   const [sitios, setSitios] = useState<any[]>([]);
   const [dentro, setDentro] = useState({ personas: 0, vehiculos: 0, rechazos: 0 });
   const [indice, setIndice] = useState<number | null>(null);
+  const [ultima, setUltima] = useState<Date>(new Date());
   const [selInc, setSelInc] = useState<any | null>(null);
   const [capas, setCapas] = useState({ guardias: true, incidentes: true, camaras: true, geofences: true });
 
@@ -72,14 +73,25 @@ export default function MapaOperacionalPage() {
       supabase.from("accesos").select("*", { count: "exact", head: true }).eq("estatus", "activo").eq("resultado", "rechazado").gte("fecha_evento", desdeHoy),
     ]);
     setDentro({ personas: pd ?? 0, vehiculos: vd ?? 0, rechazos: ar ?? 0 });
+    // Índice de cumplimiento: también en cada recarga (antes solo al montar).
+    const mes = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+    computeReporteSla(null, mes, new Date().toISOString()).then((r) => setIndice(r.index)).catch(() => {});
+    setUltima(new Date());
   }, []);
 
   useEffect(() => {
     cargar();
     const t = setInterval(cargar, 60000);
-    const mes = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
-    computeReporteSla(null, mes, new Date().toISOString()).then((r) => setIndice(r.index)).catch(() => {});
-    return () => clearInterval(t);
+    // Recargar también al volver a la pestaña/ventana (el intervalo no basta si
+    // el navegador lo estranguló en segundo plano). Patrón del proyecto.
+    const onVis = () => { if (!document.hidden) cargar(); };
+    window.addEventListener("focus", cargar);
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      clearInterval(t);
+      window.removeEventListener("focus", cargar);
+      document.removeEventListener("visibilitychange", onVis);
+    };
   }, [cargar]);
 
   // Geocercas como polígonos (capa de estilo; se re-crea tras cambios de tema).
@@ -127,6 +139,10 @@ export default function MapaOperacionalPage() {
             <span style={{ width: 8, height: 8, borderRadius: "50%", background: c }} /> {l}
           </label>
         ))}
+        <div style={{ borderTop: "1px solid var(--sc-card-line)", margin: "6px 10px 0", paddingTop: 8, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
+          <span style={{ fontSize: 10, color: "var(--sc-text-faint)" }}>Actualizado {ultima.toLocaleTimeString()}</span>
+          <button onClick={() => cargar()} title="Actualizar ahora" style={{ background: "transparent", border: "1px solid var(--sc-card-line)", color: "var(--sc-text-soft)", borderRadius: 6, padding: "2px 8px", fontSize: 11, cursor: "pointer" }}>⟳</button>
+        </div>
       </div>
 
       {/* Strip de conteos */}

@@ -29,7 +29,17 @@ export function useGuardiasEnLinea(): GuardiaMapa[] {
     const ch = supabase.channel("ubic-guardias")
       .on("postgres_changes", { event: "*", schema: "public", table: "ubicaciones_guardias" }, () => cargar())
       .subscribe();
-    return () => { cancelado = true; if (timer) clearInterval(timer); supabase.removeChannel(ch); };
+    // Refrescar al volver a la pestaña/ventana (además del intervalo de 15s).
+    const onVis = () => { if (!document.hidden) cargar(); };
+    window.addEventListener("focus", cargar);
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      cancelado = true;
+      if (timer) clearInterval(timer);
+      supabase.removeChannel(ch);
+      window.removeEventListener("focus", cargar);
+      document.removeEventListener("visibilitychange", onVis);
+    };
   }, []);
   return guardias;
 }
