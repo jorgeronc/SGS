@@ -71,6 +71,7 @@ export default function MapaMonitoreo({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
+  const tileRef = useRef<any>(null);
   const capas = useRef<{ sitios?: any; puntos?: any; guardias?: any; incidentes?: any; camaras?: any }>({});
   const datos = useRef({ sitios, puntos, guardias, incidentes, camaras });
   const ajustado = useRef(false);
@@ -122,7 +123,7 @@ export default function MapaMonitoreo({
       if (cancelado || !ref.current || mapRef.current) return;
       const map = L.map(ref.current).setView([25.6714, -100.309], 12);
       mapRef.current = map;
-      const t = tileConfig(); L.tileLayer(t.url, t.opts).addTo(map);
+      const t = tileConfig(); tileRef.current = L.tileLayer(t.url, t.opts).addTo(map);
       capas.current = { sitios: L.layerGroup().addTo(map), puntos: L.layerGroup().addTo(map), guardias: L.layerGroup().addTo(map), incidentes: L.layerGroup().addTo(map), camaras: L.layerGroup().addTo(map) };
       repintar(L);
       ajustarUnaVez(L);
@@ -130,6 +131,13 @@ export default function MapaMonitoreo({
     }).catch(() => {});
     return () => { cancelado = true; if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; ajustado.current = false; } };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Cambia el estilo de tiles (claro/oscuro) cuando el usuario cambia el tema.
+  useEffect(() => {
+    const onTema = () => { if (tileRef.current) tileRef.current.setUrl(tileConfig().url); };
+    window.addEventListener("sgs-theme", onTema);
+    return () => window.removeEventListener("sgs-theme", onTema);
   }, []);
 
   // Encuadra una sola vez, cuando ya hay datos (no vuelve a moverse en los refresh).

@@ -114,6 +114,7 @@ export default function MapaReportes({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
+  const tileRef = useRef<any>(null);
   const guardiasRef = useRef<GuardiaMapa[]>(guardias);
   const guardiasLayerRef = useRef<any>(null);
 
@@ -135,7 +136,7 @@ export default function MapaReportes({
         const map = L.map(ref.current).setView(centro, 12);
         mapRef.current = map;
         const t = tileConfig();
-        L.tileLayer(t.url, t.opts).addTo(map);
+        tileRef.current = L.tileLayer(t.url, t.opts).addTo(map);
 
         const bounds: any[] = [];
         reportes.forEach((r) => {
@@ -184,6 +185,13 @@ export default function MapaReportes({
       }
     };
   }, [reportes, patrullas, ruta]);
+
+  // Cambia el estilo de tiles (claro/oscuro) al cambiar el tema.
+  useEffect(() => {
+    const onTema = () => { if (tileRef.current) tileRef.current.setUrl(tileConfig().url); };
+    window.addEventListener("sgs-theme", onTema);
+    return () => window.removeEventListener("sgs-theme", onTema);
+  }, []);
 
   // Guardias en vivo: repinta solo su capa cuando llegan nuevas posiciones,
   // sin tocar el mapa base ni el zoom actual.

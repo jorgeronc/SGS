@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { temaGuardado, aplicarTema, type Tema } from "@/lib/theme";
 
 const BUCKET = "fotos";
 
@@ -16,6 +17,7 @@ export default function PerfilPage() {
   const [telefono, setTelefono] = useState("");
   const [puesto, setPuesto] = useState("");
   const [fotoPath, setFotoPath] = useState<string | null>(null);
+  const [tema, setTema] = useState<Tema>("system");
   const [cargando, setCargando] = useState(true);
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -126,10 +128,27 @@ export default function PerfilPage() {
 
   const fotoUrl = urlFoto(fotoPath);
 
+  useEffect(() => { setTema(temaGuardado()); }, []);
+  function elegirTema(t: Tema) { setTema(t); aplicarTema(t); }
+
   return (
     <main className="contenedor">
       <h2>Mi cuenta</h2>
       <p className="dash-sub">{correo}</p>
+
+      <div className="dash-eyebrow">Apariencia</div>
+      <div className="sc-subcard" style={{ maxWidth: 620 }}>
+        <p className="dash-sub" style={{ marginTop: 0 }}>Elige el tema de la interfaz. «Automático» sigue la preferencia de tu sistema.</p>
+        <div className="form-fila">
+          {(([["light", "☀ Claro"], ["dark", "🌙 Oscuro"], ["system", "🖥 Automático"]]) as [Tema, string][]).map(([k, l]) => (
+            <button key={k} type="button" className="qbtn2" onClick={() => elegirTema(k)}
+              style={tema === k ? { borderColor: "var(--sc-btn)", color: "var(--sc-btn)", fontWeight: 800 } : undefined}>
+              {l}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {cargando ? <p>Cargando...</p> : (
         <>
           <div className="dash-eyebrow">Foto y datos de contacto</div>
