@@ -85,6 +85,17 @@ async function windyCercanas(lat: number, lng: number, radio_km: number, limite:
     }));
 }
 
+// Capacidades por DRIVER (proveedor) ∩ banderas de la cámara. La UI (inspector)
+// muestra/oculta PTZ, grabación y eventos según esto — sin simular nada.
+function capacidadesDe(cam: any, live: boolean) {
+  const p = cam.proveedor;
+  if (p === "manual") return { live: true, snapshot: false, ptz: false, grabacion: false, eventos: false };
+  if (p === "windy") return { live, snapshot: true, ptz: false, grabacion: false, eventos: false };
+  if (p === "iss" || p === "securos")
+    return { live: true, snapshot: true, ptz: !!cam.es_ptz, grabacion: !!cam.grabacion_disponible, eventos: true };
+  return { live: false, snapshot: false, ptz: false, grabacion: false, eventos: false };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return preflight(req);
   try {
@@ -103,27 +114,39 @@ Deno.serve(async (req) => {
       if (!camaraId) return json({ error: "Falta camara_id." }, 400);
       const { data: cam } = await supabase
         .from("camaras")
-        .select("id, nombre, proveedor, proveedor_ref, stream_url, estado_operativo, estatus")
+        .select("id, nombre, proveedor, proveedor_ref, stream_url, estado_operativo, estatus, es_ptz, grabacion_disponible")
         .eq("id", camaraId)
         .maybeSingle();
       if (!cam) return json({ error: "Cámara no encontrada." }, 404);
       if (cam.estatus !== "activo" || cam.estado_operativo !== "activa")
-        return json({ error: `La cámara está ${cam.estado_operativo}.` }, 409);
+        return json({ error: `La cámara está ${cam.estado_operativo}.`, estado: cam.estado_operativo === "mantenimiento" ? "MAINTENANCE" : "OFFLINE" }, 409);
 
       // 'manual': stream fijo, sin llamar a nadie.
       if (cam.proveedor === "manual") {
         if (!cam.stream_url) return json({ error: "La cámara manual no tiene stream_url." }, 409);
         return json({
-          nombre: cam.nombre, proveedor: "manual",
+          nombre: cam.nombre, proveedor: "manual", estado: "ONLINE",
           player_url: cam.stream_url, imagen_url: null, en_vivo: true,
-          actualizado_en: null, expira_en_s: null,
+          actualizado_en: null, expira_en_s: null, capacidades: capacidadesDe(cam, true),
         });
       }
-      // Proveedor con llave.
+      // Proveedor con llave (Windy).
       if (cam.proveedor === "windy") {
         if (!cam.proveedor_ref) return json({ error: "La cámara no tiene proveedor_ref." }, 409);
         const v = await windyVista(cam.proveedor_ref);
-        return json({ nombre: cam.nombre, proveedor: "windy", ...v });
+        return json({ nombre: cam.nombre, proveedor: "windy", estado: (v.imagen_url || v.player_url) ? "ONLINE" : "NO_STREAM", ...v, capacidades: capacidadesDe(cam, Boolean(v.en_vivo)) });
+      }
+      // Driver ISS / SecurOS (VMS del cliente). Esqueleto listo: cuando el VMS
+      // esté configurado (secretos ISS_* + su API REST / HLS), aquí se resuelve la
+      // señal, el snapshot server-side, PTZ y eventos. Mientras, si la cámara trae
+      // un stream_url directo (HLS o gateway RTSP->HLS) se usa; si no, NO_STREAM
+      // con mensaje claro (nunca pantalla negra). Las capacidades ya se declaran.
+      if (cam.proveedor === "iss" || cam.proveedor === "securos") {
+        const caps = capacidadesDe(cam, true);
+        if (cam.stream_url) {
+          return json({ nombre: cam.nombre, proveedor: cam.proveedor, estado: "ONLINE", player_url: cam.stream_url, imagen_url: null, en_vivo: true, expira_en_s: null, capacidades: caps });
+        }
+        return json({ nombre: cam.nombre, proveedor: cam.proveedor, estado: "NO_STREAM", imagen_url: null, player_url: null, en_vivo: false, capacidades: caps, error: "Driver ISS/SecurOS pendiente de configurar (VMS del cliente)." });
       }
       return json({ error: `Proveedor no soportado: ${cam.proveedor}.` }, 501);
     }
@@ -156,6 +179,13 @@ Deno.serve(async (req) => {
         importadas++; if (data) creadas.push(data);
       }
       return json({ importadas, omitidas, camaras: creadas });
+    }
+
+    // ---- PTZ: control listo, resuelto por el driver del VMS (ISS/Milestone/…) --
+    // Cuando el driver del VMS esté configurado, aquí se relayan los comandos PTZ
+    // (up/down/left/right/zoom/preset) a su API REST. Hoy no hay VMS conectado.
+    if (accion === "ptz") {
+      return json({ error: "PTZ listo, pero aún no hay un VMS conectado que ejecute el comando." }, 501);
     }
 
     return json({ error: `Acción no reconocida: ${accion}.` }, 400);

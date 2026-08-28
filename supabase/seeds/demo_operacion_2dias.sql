@@ -141,7 +141,7 @@ on conflict (id) do nothing;
 
 -- ---- Cámara de videovigilancia (manual, stream público de prueba) ----------
 insert into camaras (id, nombre, sitio_id, latitud, longitud, proveedor, stream_url, estado_operativo) values
- ('de1f0000-0000-4000-8000-000000000001','Acceso Norte (demo)','de110000-0000-4000-8000-000000000011',25.6822,-100.3102,'manual','https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8','activa')
+ ('de1f0000-0000-4000-8000-000000000001','Acceso Norte (demo)','de110000-0000-4000-8000-000000000011',25.6822,-100.3102,'manual','https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8','mantenimiento')
 on conflict (id) do nothing;
 
 -- ---- Metas de SLA del cliente demo -----------------------------------------

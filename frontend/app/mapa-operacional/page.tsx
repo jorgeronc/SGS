@@ -5,7 +5,7 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import MapaBase from "@/app/components/MapaBase";
 import CamarasCercanas from "@/app/components/CamarasCercanas";
-import VisorCamara from "@/app/components/VisorCamara";
+import CameraDetailDrawer from "@/app/components/CameraDetailDrawer";
 import ChatIncidente from "@/app/components/ChatIncidente";
 import { useGuardiasEnLinea } from "@/lib/guardiasVivo";
 import { computeReporteSla } from "@/lib/sla";
@@ -185,22 +185,7 @@ export default function MapaOperacionalPage() {
           Se apilan sin empalmarse y sobre la barra de KPIs. */}
       {(selCam || selChat) && (
         <div style={{ position: "absolute", top: 14, left: 14, width: 340, maxHeight: "calc(100vh - 90px)", overflow: "auto", zIndex: 6, display: "flex", flexDirection: "column", gap: 12 }}>
-          {selCam && (
-            <div style={cssObj(panel)}>
-              <div style={{ padding: "12px 14px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                  <b style={{ color: COL.camara }}>📷 {selCam.nombre ?? "Cámara"}</b>
-                  <span onClick={() => setSelCam(null)} style={{ cursor: "pointer", color: "var(--sc-text-faint)" }}>✕</span>
-                </div>
-                <div style={{ color: "var(--sc-text-soft)", fontSize: 12.5, marginTop: 6, display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: colorCamara(selCam.estado_operativo) }} />
-                  {selCam.estado_operativo ?? "—"}
-                </div>
-                <div style={{ marginTop: 12 }}><VisorCamara camaraId={selCam.id} nombre={selCam.nombre} alto={220} /></div>
-                <Link href={`/videovigilancia/muro?cam=${selCam.id}`} style={{ display: "block", textAlign: "center", background: "#2f6bff", color: "#fff", borderRadius: 8, padding: "8px 10px", fontWeight: 700, textDecoration: "none", marginTop: 10 }}>⧉ Enviar al Muro</Link>
-              </div>
-            </div>
-          )}
+          {selCam && <CameraDetailDrawer camaraId={selCam.id} onClose={() => setSelCam(null)} />}
           {selChat && (
             <div style={cssObj(panel)}>
               <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--sc-card-line)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
