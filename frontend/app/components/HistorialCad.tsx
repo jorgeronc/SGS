@@ -20,8 +20,7 @@ export default function HistorialCad({ llamadaId }: { llamadaId: string }) {
   }, [llamadaId]);
 
   return (
-    <section style={{ marginTop: 16 }}>
-      <h3>🕓 Historial de atención</h3>
+    <section>
       {items.length === 0 ? (
         <p className="dash-sub">Sin cambios de estado registrados aún.</p>
       ) : (

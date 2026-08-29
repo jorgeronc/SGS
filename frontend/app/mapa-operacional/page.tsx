@@ -68,20 +68,52 @@ export default function MapaOperacionalPage() {
   const mlRef = useRef<any>(null);
   const mapRef = useRef<any>(null);
   const marks = useRef<any[]>([]);
+  // Filtro por URL (desde CAD): ?incidente=<id> (uno solo) o filtros
+  // (estatus/prioridad/despacho/desde/hasta/q). Se lee una vez al montar.
+  const filtro = useRef<{ incidente?: string; fit?: string; estatus?: string; prioridad?: string; despacho?: string; desde?: string; hasta?: string; q?: string }>({});
+  const focoHecho = useRef(false);
   const datos = useRef({ guardias, incidentes, camaras, capas });
   datos.current = { guardias, incidentes, camaras, capas };
 
   useEffect(() => { import("maplibre-gl").then((m) => { mlRef.current = (m as any).default ?? m; }); }, []);
 
+  // Lee el filtro de la URL una vez (evita useSearchParams para no requerir Suspense).
+  useEffect(() => {
+    try {
+      const p = new URLSearchParams(window.location.search);
+      filtro.current = {
+        incidente: p.get("incidente") || undefined, fit: p.get("fit") || undefined, estatus: p.get("estatus") || undefined,
+        prioridad: p.get("prioridad") || undefined, despacho: p.get("despacho") || undefined,
+        desde: p.get("desde") || undefined, hasta: p.get("hasta") || undefined, q: p.get("q") || undefined,
+      };
+    } catch { /* */ }
+  }, []);
+
   const cargar = useCallback(async () => {
     const hoy = new Date(); hoy.setHours(0, 0, 0, 0); const desdeHoy = hoy.toISOString();
+    const f = filtro.current;
+    // Incidentes: por defecto los abiertos; con ?incidente=<id> solo ese (aunque
+    // esté cerrado); con filtros de la lista de CAD, esos.
+    let incQ = supabase.from("llamadas_cad").select("id, folio, tipo, prioridad, direccion, estado_despacho, latitud, longitud, sitio_id, datos_adicionales").not("latitud", "is", null);
+    if (f.incidente) {
+      incQ = incQ.eq("id", f.incidente);
+    } else if (f.estatus || f.prioridad || f.despacho || f.desde || f.hasta) {
+      if (f.estatus) incQ = incQ.eq("estatus", f.estatus); else incQ = incQ.eq("estatus", "activo");
+      if (f.despacho) incQ = incQ.eq("estado_despacho", f.despacho);
+      if (f.prioridad) incQ = incQ.eq("prioridad", f.prioridad);
+      if (f.desde) incQ = incQ.gte("fecha_recepcion", f.desde + "T00:00:00");
+      if (f.hasta) incQ = incQ.lte("fecha_recepcion", f.hasta + "T23:59:59");
+    } else {
+      incQ = incQ.eq("estatus", "activo").in("estado_despacho", ["recibida", "despachada", "en_atencion"]);
+    }
     const [{ data: inc }, { data: cam }, { data: sit }] = await Promise.all([
-      supabase.from("llamadas_cad").select("id, folio, tipo, prioridad, direccion, estado_despacho, latitud, longitud, sitio_id, datos_adicionales")
-        .eq("estatus", "activo").in("estado_despacho", ["recibida", "despachada", "en_atencion"]).not("latitud", "is", null),
+      incQ,
       supabase.from("camaras").select("id, nombre, estado_operativo, latitud, longitud").eq("estatus", "activo").not("latitud", "is", null),
       supabase.from("sitios").select("id, nombre, latitud, longitud, radio_geofence_m").eq("estatus", "activo").not("latitud", "is", null),
     ]);
-    setIncidentes((inc as any[]) ?? []);
+    let incArr = (inc as any[]) ?? [];
+    if (f.q) { const qq = f.q.toLowerCase(); incArr = incArr.filter((i) => `${i.folio ?? ""} ${i.tipo ?? ""} ${i.direccion ?? ""}`.toLowerCase().includes(qq)); }
+    setIncidentes(incArr);
     setCamaras((cam as any[]) ?? []);
     setSitios((sit as any[]) ?? []);
     const [{ count: pd }, { count: vd }, { count: ar }] = await Promise.all([
@@ -134,10 +166,32 @@ export default function MapaOperacionalPage() {
     if (capas.incidentes) incidentes.forEach((it: any) => add(Number(it.longitud), Number(it.latitud), pinEl(COL.incidente, "⚠", it.folio ?? it.tipo ?? "Incidente", false, it.prioridad === "alta", () => setSelInc(it))));
   }, []);
 
-  function onReady(map: any) { mapRef.current = map; ensureGeocercas(map); pintar(); }
+  // Desde CAD: con ?incidente=<id> centra y abre ese incidente; con ?fit=1
+  // (ver en mapa según filtros) encuadra todos los incidentes visibles. Una sola vez.
+  const centrarFoco = useCallback(() => {
+    const f = filtro.current; if (focoHecho.current) return;
+    const map = mapRef.current, ml = mlRef.current;
+    if (f.incidente) {
+      const it = datos.current.incidentes.find((i: any) => i.id === f.incidente);
+      if (!it || it.latitud == null) return;
+      setSelInc(it);
+      if (map) { focoHecho.current = true; map.flyTo({ center: [Number(it.longitud), Number(it.latitud)], zoom: 16, duration: 800 }); }
+      return;
+    }
+    if (f.fit) {
+      const coords = datos.current.incidentes.filter((i: any) => i.latitud != null).map((i: any) => [Number(i.longitud), Number(i.latitud)] as [number, number]);
+      if (!coords.length || !map || !ml) return;
+      focoHecho.current = true;
+      const b = coords.reduce((bb: any, c: [number, number]) => bb.extend(c), new ml.LngLatBounds(coords[0], coords[0]));
+      map.fitBounds(b, { padding: 80, maxZoom: 15, duration: 800 });
+    }
+  }, []);
+
+  function onReady(map: any) { mapRef.current = map; ensureGeocercas(map); pintar(); centrarFoco(); }
 
   // Redibuja al cambiar datos/capas (sin reencuadrar).
   useEffect(() => { if (mapRef.current) { pintar(); ensureGeocercas(mapRef.current); } }, [guardias, incidentes, camaras, sitios, capas, pintar]);
+  useEffect(() => { centrarFoco(); }, [incidentes, centrarFoco]);
 
   const panel = "background:var(--sc-content);border:1px solid var(--sc-card-line);border-radius:12px;color:var(--sc-text)";
   const toggle = (k: keyof typeof capas) => setCapas((p) => ({ ...p, [k]: !p[k] }));

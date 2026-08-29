@@ -22,21 +22,6 @@ const PRIO: Record<string, { p: string; lbl: string; col: string }> = {
   baja: { p: "P3", lbl: "Baja", col: "#1f9d5c" },
 };
 
-// Emoji representativo del tipo de incidencia (heurística por palabras clave).
-function iconoTipo(t?: string | null): string {
-  const s = (t ?? "").toLowerCase();
-  if (/rob|hurto|intrus|no autoriz/.test(s)) return "🏃";
-  if (/accid|choque|vial/.test(s)) return "🚗";
-  if (/falla|cctv|energ|servici/.test(s)) return "⚡";
-  if (/ri[ñn]a|agres|pelea/.test(s)) return "🥊";
-  if (/alarma/.test(s)) return "🔔";
-  if (/p[áa]nico|emerg/.test(s)) return "🆘";
-  if (/incendi|fuego/.test(s)) return "🔥";
-  if (/m[ée]dic|salud|lesion/.test(s)) return "🚑";
-  if (/sospech|merode|vehic/.test(s)) return "🕵️";
-  return "⚠️";
-}
-
 function dosDig(n: number) { return String(n).padStart(2, "0"); }
 function transcurrido(desdeIso: string, ahora: Date): string {
   const ms = ahora.getTime() - new Date(desdeIso).getTime();
@@ -127,6 +112,7 @@ export default function CentralDespachoPage() {
   const [fDesde, setFDesde] = useState("");
   const [fHasta, setFHasta] = useState("");
   const [busca, setBusca] = useState("");
+  const [filtrosAbiertos, setFiltrosAbiertos] = useState(false); // contraído al cargar/refrescar
 
   // Formulario de registro rápido
   const [tipo, setTipo] = useState("");
@@ -223,13 +209,17 @@ export default function CentralDespachoPage() {
     };
   }, [llamadas]);
 
+  // Abre el Mapa Operacional (nueva instancia) con los MISMOS filtros aplicados.
   function mapaHref(): string {
     const p = new URLSearchParams();
+    p.set("fit", "1"); // encuadra el mapa a todos los incidentes filtrados
     if (fEstatus) p.set("estatus", fEstatus);
     if (fPrioridad) p.set("prioridad", fPrioridad);
     if (fDespacho) p.set("despacho", fDespacho);
-    const qs = p.toString();
-    return qs ? `/cad/mapa?${qs}` : "/cad/mapa";
+    if (fDesde) p.set("desde", fDesde);
+    if (fHasta) p.set("hasta", fHasta);
+    if (busca.trim()) p.set("q", busca.trim());
+    return `/mapa-operacional?${p.toString()}`;
   }
   function limpiarFiltros() { setFEstatus(""); setFPrioridad(""); setFDespacho(""); setFDesde(""); setFHasta(""); setBusca(""); }
 
@@ -260,25 +250,6 @@ export default function CentralDespachoPage() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {/* Cabecera */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
-        <div>
-          <h2 style={{ margin: 0, display: "flex", alignItems: "center", gap: 10 }}>CAD / Despacho</h2>
-          <div style={{ color: "var(--sc-text-soft)", fontSize: 13 }}>Atención de incidencias</div>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
-          <div style={{ position: "relative" }}>
-            <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por folio, ubicación, reportante…"
-              style={{ ...inp, width: 320, maxWidth: "60vw", paddingLeft: 32 }} />
-            <span style={{ position: "absolute", left: 11, top: 9, color: "var(--sc-text-faint)" }}>🔍</span>
-          </div>
-          <div style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
-            <div style={{ fontWeight: 800, fontSize: 16 }}>{ahora ? ahora.toLocaleTimeString() : "—"}</div>
-            <div style={{ fontSize: 12, color: "var(--sc-text-soft)" }}>{ahora ? ahora.toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" }) : ""}</div>
-          </div>
-        </div>
-      </div>
-
       {/* Registro rápido + Acciones rápidas */}
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 300px", gap: 16, alignItems: "start" }}>
         <form ref={formRef} onSubmit={agregarLlamada} style={{ ...card, padding: 18 }}>
@@ -361,27 +332,58 @@ export default function CentralDespachoPage() {
         </div>
       </div>
 
-      {/* Filtros de búsqueda */}
-      <div style={{ ...card, padding: 16 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-          <span style={{ color: "var(--sc-text-soft)" }}>▽</span><b>Filtros de búsqueda</b>
-        </div>
-        <div style={{ display: "flex", gap: 22, flexWrap: "wrap", alignItems: "flex-start" }}>
-          <div>
-            <div style={{ fontSize: 12, color: "var(--sc-text-soft)", marginBottom: 6 }}>Fechas</div>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <input type="date" value={fDesde} onChange={(e) => setFDesde(e.target.value)} style={{ ...inp, width: 150 }} />
-              <span style={{ color: "var(--sc-text-faint)" }}>—</span>
-              <input type="date" value={fHasta} onChange={(e) => setFHasta(e.target.value)} style={{ ...inp, width: 150 }} />
+      {/* Indicadores (arriba de los filtros) */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14 }}>
+        {[
+          { t: "Incidentes hoy", v: String(kpis.hoy), s: "Total registrados", c: "#e23b53", d: kpis.hoySerie },
+          { t: "En atención", v: String(kpis.enAtencion), s: `${kpis.pctAt}% del total`, c: "#d98a2b", d: kpis.enAtSerie },
+          { t: "Resueltos hoy", v: String(kpis.resueltos), s: `${kpis.pctRes}% de hoy`, c: "#1f9d5c", d: kpis.resSerie },
+          { t: "Tiempo prom. de atención", v: kpis.prom != null ? minSeg(kpis.prom) : "—", s: "min · objetivo 05:00", c: "#2f6bff", d: kpis.promSerie },
+          { t: "Incidentes críticos activos", v: String(kpis.criticos), s: "Requieren atención inmediata", c: "#e23b53", d: kpis.critSerie },
+        ].map((k, i) => (
+          <div key={i} style={{ ...card, padding: 14 }}>
+            <div style={{ fontSize: 12.5, color: "var(--sc-text-soft)" }}>{k.t}</div>
+            <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 8, marginTop: 8 }}>
+              <div>
+                <div style={{ fontSize: 30, fontWeight: 800, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{k.v}</div>
+                <div style={{ fontSize: 11, color: "var(--sc-text-faint)", marginTop: 5 }}>{k.s}</div>
+              </div>
+              <Sparkline data={k.d} color={k.c} />
             </div>
           </div>
-          <GrupoFiltro label="Estatus" valor={fEstatus} onSel={setFEstatus} opciones={[{ k: "", t: "Todos" }, { k: "activo", t: "Activo", cls: "est-activo" }, { k: "cerrado", t: "Cerrado", cls: "est-cerrado" }, { k: "cancelado", t: "Cancelado", cls: "est-cancelado" }]} />
-          <GrupoFiltro label="Prioridad" valor={fPrioridad} onSel={setFPrioridad} opciones={[{ k: "", t: "Todas" }, { k: "alta", t: "Alta", cls: "prio-alta" }, { k: "media", t: "Media", cls: "prio-media" }, { k: "baja", t: "Baja", cls: "prio-baja" }]} />
-          <GrupoFiltro label="Despacho" valor={fDespacho} onSel={setFDespacho} opciones={[{ k: "", t: "Todos" }, { k: "recibida", t: "Recibida", cls: "desp-recibida" }, { k: "despachada", t: "Despachado", cls: "desp-despachada" }, { k: "en_atencion", t: "En atención", cls: "desp-en_atencion" }, { k: "resuelta", t: "Resuelta", cls: "desp-resuelta" }]} />
-          <div style={{ marginLeft: "auto", display: "flex", flexDirection: "column", justifyContent: "flex-end", gap: 8 }}>
-            <button type="button" onClick={limpiarFiltros} style={{ padding: "8px 14px", borderRadius: 9, border: "1px solid var(--sc-card-line)", background: "transparent", color: "var(--sc-text-soft)", cursor: "pointer", fontSize: 13 }}>🗑 Limpiar filtros</button>
-          </div>
+        ))}
+      </div>
+
+      {/* Filtros de búsqueda (contraíble; contraído al cargar/refrescar) */}
+      <div style={{ ...card, padding: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <button type="button" onClick={() => setFiltrosAbiertos((v) => !v)} style={{ display: "flex", alignItems: "center", gap: 8, background: "transparent", border: "none", cursor: "pointer", color: "var(--sc-text)", padding: 0, fontSize: 15 }}>
+            <span style={{ color: "var(--sc-text-soft)", width: 12, display: "inline-block" }}>{filtrosAbiertos ? "▾" : "▸"}</span><b>Filtros de búsqueda</b>
+          </button>
+          <button type="button" onClick={limpiarFiltros} style={{ marginLeft: "auto", padding: "8px 14px", borderRadius: 9, border: "1px solid var(--sc-card-line)", background: "transparent", color: "var(--sc-text-soft)", cursor: "pointer", fontSize: 13 }}>🗑 Limpiar filtros</button>
         </div>
+        {filtrosAbiertos && (
+          <div style={{ display: "flex", gap: 22, flexWrap: "wrap", alignItems: "flex-start", marginTop: 14 }}>
+            <div>
+              <div style={{ fontSize: 12, color: "var(--sc-text-soft)", marginBottom: 6 }}>Búsqueda</div>
+              <div style={{ position: "relative" }}>
+                <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Folio, ubicación, reportante, unidad…" style={{ ...inp, width: 280, paddingLeft: 30 }} />
+                <span style={{ position: "absolute", left: 10, top: 9, color: "var(--sc-text-faint)" }}>🔍</span>
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 12, color: "var(--sc-text-soft)", marginBottom: 6 }}>Fechas</div>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <input type="date" value={fDesde} onChange={(e) => setFDesde(e.target.value)} style={{ ...inp, width: 150 }} />
+                <span style={{ color: "var(--sc-text-faint)" }}>—</span>
+                <input type="date" value={fHasta} onChange={(e) => setFHasta(e.target.value)} style={{ ...inp, width: 150 }} />
+              </div>
+            </div>
+            <GrupoFiltro label="Estatus" valor={fEstatus} onSel={setFEstatus} opciones={[{ k: "", t: "Todos" }, { k: "activo", t: "Activo", cls: "est-activo" }, { k: "cerrado", t: "Cerrado", cls: "est-cerrado" }, { k: "cancelado", t: "Cancelado", cls: "est-cancelado" }]} />
+            <GrupoFiltro label="Prioridad" valor={fPrioridad} onSel={setFPrioridad} opciones={[{ k: "", t: "Todas" }, { k: "alta", t: "Alta", cls: "prio-alta" }, { k: "media", t: "Media", cls: "prio-media" }, { k: "baja", t: "Baja", cls: "prio-baja" }]} />
+            <GrupoFiltro label="Despacho" valor={fDespacho} onSel={setFDespacho} opciones={[{ k: "", t: "Todos" }, { k: "recibida", t: "Recibida", cls: "desp-recibida" }, { k: "despachada", t: "Despachado", cls: "desp-despachada" }, { k: "en_atencion", t: "En atención", cls: "desp-en_atencion" }, { k: "resuelta", t: "Resuelta", cls: "desp-resuelta" }]} />
+          </div>
+        )}
       </div>
 
       {/* Incidencias y alertas */}
@@ -407,7 +409,7 @@ export default function CentralDespachoPage() {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5 }}>
             <thead>
               <tr style={{ textAlign: "left", color: "var(--sc-text-soft)", fontSize: 11.5, textTransform: "uppercase", letterSpacing: ".03em" }}>
-                {["Folio", "Tipo de incidente", "Prioridad", "Ubicación", "Reportante", "Despacho", "Unidad asignada", "Recepción", "Estatus", "Tiempo transcurrido", "Acciones"].map((h) => (
+                {["Folio", "Tipo de incidente", "Recepción", "Prioridad", "Ubicación", "Reportante", "Despacho", "Unidad asignada", "Estatus", "Tiempo transcurrido", "Acciones"].map((h) => (
                   <th key={h} style={{ padding: "10px 12px", borderBottom: "1px solid var(--sc-card-line)", whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
@@ -427,16 +429,16 @@ export default function CentralDespachoPage() {
                       <div><span style={{ background: pr.col, color: "#fff", fontSize: 10, fontWeight: 800, borderRadius: 5, padding: "1px 5px" }}>{pr.p}</span>
                         {enVivo.has(l.id) && <span style={{ marginLeft: 6, color: "#e11d48", fontSize: 10.5, fontWeight: 800 }}>🔴 EN VIVO</span>}</div>
                     </td>
-                    <td style={{ padding: "12px" }}><span style={{ marginRight: 7 }}>{iconoTipo(l.tipo)}</span><b>{l.tipo ?? "—"}</b>{l.descripcion && <div style={{ fontSize: 12, color: "var(--sc-text-soft)" }}>{l.descripcion}</div>}</td>
+                    <td style={{ padding: "12px" }}><b>{l.tipo ?? "—"}</b></td>
+                    <td style={{ padding: "12px", whiteSpace: "nowrap", color: "var(--sc-text-soft)" }}>{new Date(l.fecha_recepcion).toLocaleString("es-MX", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}<div style={{ fontSize: 11.5 }}>{new Date(l.fecha_recepcion).toLocaleDateString("es-MX")}</div></td>
                     <td style={{ padding: "12px" }}><span className={`cad-pill prio-${l.prioridad}`}>{pr.lbl}</span></td>
                     <td style={{ padding: "12px", minWidth: 170 }}>{l.direccion ?? "—"}
-                      {l.latitud != null && <div><a href={mapaHref()} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: "var(--sc-btn,#f4a03f)", textDecoration: "none" }}>Ver en mapa</a></div>}</td>
+                      {l.latitud != null && <div><a href={`/mapa-operacional?incidente=${l.id}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: "var(--sc-btn,#f4a03f)", textDecoration: "none" }}>Ver en mapa</a></div>}</td>
                     <td style={{ padding: "12px" }}>{l.reportante ?? "—"}{l.telefono && <div style={{ fontSize: 12, color: "var(--sc-text-soft)" }}>📞 {l.telefono}</div>}</td>
                     <td style={{ padding: "12px" }}><span className={`cad-pill desp-${l.estado_despacho}`}>{DESP_LABEL[l.estado_despacho] ?? l.estado_despacho}</span></td>
                     <td style={{ padding: "12px" }}>{u ? (
                       <span title={u.oficial}><b>{u.numero ? `#${u.numero}` : "unidad"}</b> <span style={{ color: "#fff", fontSize: 10.5, fontWeight: 700, borderRadius: 5, padding: "1px 6px", background: DESPACHO_COLOR[u.estado] ?? "#607d8b" }}>{DESPACHO_LABEL[u.estado] ?? u.estado}</span></span>
                     ) : <span style={{ color: "var(--sc-text-faint)" }}>Sin asignar</span>}</td>
-                    <td style={{ padding: "12px", whiteSpace: "nowrap", color: "var(--sc-text-soft)" }}>{new Date(l.fecha_recepcion).toLocaleString("es-MX", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}<div style={{ fontSize: 11.5 }}>{new Date(l.fecha_recepcion).toLocaleDateString("es-MX")}</div></td>
                     <td style={{ padding: "12px" }}><span className={`cad-pill est-${l.estatus}`}>{l.estatus}</span></td>
                     <td style={{ padding: "12px", fontWeight: 700, fontVariantNumeric: "tabular-nums", color: l.estatus === "activo" ? (l.prioridad === "alta" ? "#e23b53" : "var(--sc-text)") : "var(--sc-text-faint)" }}>{ahora ? transcurrido(l.fecha_recepcion, ahora) : "—"}</td>
                     <td style={{ padding: "12px", whiteSpace: "nowrap" }}><Link href={`/cad/${l.id}`} style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid var(--sc-card-line)", color: "var(--sc-text)", textDecoration: "none", fontSize: 12.5, fontWeight: 600 }}>Ver detalle</Link></td>
@@ -448,27 +450,6 @@ export default function CentralDespachoPage() {
         </div>
       </div>
 
-      {/* KPIs con mini-gráficas */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14 }}>
-        {[
-          { t: "Incidentes hoy", v: String(kpis.hoy), s: "Total registrados", c: "#e23b53", d: kpis.hoySerie },
-          { t: "En atención", v: String(kpis.enAtencion), s: `${kpis.pctAt}% del total`, c: "#d98a2b", d: kpis.enAtSerie },
-          { t: "Resueltos hoy", v: String(kpis.resueltos), s: `${kpis.pctRes}% de hoy`, c: "#1f9d5c", d: kpis.resSerie },
-          { t: "Tiempo prom. de atención", v: kpis.prom != null ? minSeg(kpis.prom) : "—", s: "min · objetivo 05:00", c: "#2f6bff", d: kpis.promSerie },
-          { t: "Incidentes críticos activos", v: String(kpis.criticos), s: "Requieren atención inmediata", c: "#e23b53", d: kpis.critSerie },
-        ].map((k, i) => (
-          <div key={i} style={{ ...card, padding: 14 }}>
-            <div style={{ fontSize: 12.5, color: "var(--sc-text-soft)" }}>{k.t}</div>
-            <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 8, marginTop: 8 }}>
-              <div>
-                <div style={{ fontSize: 30, fontWeight: 800, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{k.v}</div>
-                <div style={{ fontSize: 11, color: "var(--sc-text-faint)", marginTop: 5 }}>{k.s}</div>
-              </div>
-              <Sparkline data={k.d} color={k.c} />
-            </div>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }

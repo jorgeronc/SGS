@@ -13,6 +13,9 @@ const LIMPIAS: string[] = ["/monitoreo", "/cad/mapa"];
 // El 2FA se resuelve completo en /login (código o registro). El resto de rutas
 // exige nivel aal2; si no, se manda a /login (que retoma el segundo factor).
 const SIN_2FA = ["/login"];
+// Rutas con topbar de "consola": muestran título + fecha/hora (sin el buscador
+// global ni los accesos rápidos, porque la consola tiene los suyos).
+const TITULOS_TOP: Record<string, string> = { "/cad": "Central de Despacho — Incidentes" };
 
 const GRUPOS: { grupo: string; items: { href: string; label: string; ico: string; nueva?: boolean }[] }[] = [
   {
@@ -66,6 +69,7 @@ const GRUPOS: { grupo: string; items: { href: string; label: string; ico: string
       { href: "/turnos", label: "Rol de turnos", ico: "🗓" },
       { href: "/sla", label: "Metas de SLA", ico: "🎯" },
       { href: "/reporte-sla", label: "Reporte mensual", ico: "📄" },
+      { href: "/directorio", label: "Directorio de autoridades", ico: "📇" },
       { href: "/kardex", label: "Kardex", ico: "▤" },
       { href: "/bitacora", label: "Bitácora", ico: "▥" },
       { href: "/admin", label: "Administración", ico: "⚙" },
@@ -80,8 +84,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [colapsado, setColapsado] = useState(false);
   const [q, setQ] = useState("");
   const [chatNuevos, setChatNuevos] = useState(0);
+  const [ahora, setAhora] = useState<Date | null>(null);
   const pathname = usePathname();
   const router = useRouter();
+
+  useEffect(() => { const t = setInterval(() => setAhora(new Date()), 1000); setAhora(new Date()); return () => clearInterval(t); }, []);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -167,6 +174,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   const correo = session.user?.email ?? "";
   const iniciales = correo.slice(0, 2).toUpperCase();
+  const tituloTop = TITULOS_TOP[pathname] ?? (pathname.startsWith("/cad/") ? "Central de Despacho — Detalle de incidente" : undefined);
 
   return (
     <div className={`shell${colapsado ? " collapsed" : ""}`}>
@@ -213,24 +221,40 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <button className="shell-hamb" onClick={() => setColapsado((c) => !c)} title="Contraer menú">
             ☰
           </button>
-          <form className="shell-search" onSubmit={buscar}>
-            <span className="mag">⌕</span>
-            <input
-              type="search"
-              placeholder="Buscar persona, CURP, alias, placas, folio, dirección…"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-            />
-          </form>
-          <div className="shell-quick">
-            <Link href="/personas" className="qbtn2 primary">+ Persona</Link>
-            <Link href="/evidencias" className="qbtn2">+ Evidencia</Link>
-            <Link href="/tareas" className="qbtn2">+ Tarea</Link>
-          </div>
-          <div className="shell-user">
-            <Link href="/perfil" className="shell-avatar" title="Mi cuenta · opciones">{iniciales}</Link>
-            <button className="shell-salir" onClick={salir}>Salir</button>
-          </div>
+          {tituloTop ? (
+            <>
+              <div style={{ fontWeight: 800, fontSize: 16 }}>{tituloTop}</div>
+              <div style={{ marginLeft: "auto", textAlign: "right", fontVariantNumeric: "tabular-nums", lineHeight: 1.15 }}>
+                <div style={{ fontWeight: 700, fontSize: 15 }}>{ahora ? ahora.toLocaleTimeString() : "—"}</div>
+                <div style={{ fontSize: 11.5, opacity: 0.7 }}>{ahora ? ahora.toLocaleDateString("es-MX", { weekday: "long", day: "2-digit", month: "long", year: "numeric" }) : ""}</div>
+              </div>
+              <div className="shell-user" style={{ marginLeft: 18 }}>
+                <Link href="/perfil" className="shell-avatar" title="Mi cuenta · opciones">{iniciales}</Link>
+                <button className="shell-salir" onClick={salir}>Salir</button>
+              </div>
+            </>
+          ) : (
+            <>
+              <form className="shell-search" onSubmit={buscar}>
+                <span className="mag">⌕</span>
+                <input
+                  type="search"
+                  placeholder="Buscar persona, CURP, alias, placas, folio, dirección…"
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                />
+              </form>
+              <div className="shell-quick">
+                <Link href="/personas" className="qbtn2 primary">+ Persona</Link>
+                <Link href="/evidencias" className="qbtn2">+ Evidencia</Link>
+                <Link href="/tareas" className="qbtn2">+ Tarea</Link>
+              </div>
+              <div className="shell-user">
+                <Link href="/perfil" className="shell-avatar" title="Mi cuenta · opciones">{iniciales}</Link>
+                <button className="shell-salir" onClick={salir}>Salir</button>
+              </div>
+            </>
+          )}
         </header>
 
         <main className="shell-content">{children}</main>

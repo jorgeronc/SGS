@@ -18,6 +18,8 @@ export default function DireccionGeocode({
   jurisdiccion,
   pais,
   size,
+  sinBoton = false,
+  sinCoords = false,
 }: {
   direccion: string;
   lat: string;
@@ -28,7 +30,9 @@ export default function DireccionGeocode({
   // Jurisdicción (estado) y país que sesgan la búsqueda de domicilios.
   jurisdiccion?: string;
   pais?: string;
-  size?: number;   // ancho en caracteres del campo de dirección
+  size?: number;      // ancho en caracteres del campo de dirección
+  sinBoton?: boolean; // oculta el botón "Buscar" (Enter sigue buscando)
+  sinCoords?: boolean; // oculta la línea de coordenadas (para no duplicarla)
 }) {
   const [resultados, setResultados] = useState<Resultado[]>([]);
   const [buscando, setBuscando] = useState(false);
@@ -64,19 +68,22 @@ export default function DireccionGeocode({
     <div className="geo-wrap">
       <div className="form-fila" style={{ alignItems: "center" }}>
         <input
-          placeholder="Domicilio o dirección del incidente"
+          placeholder={sinBoton ? "Domicilio o dirección — Enter para buscar" : "Domicilio o dirección del incidente"}
           value={direccion}
           disabled={disabled}
           onChange={(e) => onDireccion(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); buscar(); } }}
           style={size ? { width: `${size}ch`, maxWidth: "100%" } : { flex: 1, minWidth: 220 }}
         />
-        <button type="button" onClick={buscar} disabled={disabled || buscando}>
-          {buscando ? "Buscando…" : "🔎 Buscar en mapa"}
-        </button>
+        {!sinBoton && (
+          <button type="button" onClick={buscar} disabled={disabled || buscando}>
+            {buscando ? "Buscando…" : "🔎 Buscar en mapa"}
+          </button>
+        )}
+        {sinBoton && buscando && <span className="dash-sub">Buscando…</span>}
       </div>
 
-      {(lat && lng) && (
+      {!sinCoords && (lat && lng) && (
         <p className="dash-sub" style={{ marginTop: 4 }}>
           📍 Coordenadas: <b>{lat}, {lng}</b>
         </p>

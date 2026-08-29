@@ -29,14 +29,14 @@ export default function CamarasCercanas({
   if (latitud == null || longitud == null) return null;
 
   return (
-    <section style={{ marginTop: 16 }}>
-      <h3 style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+    <section>
+      <h3 style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", fontSize: 16, margin: "0 0 10px" }}>
         📹 Cámaras cercanas
         <label className="dash-sub" style={{ fontWeight: 400, fontSize: 13, display: "inline-flex", alignItems: "center", gap: 6 }}>
-          a la redonda:
           <select value={radio} onChange={(e) => setRadio(Number(e.target.value))} style={{ padding: "2px 6px" }}>
             {RADIOS.map((m) => <option key={m} value={m}>{m >= 1000 ? `${m / 1000} km` : `${m} m`}</option>)}
           </select>
+          a la redonda
         </label>
       </h3>
       {cargando && <p className="dash-sub">Buscando cámaras…</p>}

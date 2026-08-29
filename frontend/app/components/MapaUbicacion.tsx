@@ -7,9 +7,13 @@ import { urlStaticMap } from "@/lib/geo";
 export default function MapaUbicacion({
   latitud,
   longitud,
+  sinEnlace = false,   // oculta el enlace "abrir en el mapa" (para no duplicarlo)
+  sinCoords = false,   // oculta el renglón "Lat …, Lng …" bajo el mapa
 }: {
   latitud: number | null;
   longitud: number | null;
+  sinEnlace?: boolean;
+  sinCoords?: boolean;
 }) {
   if (latitud == null || longitud == null) {
     return (
@@ -32,12 +36,12 @@ export default function MapaUbicacion({
       ) : (
         <iframe className="mapa" src={srcOsm} title="Mapa de la ubicación" loading="lazy" />
       )}
-      <p style={{ fontSize: 13 }}>
-        Lat {latitud.toFixed(6)}, Lng {longitud.toFixed(6)} —{" "}
-        <a href={enlace} target="_blank" rel="noreferrer">
-          abrir en el mapa
-        </a>
-      </p>
+      {!sinCoords && (
+        <p style={{ fontSize: 13 }}>
+          Lat {latitud.toFixed(6)}, Lng {longitud.toFixed(6)}
+          {!sinEnlace && <>{" — "}<a href={enlace} target="_blank" rel="noreferrer">abrir en el mapa</a></>}
+        </p>
+      )}
     </div>
   );
 }

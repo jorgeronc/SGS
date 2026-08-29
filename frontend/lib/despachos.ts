@@ -30,13 +30,18 @@ export const ESTATUS_LABEL: Record<string, string> = { activo: "Activo", cerrado
 
 export interface HistItem {
   ambito: string; campo: string; estado: string | null;
-  patrulla_numero: string | null; usuario: string | null; cambiado_en: string;
+  patrulla_numero: string | null; recurso_desc: string | null; es_contacto: boolean;
+  usuario: string | null; cambiado_en: string;
   etiqueta: string;
 }
 
 // Etiqueta legible de un cambio de estado del historial.
 export function etiquetaHistorial(r: any): string {
-  if (r.ambito === "despacho") return `Unidad ${r.patrulla_numero ? `#${r.patrulla_numero}` : ""} → ${DESPACHO_LABEL[r.estado] ?? r.estado}`.replace(/\s+/g, " ").trim();
+  if (r.ambito === "despacho") {
+    const nombre = r.recurso_desc ?? (r.patrulla_numero ? `#${r.patrulla_numero}` : "");
+    if (r.es_contacto) return `Autoridad — Enterada${nombre ? `: ${nombre}` : ""}`;
+    return `Recurso ${nombre} → ${DESPACHO_LABEL[r.estado] ?? r.estado}`.replace(/\s+/g, " ").trim();
+  }
   if (r.campo === "estatus") return `Reporte → ${ESTATUS_LABEL[r.estado] ?? r.estado}`;
   return `Despacho → ${REPORTE_DESP_LABEL[r.estado] ?? r.estado}`;
 }
@@ -45,7 +50,7 @@ export function etiquetaHistorial(r: any): string {
 export async function historialCad(llamadaId: string): Promise<HistItem[]> {
   const { data } = await supabase
     .from("cad_estado_historial")
-    .select("ambito, campo, estado, patrulla_numero, usuario, cambiado_en")
+    .select("ambito, campo, estado, patrulla_numero, recurso_desc, es_contacto, usuario, cambiado_en")
     .eq("llamada_id", llamadaId)
     .order("cambiado_en", { ascending: true });
   return ((data as any[]) ?? []).map((r) => ({ ...r, etiqueta: etiquetaHistorial(r) }));
