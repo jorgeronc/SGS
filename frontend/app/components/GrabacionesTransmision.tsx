@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
 interface Grab {
@@ -25,27 +25,43 @@ function mmss(s: number | null): string {
 export default function GrabacionesTransmision({ llamadaId }: { llamadaId: string }) {
   const [grabs, setGrabs] = useState<Grab[]>([]);
 
-  useEffect(() => {
-    (async () => {
-      const { data } = await supabase
-        .from("transmisiones")
-        .select("id, folio, video_ruta, duracion_seg, iniciado_en, evidencia:evidencias(fotografias)")
-        .eq("llamada_id", llamadaId)
-        .eq("estatus", "activo")
-        .not("video_ruta", "is", null)
-        .order("iniciado_en", { ascending: false });
-      const filas = ((data as any[]) ?? []) as Grab[];
-      const conUrl = await Promise.all(
-        filas.map(async (g) => {
-          const { data: s } = await supabase.storage.from("videos").createSignedUrl(g.video_ruta, 3600);
-          const fp = Array.isArray(g.evidencia?.fotografias) ? (g.evidencia!.fotografias as string[])[0] : null;
-          const poster = fp ? supabase.storage.from("fotos").getPublicUrl(fp).data.publicUrl : null;
-          return { ...g, url: s?.signedUrl ?? null, poster };
-        })
-      );
-      setGrabs(conUrl);
-    })();
+  const cargar = useCallback(async () => {
+    const { data } = await supabase
+      .from("transmisiones")
+      .select("id, folio, video_ruta, duracion_seg, iniciado_en, evidencia:evidencias(fotografias)")
+      .eq("llamada_id", llamadaId)
+      .eq("estatus", "activo")
+      .not("video_ruta", "is", null)
+      .order("iniciado_en", { ascending: false });
+    const filas = ((data as any[]) ?? []) as Grab[];
+    const conUrl = await Promise.all(
+      filas.map(async (g) => {
+        const { data: s } = await supabase.storage.from("videos").createSignedUrl(g.video_ruta, 3600);
+        const fp = Array.isArray(g.evidencia?.fotografias) ? (g.evidencia!.fotografias as string[])[0] : null;
+        const poster = fp ? supabase.storage.from("fotos").getPublicUrl(fp).data.publicUrl : null;
+        return { ...g, url: s?.signedUrl ?? null, poster };
+      })
+    );
+    setGrabs(conUrl);
   }, [llamadaId]);
+
+  // Se recarga en tiempo real: cuando termina la transmisión y se guarda su video
+  // (update de transmisiones.video_ruta) aparece aquí sin recargar la página.
+  useEffect(() => {
+    cargar();
+    const canal = supabase
+      .channel(`grab-tx:${llamadaId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "transmisiones", filter: `llamada_id=eq.${llamadaId}` }, () => cargar())
+      .subscribe();
+    const alFoco = () => cargar();
+    window.addEventListener("focus", alFoco);
+    document.addEventListener("visibilitychange", alFoco);
+    return () => {
+      supabase.removeChannel(canal);
+      window.removeEventListener("focus", alFoco);
+      document.removeEventListener("visibilitychange", alFoco);
+    };
+  }, [cargar, llamadaId]);
 
   if (grabs.length === 0) return null;
 

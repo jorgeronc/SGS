@@ -298,6 +298,7 @@ export default function IncidenciaDetallePage() {
                     <MapaUbicacion latitud={llamada.latitud} longitud={llamada.longitud} sinEnlace />
                   )}
                 </div>
+                <GrabacionesTransmision llamadaId={params.id} />
                 <div><CamarasCercanas latitud={llamada.latitud} longitud={llamada.longitud} /></div>
                 <div><h3 style={h3}>🕘 Historial de atención</h3><HistorialCad llamadaId={params.id} /></div>
               </div>
