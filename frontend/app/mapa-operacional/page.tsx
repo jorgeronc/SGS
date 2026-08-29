@@ -7,6 +7,7 @@ import MapaBase from "@/app/components/MapaBase";
 import CamarasCercanas from "@/app/components/CamarasCercanas";
 import CameraDetailDrawer from "@/app/components/CameraDetailDrawer";
 import ChatIncidente from "@/app/components/ChatIncidente";
+import VisorTransmision from "@/app/components/VisorTransmision";
 import { useGuardiasEnLinea } from "@/lib/guardiasVivo";
 import { computeReporteSla } from "@/lib/sla";
 
@@ -70,8 +71,15 @@ export default function MapaOperacionalPage() {
   const marks = useRef<any[]>([]);
   // Filtro por URL (desde CAD): ?incidente=<id> (uno solo) o filtros
   // (estatus/prioridad/despacho/desde/hasta/q). Se lee una vez al montar.
-  const filtro = useRef<{ incidente?: string; fit?: string; estatus?: string; prioridad?: string; despacho?: string; desde?: string; hasta?: string; q?: string }>({});
+  const filtro = useRef<{ incidente?: string; tx?: string; fit?: string; estatus?: string; prioridad?: string; despacho?: string; desde?: string; hasta?: string; q?: string }>({});
   const focoHecho = useRef(false);
+  // Transmisión en vivo enviada al mapa (?tx=<id>): recuadro anclado al puntero
+  // del incidente, solo mientras la transmisión está activa.
+  const [txId, setTxId] = useState<string | null>(null);
+  const [txViva, setTxViva] = useState(false);
+  const [txPos, setTxPos] = useState<{ x: number; y: number } | null>(null);
+  const [mapListo, setMapListo] = useState(false);
+  const incLoc = useRef<{ lng: number; lat: number } | null>(null);
   const datos = useRef({ guardias, incidentes, camaras, capas });
   datos.current = { guardias, incidentes, camaras, capas };
 
@@ -82,12 +90,51 @@ export default function MapaOperacionalPage() {
     try {
       const p = new URLSearchParams(window.location.search);
       filtro.current = {
-        incidente: p.get("incidente") || undefined, fit: p.get("fit") || undefined, estatus: p.get("estatus") || undefined,
+        incidente: p.get("incidente") || undefined, tx: p.get("tx") || undefined, fit: p.get("fit") || undefined, estatus: p.get("estatus") || undefined,
         prioridad: p.get("prioridad") || undefined, despacho: p.get("despacho") || undefined,
         desde: p.get("desde") || undefined, hasta: p.get("hasta") || undefined, q: p.get("q") || undefined,
       };
+      setTxId(filtro.current.tx ?? null);
     } catch { /* */ }
   }, []);
+
+  // ¿La transmisión enviada al mapa sigue activa? (para ocultar el recuadro al terminar)
+  useEffect(() => {
+    if (!txId) { setTxViva(false); return; }
+    let cancel = false;
+    const check = async () => {
+      const { data } = await supabase.from("transmisiones").select("estado, estatus").eq("id", txId).maybeSingle();
+      if (!cancel) setTxViva((data as any)?.estado === "en_vivo" && (data as any)?.estatus === "activo");
+    };
+    check();
+    const canal = supabase.channel(`mo-tx:${txId}`).on("postgres_changes", { event: "*", schema: "public", table: "transmisiones", filter: `id=eq.${txId}` }, check).subscribe();
+    return () => { cancel = true; supabase.removeChannel(canal); };
+  }, [txId]);
+
+  // Ubicación del incidente al que pertenece la transmisión (para anclar el recuadro).
+  useEffect(() => {
+    const f = filtro.current;
+    if (!f.incidente) return;
+    const it = incidentes.find((i: any) => i.id === f.incidente);
+    if (it && it.latitud != null) incLoc.current = { lng: Number(it.longitud), lat: Number(it.latitud) };
+  }, [incidentes]);
+
+  // Sigue el puntero del incidente en pantalla para colocar el recuadro sobre él.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapListo || !txId) return;
+    const actualizar = () => {
+      const loc = incLoc.current;
+      if (!loc) { setTxPos(null); return; }
+      const p = map.project([loc.lng, loc.lat]);
+      setTxPos({ x: p.x, y: p.y });
+    };
+    actualizar();
+    map.on("move", actualizar);
+    map.on("zoom", actualizar);
+    map.on("resize", actualizar);
+    return () => { map.off("move", actualizar); map.off("zoom", actualizar); map.off("resize", actualizar); };
+  }, [mapListo, txId, incidentes]);
 
   const cargar = useCallback(async () => {
     const hoy = new Date(); hoy.setHours(0, 0, 0, 0); const desdeHoy = hoy.toISOString();
@@ -187,7 +234,7 @@ export default function MapaOperacionalPage() {
     }
   }, []);
 
-  function onReady(map: any) { mapRef.current = map; ensureGeocercas(map); pintar(); centrarFoco(); }
+  function onReady(map: any) { mapRef.current = map; setMapListo(true); ensureGeocercas(map); pintar(); centrarFoco(); }
 
   // Redibuja al cambiar datos/capas (sin reencuadrar).
   useEffect(() => { if (mapRef.current) { pintar(); ensureGeocercas(mapRef.current); } }, [guardias, incidentes, camaras, sitios, capas, pintar]);
@@ -232,6 +279,17 @@ export default function MapaOperacionalPage() {
             <CamarasCercanas latitud={selInc.latitud ?? null} longitud={selInc.longitud ?? null} radioM={600} />
           </div>
         </aside>
+      )}
+
+      {/* Transmisión en vivo anclada al puntero del incidente (?tx=). Solo mientras esté activa. */}
+      {txId && txViva && txPos && (
+        <div style={{ position: "absolute", left: txPos.x, top: txPos.y, transform: "translate(-50%, calc(-100% - 34px))", width: 300, maxWidth: "calc(100vw - 28px)", zIndex: 7, background: "var(--sc-content)", border: "1px solid var(--sc-card-line)", borderRadius: 12, color: "var(--sc-text)", boxShadow: "0 8px 24px #0007" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 10px" }}>
+            <b style={{ color: "#e11d48", fontSize: 12 }}>🔴 Transmisión en vivo</b>
+            <span onClick={() => setTxId(null)} style={{ cursor: "pointer", color: "var(--sc-text-faint)" }}>✕</span>
+          </div>
+          <div style={{ padding: "0 8px 8px" }}><VisorTransmision transmisionId={txId} /></div>
+        </div>
       )}
 
       {/* Dock IZQUIERDO: ventana de cámara (arriba) y chat del incidente (abajo),

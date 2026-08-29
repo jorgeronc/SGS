@@ -37,6 +37,7 @@ export default function IncidenciaDetallePage() {
   const [editando, setEditando] = useState(false);
   const [ed, setEd] = useState({ tipo: "", prioridad: "media", reportante: "", telefono: "", direccion: "", lat: "", lng: "", estado_despacho: "recibida" });
   const [txActiva, setTxActiva] = useState<string | null>(null);
+  const [enviadoMapa, setEnviadoMapa] = useState(false); // se relevó la vista en vivo al Mapa Operacional
   const [pasoTs, setPasoTs] = useState<(string | null)[]>([null, null, null, null, null]);
   const [cerrando, setCerrando] = useState(false);
   const [conclusion, setConclusion] = useState("");
@@ -143,6 +144,9 @@ export default function IncidenciaDetallePage() {
     setCerrando(false); cargarLlamada();
   }
 
+  // Si cambia (o termina) la transmisión, se vuelve a mostrar aquí en vivo.
+  useEffect(() => { setEnviadoMapa(false); }, [txActiva]);
+
   const fotosReporte = useMemo(() => {
     const dd = (llamada as any)?.datos_adicionales ?? {};
     return (Array.isArray(dd.fotografias) ? dd.fotografias : []) as string[];
@@ -229,7 +233,20 @@ export default function IncidenciaDetallePage() {
         {error && <p style={{ color: "#e23b53", fontSize: 13, margin: "8px 0 0" }}>{error}</p>}
       </div>
 
-      {txActiva && <div style={{ ...card, padding: 14 }}><h3 style={h3}>🔴 Transmisión en vivo del guardia</h3><VisorTransmision transmisionId={txActiva} /></div>}
+      {txActiva && <div style={{ ...card, padding: 14 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
+          <h3 style={{ ...h3, margin: 0 }}>🔴 Transmisión en vivo del guardia</h3>
+          {!enviadoMapa && <button style={{ ...btn }} onClick={() => { setEnviadoMapa(true); window.open(`/mapa-operacional?incidente=${llamada.id}&tx=${txActiva}`, "_blank", "noopener"); }}>🗺️ Enviar a Mapa Operacional</button>}
+        </div>
+        {enviadoMapa ? (
+          <div style={{ fontSize: 13, color: "var(--sc-text-soft)", padding: "10px 12px", border: "1px dashed var(--sc-card-line)", borderRadius: 10 }}>
+            La transmisión se está viendo en el <a href={`/mapa-operacional?incidente=${llamada.id}&tx=${txActiva}`} target="_blank" rel="noopener noreferrer" style={{ color: "var(--sc-btn,#f4a03f)", fontWeight: 700 }}>Mapa Operacional</a>. La grabación quedará asociada a este incidente y aparecerá abajo, debajo del mapa.{" "}
+            <button onClick={() => setEnviadoMapa(false)} style={{ background: "transparent", border: "none", color: "var(--sc-btn,#f4a03f)", fontWeight: 700, cursor: "pointer", padding: 0 }}>Ver aquí de nuevo</button>
+          </div>
+        ) : (
+          <VisorTransmision transmisionId={txActiva} />
+        )}
+      </div>}
 
       {/* Pestañas */}
       <div style={card}>
