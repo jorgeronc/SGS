@@ -10,6 +10,9 @@ import * as FileSystem from "expo-file-system/legacy";
 import { decode } from "base64-arraybuffer";
 import { supabase, BUCKET_FOTOS } from "../lib/supabase";
 import { getMiOficialValido } from "../lib/oficial";
+import { getRolActual, esMando } from "../lib/rol";
+import BodycamBoton from "../components/BodycamBoton";
+import { asociarBodycamActual } from "../lib/bodycamHd";
 import { T, UI } from "../theme";
 
 const TIPOS_FALLBACK = [
@@ -39,6 +42,7 @@ export default function IncidenteScreen() {
   const [sitioId, setSitioId] = useState<string>("");
   const [sitioNombre, setSitioNombre] = useState<string | null>(null);
   const [sitios, setSitios] = useState<any[]>([]);
+  const [mando, setMando] = useState(false);
 
   useEffect(() => {
     // Tipos desde el catálogo administrable (mismo que Central/Despacho).
@@ -48,25 +52,32 @@ export default function IncidenteScreen() {
     resolverSitioYTelefono();
   }, []);
 
-  // Toma el teléfono del guardia y el sitio de su turno activo hoy. Si no tiene
-  // turno activo, ofrece elegir el sitio de una lista (el lugar siempre es un sitio).
+  // Los sitios a elegir son SOLO los asignados al guardia en su turno activo de
+  // hoy; el supervisor o superior puede elegir cualquier sitio. Si el guardia
+  // tiene un solo sitio, se preselecciona.
   async function resolverSitioYTelefono() {
     const g = await getMiOficialValido();
     if (!g) return;
+    const rol = await getRolActual();
+    const esM = esMando(rol);
+    setMando(esM);
     const { data: per } = await supabase.from("personal").select("telefono").eq("id", g.personalId).maybeSingle();
     setTelefono((per as any)?.telefono ?? null);
+
+    if (esM) {
+      const { data: ss } = await supabase.from("sitios").select("id, nombre").eq("estatus", "activo").order("nombre");
+      setSitios((ss as any[]) ?? []);
+      return;
+    }
     const hoy = new Date().toISOString().slice(0, 10);
     const { data: tg } = await supabase.from("turno_guardias")
       .select("sitio_id, sitios(nombre), turnos!inner(fecha, estado, estatus)")
       .eq("personal_id", g.personalId)
-      .eq("turnos.fecha", hoy).eq("turnos.estado", "activo").eq("turnos.estatus", "activo")
-      .limit(1);
-    const row = ((tg as any[]) ?? [])[0];
-    if (row?.sitio_id) { setSitioId(row.sitio_id); setSitioNombre(row.sitios?.nombre ?? null); }
-    else {
-      const { data: ss } = await supabase.from("sitios").select("id, nombre").eq("estatus", "activo").order("nombre");
-      setSitios((ss as any[]) ?? []);
-    }
+      .eq("turnos.fecha", hoy).eq("turnos.estado", "activo").eq("turnos.estatus", "activo");
+    const rows = ((tg as any[]) ?? []).filter((r) => r.sitio_id);
+    const uniq = Array.from(new Map(rows.map((r) => [r.sitio_id, { id: r.sitio_id, nombre: r.sitios?.nombre ?? "Sitio" }])).values());
+    setSitios(uniq);
+    if (uniq.length === 1) { setSitioId(uniq[0].id); setSitioNombre(uniq[0].nombre); }
   }
 
   async function obtenerUbicacion() {
@@ -128,6 +139,9 @@ export default function IncidenteScreen() {
       }).select("id, folio").single();
       if (error) throw error;
 
+      // Si se activó la bodycam desde aquí, sella los segmentos con el folio.
+      await asociarBodycamActual({ tipo: "incidente", id: ll.id, folio: ll.folio ?? null });
+
       if (fotos.length) {
         const rutas: string[] = [];
         for (const f of fotos) { const p = await subirFoto(f, ll.id); if (p) rutas.push(p); }
@@ -171,7 +185,7 @@ export default function IncidenteScreen() {
                 <Text style={[styles.chipTxt, sitioId === s.id && styles.chipTxtOn]}>{s.nombre}</Text>
               </TouchableOpacity>
             ))}
-            {sitios.length === 0 && <Text style={styles.gps}>No hay sitios disponibles.</Text>}
+            {sitios.length === 0 && <Text style={styles.gps}>{mando ? "No hay sitios disponibles." : "No tienes un sitio asignado en tu turno de hoy."}</Text>}
           </View>
         )}
 
@@ -199,6 +213,9 @@ export default function IncidenteScreen() {
             ))}
           </View>
         )}
+
+        <Text style={styles.label}>Bodycam</Text>
+        <BodycamBoton origen={{ tipo: "incidente", id: "", folio: null }} />
 
         <TouchableOpacity style={styles.btnPrim} onPress={enviar} disabled={enviando}>
           {enviando ? <ActivityIndicator color={T.white} /> : (<><Ionicons name="shield-checkmark" size={18} color={T.white} /><Text style={styles.btnPrimTxt}>Levantar incidente</Text></>)}

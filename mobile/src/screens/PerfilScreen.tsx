@@ -1,48 +1,35 @@
-import { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Image, Alert, ActivityIndicator, Modal, TextInput } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { View, Text, TouchableOpacity, StyleSheet, Image, Alert, ActivityIndicator, Modal, TextInput } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import * as ImagePicker from "expo-image-picker";
 import { decode } from "base64-arraybuffer";
 import { supabase, BUCKET_FOTOS } from "../lib/supabase";
 import { urlFoto, primeraFoto } from "../lib/fotos";
-import { getMiUnidad, setMiUnidad, clearMiUnidad } from "../lib/unidad";
-import { getMiOficial, getMiOficialValido, setMiOficial, clearMiOficial, getMiCrp } from "../lib/oficial";
+import { getUnidadDelSistema, getTurnoVigente, type TurnoVigente } from "../lib/unidad";
+import { getMiOficial, getMiOficialValido, setMiOficial, clearMiOficial } from "../lib/oficial";
 import { actualizarPersonalPush } from "../lib/push";
 import { validarBodycam, mensajeBloqueo, getMiBodycam, clearMiBodycam } from "../lib/bodycam";
 import { iniciarRastreo, detenerRastreo } from "../lib/ubicacionVivo";
 import { iniciarGeocercas, detenerGeocercas } from "../lib/geocercas";
 import { pendientesBodycam, descargarPendientes, bodycamDisponible } from "../lib/bodycamHd";
-import { getAccesos, setAccesos, ACCESOS_DISPONIBLES, MAX_ACCESOS } from "../lib/accesos";
 import { recordatoriosVigentes, agregarRecordatorio, quitarRecordatorio, ventanaTurno, Recordatorio } from "../lib/recordatorios";
 import HoraInput from "../components/HoraInput";
 import { T, UI } from "../theme";
 
 function turnoActual(): string {
   const h = new Date().getHours();
-  // Turno diurno 06:00–18:00; nocturno 18:00–06:00.
   return h >= 6 && h < 18 ? "Diurno" : "Nocturno";
 }
+const hhmm = (t: string | null) => (t ? String(t).slice(0, 5) : "—");
 
-const ESTATUS: { k: string; label: string; color: string }[] = [
-  { k: "disponible", label: "Disponible", color: "#0a7c2f" },
-  { k: "en_camino", label: "En camino", color: "#0b62c4" },
-  { k: "en_lugar", label: "En el lugar", color: "#7a3fbf" },
-  { k: "ocupado", label: "Ocupado", color: "#b06a00" },
-  { k: "fuera_servicio", label: "Fuera de servicio", color: "#8a1220" },
-];
-
-function etiquetaEstatus(k: string | null): string {
-  return ESTATUS.find((e) => e.k === k)?.label ?? (k ?? "—");
-}
-
-interface UnidadOpc { patrulla_id: string; etiqueta: string; estatus_unidad: string | null; }
 interface OficialOpc { id: string; etiqueta: string; }
 
 export default function PerfilScreen() {
   const nav = useNavigation<any>();
+  const route = useRoute<any>();
   const [correo, setCorreo] = useState("");
 
   // Mi elemento (identidad del oficial) + su fotografía
@@ -53,52 +40,25 @@ export default function PerfilScreen() {
   const [subiendo, setSubiendo] = useState(false);
   const [editandoOficial, setEditandoOficial] = useState(false);
   const [miBodycam, setMiBodycamState] = useState<string | null>(null);   // folio
-  const [miCrp, setMiCrp] = useState<string | null>(null);
+  const [unidad, setUnidad] = useState<string | null>(null);              // sitio del turno (sistema)
+  const [turno, setTurno] = useState<TurnoVigente | null>(null);
   const [validando, setValidando] = useState(false);
   // Grabaciones de bodycam pendientes de descargar (subir en WiFi).
   const [pendientesBc, setPendientesBc] = useState(0);
   const [descargandoBc, setDescargandoBc] = useState(false);
   const [progresoBc, setProgresoBc] = useState("");
 
-  // Accesos rápidos configurables
-  const [accesosSel, setAccesosSel] = useState<string[]>([]);
-
   // Recordatorios del turno (locales; expiran al terminar el turno)
   const [recordatorios, setRecordatorios] = useState<Recordatorio[]>([]);
   const [modalRecord, setModalRecord] = useState(false);
   const [recordBorrador, setRecordBorrador] = useState("");
-  const [recordHora, setRecordHora] = useState(""); // "HH:MM" de la alarma (opcional)
+  const [recordHora, setRecordHora] = useState(""); // "HH:MM" de la alarma (obligatoria)
 
-  // Mi unidad
-  const [opciones, setOpciones] = useState<UnidadOpc[]>([]);
-  const [miPatrulla, setMiPatrulla] = useState<string | null>(null);
-  const [estatus, setEstatus] = useState<string | null>(null);
-  const [motivo, setMotivo] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
-  // Modal para capturar el motivo cuando el estatus es "Ocupado".
-  const [modalOcupado, setModalOcupado] = useState(false);
-  const [motivoBorrador, setMotivoBorrador] = useState("");
-  const [motivoPara, setMotivoPara] = useState<string>("ocupado"); // estatus que pide motivo
 
-  async function cargarUnidades() {
-    const { data } = await supabase
-      .from("patrullas_en_servicio")
-      .select("patrulla_id, numero, tipo, marca, modelo, placas, estatus_unidad, motivo_estatus")
-      .order("numero");
-    const opc: UnidadOpc[] = ((data as any[]) ?? []).map((r) => ({
-      patrulla_id: r.patrulla_id,
-      etiqueta: `${r.numero ? `#${r.numero} · ` : ""}${r.tipo ?? ""} ${r.marca ?? ""} ${r.modelo ?? ""}`.trim(),
-      estatus_unidad: r.estatus_unidad,
-    }));
-    setOpciones(opc);
-    const guardada = await getMiUnidad();
-    if (guardada) {
-      setMiPatrulla(guardada.patrullaId);
-      const fila = ((data as any[]) ?? []).find((r) => r.patrulla_id === guardada.patrullaId);
-      setEstatus(fila?.estatus_unidad ?? null);
-      setMotivo(fila?.motivo_estatus ?? null);
-    }
-  }
+  // Scroll: para llevar a la sección de bodycam al iniciar descarga desde Inicio.
+  const scrollRef = useRef<any>(null);
+  const bodycamY = useRef(0);
 
   async function cargarOficiales() {
     const { data } = await supabase
@@ -107,7 +67,6 @@ export default function PerfilScreen() {
       .eq("estatus", "activo")
       .limit(500);
     const opc: OficialOpc[] = ((data as any[]) ?? [])
-      // Solo elementos activos y cuya persona (identidad) no esté cancelada.
       .filter((p) => (p.persona?.estatus ?? "activo") === "activo")
       .map((p) => {
         const nom = p.persona ? `${p.persona.nombre ?? ""} ${p.persona.apellido_paterno ?? ""} ${p.persona.apellido_materno ?? ""}`.trim() : "";
@@ -124,26 +83,43 @@ export default function PerfilScreen() {
     setFotoPath(primeraFoto(fotos));
   }
 
+  async function cargarUnidadYTurno(pid: string) {
+    setUnidad(await getUnidadDelSistema(pid));
+    setTurno(await getTurnoVigente(pid));
+  }
+
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setCorreo(data.user?.email ?? ""));
-    cargarUnidades();
     cargarOficiales();
-    getAccesos().then(setAccesosSel);
     getMiBodycam().then((b) => setMiBodycamState(b?.folio ?? null));
-    getMiCrp().then(setMiCrp);
     pendientesBodycam().then(setPendientesBc);
     cargarRecordatorios();
     (async () => {
       const guardado = await getMiOficial();
       const valido = await getMiOficialValido(); // limpia la selección si fue cancelada
       if (valido) {
-        setMiOficialId(valido.personalId); setMiOficialEtq(valido.etiqueta); cargarMiFoto(valido.personalId);
+        setMiOficialId(valido.personalId); setMiOficialEtq(valido.etiqueta); cargarMiFoto(valido.personalId); cargarUnidadYTurno(valido.personalId);
       } else if (guardado) {
         setMiOficialId(null); setMiOficialEtq(""); setFotoPath(null);
         setAviso("Tu elemento fue dado de baja; selecciona otro.");
       }
     })();
   }, []);
+
+  // Acciones disparadas desde Inicio (parámetros de navegación).
+  useEffect(() => {
+    const p = route.params ?? {};
+    if (p.nuevoRecordatorio) {
+      setRecordBorrador(""); setRecordHora(""); setModalRecord(true);
+      nav.setParams({ nuevoRecordatorio: undefined });
+    }
+    if (p.iniciarDescarga) {
+      nav.setParams({ iniciarDescarga: undefined });
+      setTimeout(() => scrollRef.current?.scrollTo?.({ y: Math.max(0, bodycamY.current - 12), animated: true }), 350);
+      descargarBodycam();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [route.params]);
 
   async function elegirOficial(o: OficialOpc) {
     // Valida que ESTE teléfono sea la bodycam-smartphone asignada al oficial.
@@ -160,23 +136,23 @@ export default function PerfilScreen() {
     setEditandoOficial(false);
     setMiBodycamState(r.folio ?? null);
     await setMiOficial({ personalId: o.id, etiqueta: o.etiqueta });
-    // Liga este elemento con la cuenta de login (para el chat de incidentes).
     await supabase.rpc("rpc_vincular_usuario_elemento", { p_personal: o.id });
     await actualizarPersonalPush(o.id);
     await cargarMiFoto(o.id);
-    iniciarRastreo(); // empieza a compartir ubicación con central
-    iniciarGeocercas(); // registra geocercas de sitios (entrada/salida)
+    await cargarUnidadYTurno(o.id);
+    iniciarRastreo();
+    iniciarGeocercas();
     setAviso(r.vinculado
       ? `Elemento asignado. Smartphone vinculado a la bodycam ${r.folio}.`
       : `Elemento asignado. Bodycam ${r.folio}.`);
   }
 
   async function quitarOficial() {
-    setMiOficialId(null); setMiOficialEtq(""); setFotoPath(null); setMiBodycamState(null);
+    setMiOficialId(null); setMiOficialEtq(""); setFotoPath(null); setMiBodycamState(null); setUnidad(null); setTurno(null);
     await clearMiOficial();
     await clearMiBodycam();
     await actualizarPersonalPush(null);
-    await detenerRastreo(); // deja de compartir ubicación
+    await detenerRastreo();
     await detenerGeocercas();
     setAviso("Ya no hay elemento asignado en este dispositivo.");
   }
@@ -185,26 +161,22 @@ export default function PerfilScreen() {
     setRecordatorios(await recordatoriosVigentes());
   }
 
+  // La alarma del recordatorio es OBLIGATORIA: siempre suena por el sistema del dispositivo.
   async function guardarRecordatorio() {
     const t = recordBorrador.trim();
-    if (!t) { setModalRecord(false); return; }
-    let alarma: Date | undefined;
-    if (recordHora) {
-      const m = recordHora.match(/^(\d{1,2}):(\d{2})$/);
-      if (m) {
-        const { inicio, fin } = ventanaTurno();
-        let a = new Date(); a.setHours(Number(m[1]), Number(m[2]), 0, 0);
-        // Turno nocturno cruza medianoche: si cae antes del inicio, es del día siguiente.
-        if (a < inicio) a = new Date(a.getTime() + 24 * 3600 * 1000);
-        if (a < inicio || a > fin) {
-          Alert.alert("Hora fuera del turno", `La alarma debe estar entre ${inicio.getHours()}:00 y ${fin.getHours()}:00 (tu turno).`);
-          return;
-        }
-        if (a.getTime() <= Date.now()) { Alert.alert("Hora pasada", "Elige una hora futura dentro de tu turno."); return; }
-        alarma = a;
-      }
+    if (!t) { Alert.alert("Recordatorio", "Escribe el recordatorio."); return; }
+    if (!recordHora) { Alert.alert("Alarma requerida", "Elige la hora de la alarma (siempre suena por el sistema)."); return; }
+    const m = recordHora.match(/^(\d{1,2}):(\d{2})$/);
+    if (!m) { Alert.alert("Hora inválida", "Elige una hora válida."); return; }
+    const { inicio, fin } = ventanaTurno();
+    let a = new Date(); a.setHours(Number(m[1]), Number(m[2]), 0, 0);
+    if (a < inicio) a = new Date(a.getTime() + 24 * 3600 * 1000);
+    if (a < inicio || a > fin) {
+      Alert.alert("Hora fuera del turno", `La alarma debe estar entre ${inicio.getHours()}:00 y ${fin.getHours()}:00 (tu turno).`);
+      return;
     }
-    await agregarRecordatorio(t, alarma);
+    if (a.getTime() <= Date.now()) { Alert.alert("Hora pasada", "Elige una hora futura dentro de tu turno."); return; }
+    await agregarRecordatorio(t, a);
     setRecordBorrador(""); setRecordHora("");
     setModalRecord(false);
     await cargarRecordatorios();
@@ -215,7 +187,6 @@ export default function PerfilScreen() {
     await cargarRecordatorios();
   }
 
-  // La foto de identidad se guarda en la persona ligada al elemento (personal.persona).
   async function cambiarFoto() {
     if (!miOficialId) { Alert.alert("Elemento", "Primero selecciona tu elemento."); return; }
     const perm = await ImagePicker.requestCameraPermissionsAsync();
@@ -237,7 +208,6 @@ export default function PerfilScreen() {
     if (!miOficialId || !base64) return;
     setSubiendo(true);
     try {
-      // La foto vive en la persona del elemento.
       const { data: per } = await supabase.from("personal").select("persona_id").eq("id", miOficialId).maybeSingle();
       const personaId = (per as any)?.persona_id;
       if (!personaId) { Alert.alert("Sin persona", "El elemento no tiene persona asociada."); setSubiendo(false); return; }
@@ -247,7 +217,6 @@ export default function PerfilScreen() {
       if (error) throw error;
       const { data: cur } = await supabase.from("personas").select("fotografias").eq("id", personaId).maybeSingle();
       const previas = Array.isArray((cur as any)?.fotografias) ? (cur as any).fotografias : [];
-      // La foto de identidad se pone al frente (miniatura).
       await supabase.from("personas").update({ fotografias: [path, ...previas], actualizado_en: new Date().toISOString() }).eq("id", personaId);
       setFotoPath(path);
     } catch (e: any) {
@@ -255,60 +224,6 @@ export default function PerfilScreen() {
     } finally {
       setSubiendo(false);
     }
-  }
-
-  function toggleAcceso(key: string) {
-    setAccesosSel((prev) => {
-      let next: string[];
-      if (prev.includes(key)) next = prev.filter((k) => k !== key);
-      else if (prev.length >= MAX_ACCESOS) { Alert.alert("Máximo", `Puedes configurar hasta ${MAX_ACCESOS} accesos rápidos.`); return prev; }
-      else next = [...prev, key];
-      setAccesos(next);
-      return next;
-    });
-  }
-
-  async function elegir(o: UnidadOpc) {
-    setMiPatrulla(o.patrulla_id);
-    setEstatus(o.estatus_unidad);
-    await setMiUnidad({ patrullaId: o.patrulla_id, etiqueta: o.etiqueta });
-    getMiCrp().then(setMiCrp);
-    setAviso("CRP (patrulla) asignada a este dispositivo.");
-  }
-  async function quitarUnidad() {
-    setMiPatrulla(null); setEstatus(null);
-    await clearMiUnidad();
-    setMiCrp(null);
-    setAviso("Ya no operas ninguna CRP en este dispositivo.");
-  }
-  async function persistirEstatus(k: string, motivoTxt: string | null) {
-    if (!miPatrulla) return;
-    setEstatus(k);
-    setMotivo(motivoTxt);
-    const { error } = await supabase
-      .from("patrullas")
-      .update({ estatus_unidad: k, motivo_estatus: motivoTxt, actualizado_en: new Date().toISOString() })
-      .eq("id", miPatrulla);
-    setAviso(error ? error.message : `Unidad marcada como ${etiquetaEstatus(k)}${motivoTxt ? ` · ${motivoTxt}` : ""}.`);
-  }
-
-  function fijarEstatus(k: string) {
-    if (!miPatrulla) return;
-    // "Ocupado" y "Fuera de servicio" piden escribir el motivo.
-    if (k === "ocupado" || k === "fuera_servicio") {
-      setMotivoPara(k);
-      setMotivoBorrador(estatus === k ? (motivo ?? "") : "");
-      setModalOcupado(true);
-      return;
-    }
-    persistirEstatus(k, null);
-  }
-
-  function confirmarOcupado() {
-    const txt = motivoBorrador.trim();
-    if (!txt) { Alert.alert("Motivo", "Escribe el motivo."); return; }
-    setModalOcupado(false);
-    persistirEstatus(motivoPara, txt);
   }
 
   async function descargarBodycam() {
@@ -337,7 +252,7 @@ export default function PerfilScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
-      <KeyboardAwareScrollView contentContainerStyle={styles.wrap} keyboardShouldPersistTaps="handled" bottomOffset={24}>
+      <KeyboardAwareScrollView ref={scrollRef} contentContainerStyle={styles.wrap} keyboardShouldPersistTaps="handled" bottomOffset={24}>
         <View style={styles.hero}>
           <TouchableOpacity style={styles.avatar} onPress={cambiarFoto} onLongPress={elegirFotoGaleria} activeOpacity={0.8}>
             {subiendo ? <ActivityIndicator color={T.accent} />
@@ -375,26 +290,10 @@ export default function PerfilScreen() {
         )}
         {miOficialId && (
           <Text style={styles.bodycamLbl}>
-            <Ionicons name="car-outline" size={13} color={T.accent} /> CRP: <Text style={{ color: T.text, fontWeight: "800" }}>{miCrp || "sin CRP · elige tu patrulla abajo"}</Text>
+            <Ionicons name="location-outline" size={13} color={T.accent} /> Unidad: <Text style={{ color: T.text, fontWeight: "800" }}>{unidad || "sin unidad"}</Text>
           </Text>
         )}
         {miOficialId && <TouchableOpacity onPress={quitarOficial}><Text style={styles.quitar}>Quitar elemento de este dispositivo</Text></TouchableOpacity>}
-
-        {/* Accesos rápidos */}
-        <Text style={styles.seccion}>Accesos rápidos ({accesosSel.length}/{MAX_ACCESOS})</Text>
-        <View style={styles.card}>
-          {ACCESOS_DISPONIBLES.map((a, i) => {
-            const on = accesosSel.includes(a.key);
-            return (
-              <TouchableOpacity key={a.key} style={[styles.row, i < ACCESOS_DISPONIBLES.length - 1 && styles.rowBorder]} onPress={() => toggleAcceso(a.key)}>
-                <Ionicons name={a.icon} size={20} color={T.accent} style={{ width: 28 }} />
-                <Text style={[styles.l, { flex: 1, color: T.text }]}>{a.label}</Text>
-                <Ionicons name={on ? "checkbox" : "square-outline"} size={22} color={on ? T.accent : T.textMute} />
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
 
         {/* Recordatorios del turno (expiran al finalizar el turno) */}
         <View style={styles.seccionRow}>
@@ -406,7 +305,7 @@ export default function PerfilScreen() {
         </View>
         <View style={styles.card}>
           {recordatorios.length === 0 ? (
-            <Text style={[styles.vacio, { marginTop: 0 }]}>Sin recordatorios. Los que agregues expiran al terminar tu turno.</Text>
+            <Text style={[styles.vacio, { marginTop: 0 }]}>Sin recordatorios. Los que agregues expiran al terminar tu turno y siempre suena su alarma.</Text>
           ) : recordatorios.map((r, i) => (
             <View key={r.id} style={[styles.row, i < recordatorios.length - 1 && styles.rowBorder]}>
               <Ionicons name="alarm-outline" size={20} color={T.gold} style={{ width: 28 }} />
@@ -423,7 +322,7 @@ export default function PerfilScreen() {
 
         {/* Bodycam: descargar (subir) las grabaciones guardadas en el teléfono */}
         {bodycamDisponible && (
-          <>
+          <View onLayout={(e) => { bodycamY.current = e.nativeEvent.layout.y; }}>
             <Text style={styles.seccion}>Bodycam</Text>
             <View style={styles.card}>
               <TouchableOpacity style={styles.row} onPress={descargarBodycam} disabled={descargandoBc}>
@@ -442,54 +341,28 @@ export default function PerfilScreen() {
                 {descargandoBc && <ActivityIndicator color={T.accent} />}
               </TouchableOpacity>
             </View>
-          </>
-        )}
-
-        {/* Datos */}
-        <Text style={styles.seccion}>Cuenta</Text>
-        <View style={styles.card}>
-          <View style={[styles.row, styles.rowBorder]}><Ionicons name="mail-outline" size={20} color={T.accent} style={{ width: 28 }} /><Text style={styles.l}>Correo</Text><Text style={styles.v} numberOfLines={1}>{correo || "—"}</Text></View>
-          <View style={styles.row}><Ionicons name="time-outline" size={20} color={T.accent} style={{ width: 28 }} /><Text style={styles.l}>Turno</Text><Text style={styles.v}>{turnoActual()}</Text></View>
-        </View>
-
-        {/* Mi CRP (patrulla del rol de servicio) */}
-        <Text style={styles.seccion}>Mi CRP (patrulla)</Text>
-        {opciones.length === 0 ? (
-          <Text style={styles.vacio}>No hay patrullas en el rol de servicio vigente.</Text>
-        ) : (
-          <View style={styles.card}>
-            {opciones.map((o, i) => {
-              const sel = o.patrulla_id === miPatrulla;
-              return (
-                <TouchableOpacity key={o.patrulla_id} style={[styles.row, i < opciones.length - 1 && styles.rowBorder]} onPress={() => elegir(o)}>
-                  <Ionicons name={sel ? "radio-button-on" : "radio-button-off"} size={20} color={sel ? T.accent : T.textMute} style={{ width: 28 }} />
-                  <Text style={[styles.l, { flex: 1, color: T.text }]} numberOfLines={1}>{o.etiqueta}</Text>
-                  <Text style={styles.estUnidad}>{o.estatus_unidad ?? "—"}</Text>
-                </TouchableOpacity>
-              );
-            })}
           </View>
         )}
 
-        {miPatrulla && (
-          <>
-            <Text style={styles.seccion}>Estatus operativo</Text>
-            <View style={styles.estRow}>
-              {ESTATUS.map((e) => {
-                const on = estatus === e.k;
-                return (
-                  <TouchableOpacity key={e.k} style={[styles.estBtn, { borderColor: e.color }, on && { backgroundColor: e.color }]} onPress={() => fijarEstatus(e.k)}>
-                    <Text style={[styles.estBtnTxt, { color: on ? "#fff" : e.color }]} numberOfLines={1}>{e.label}</Text>
-                  </TouchableOpacity>
-                );
-              })}
+        {/* Cuenta: usuario + turno con su horario */}
+        <Text style={styles.seccion}>Cuenta</Text>
+        <View style={styles.card}>
+          <View style={[styles.row, styles.rowBorder]}>
+            <Ionicons name="person-circle-outline" size={20} color={T.accent} style={{ width: 28 }} />
+            <Text style={styles.l}>Usuario</Text>
+            <Text style={styles.v} numberOfLines={1}>{correo || "—"}</Text>
+          </View>
+          <View style={styles.rowCol}>
+            <View style={styles.row}>
+              <Ionicons name="time-outline" size={20} color={T.accent} style={{ width: 28 }} />
+              <Text style={styles.l}>Turno</Text>
+              <Text style={styles.v}>{turnoActual()}</Text>
             </View>
-            {(estatus === "ocupado" || estatus === "fuera_servicio") && motivo && (
-              <Text style={styles.motivoActual}>{estatus === "ocupado" ? "Ocupado en" : "Fuera de servicio"}: <Text style={{ fontWeight: "800", color: T.text }}>{motivo}</Text></Text>
-            )}
-            <TouchableOpacity onPress={quitarUnidad}><Text style={styles.quitar}>Dejar de operar esta CRP</Text></TouchableOpacity>
-          </>
-        )}
+            <Text style={styles.turnoHorario}>
+              {turno ? `${turno.fecha} · ${hhmm(turno.horaInicio)}–${hhmm(turno.horaFin)}` : "Sin turno activo en el sistema"}
+            </Text>
+          </View>
+        </View>
 
         {aviso && <Text style={styles.aviso}>{aviso}</Text>}
 
@@ -500,40 +373,12 @@ export default function PerfilScreen() {
         <View style={{ height: 24 }} />
       </KeyboardAwareScrollView>
 
-      {/* Motivo cuando la unidad queda "Ocupado" */}
-      <Modal visible={modalOcupado} transparent animationType="fade" onRequestClose={() => setModalOcupado(false)}>
-        <View style={styles.modalBack}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitulo}>{motivoPara === "ocupado" ? "¿En qué está ocupada la unidad?" : "Motivo de fuera de servicio"}</Text>
-            <Text style={styles.modalSub}>{motivoPara === "ocupado" ? "Ej. Alimentos, Sanitario, Carga de combustible" : "Ej. Mantenimiento, Falla mecánica, Fin de turno"}</Text>
-            <TextInput
-              style={styles.modalInput}
-              placeholder="Motivo"
-              placeholderTextColor={T.textMute}
-              value={motivoBorrador}
-              onChangeText={setMotivoBorrador}
-              autoFocus
-              returnKeyType="done"
-              onSubmitEditing={confirmarOcupado}
-            />
-            <View style={styles.modalBtns}>
-              <TouchableOpacity style={styles.modalCancel} onPress={() => setModalOcupado(false)}>
-                <Text style={styles.modalCancelTxt}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.modalOk} onPress={confirmarOcupado}>
-                <Text style={styles.modalOkTxt}>Guardar</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Nuevo recordatorio del turno */}
+      {/* Nuevo recordatorio del turno (con alarma obligatoria) */}
       <Modal visible={modalRecord} transparent animationType="fade" onRequestClose={() => setModalRecord(false)}>
         <View style={styles.modalBack}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitulo}>Nuevo recordatorio</Text>
-            <Text style={styles.modalSub}>Solo durante tu turno; expira al terminar ({turnoActual()}).</Text>
+            <Text style={styles.modalSub}>Solo durante tu turno; expira al terminar ({turnoActual()}). La alarma siempre suena.</Text>
             <TextInput
               style={[styles.modalInput, { height: 80, textAlignVertical: "top", paddingTop: 12 }]}
               placeholder="Ej. Revisar cámara del cruce; entregar oficio a las 14:00"
@@ -543,8 +388,8 @@ export default function PerfilScreen() {
               autoFocus
               multiline
             />
-            <Text style={[styles.modalSub, { marginTop: 10, marginBottom: 4 }]}>Alarma (opcional, dentro de tu turno):</Text>
-            <HoraInput value={recordHora} onChange={setRecordHora} placeholder="Sin alarma — toca para elegir hora" />
+            <Text style={[styles.modalSub, { marginTop: 10, marginBottom: 4 }]}>Alarma (obligatoria, dentro de tu turno):</Text>
+            <HoraInput value={recordHora} onChange={setRecordHora} placeholder="Toca para elegir la hora de la alarma" />
             <View style={styles.modalBtns}>
               <TouchableOpacity style={styles.modalCancel} onPress={() => setModalRecord(false)}>
                 <Text style={styles.modalCancelTxt}>Cancelar</Text>
@@ -571,20 +416,17 @@ const styles = StyleSheet.create({
   rol: { color: T.textMute, fontSize: 12, marginTop: 3, textAlign: "center" },
   card: { alignSelf: "stretch", backgroundColor: T.surface, borderRadius: UI.radius, borderWidth: 1, borderColor: T.border, paddingHorizontal: 14, marginTop: 10 },
   row: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 52 },
+  rowCol: { paddingVertical: 4 },
   rowSel: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 52 },
   rowBorder: { borderBottomWidth: 1, borderBottomColor: T.border },
   l: { color: T.textDim, fontSize: 14, flex: 1 },
   v: { color: T.text, fontSize: 15, fontWeight: "700", maxWidth: "60%" },
+  turnoHorario: { color: T.textMute, fontSize: 12, marginLeft: 36, marginBottom: 8 },
   seccion: { alignSelf: "flex-start", color: T.textDim, fontSize: 12, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.5, marginTop: 22, marginBottom: 2 },
   seccionRow: { alignSelf: "stretch", flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 22, marginBottom: 2 },
   recordAdd: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: T.surfaceAlt, borderWidth: 1, borderColor: T.accent, borderRadius: 20, paddingVertical: 4, paddingHorizontal: 10 },
   recordAddTxt: { color: T.accent, fontSize: 12, fontWeight: "800" },
   vacio: { alignSelf: "flex-start", color: T.textMute, fontSize: 13, marginTop: 10 },
-  estUnidad: { color: T.textMute, fontSize: 12, textTransform: "uppercase", fontWeight: "700" },
-  estRow: { flexDirection: "row", flexWrap: "wrap", gap: 10, alignSelf: "stretch", marginTop: 12 },
-  estBtn: { flexGrow: 1, flexBasis: "30%", minWidth: 100, borderWidth: 1.5, borderRadius: UI.radiusSm, height: 48, alignItems: "center", justifyContent: "center", paddingHorizontal: 6 },
-  estBtnTxt: { fontWeight: "800", fontSize: 14 },
-  motivoActual: { alignSelf: "flex-start", color: T.textDim, fontSize: 13, marginTop: 10 },
   quitar: { alignSelf: "flex-start", color: T.textMute, fontSize: 13, marginTop: 10, textDecorationLine: "underline" },
   bodycamLbl: { alignSelf: "flex-start", color: T.textDim, fontSize: 13, marginTop: 8 },
   bcBadge: { minWidth: 24, height: 24, borderRadius: 12, backgroundColor: T.danger, alignItems: "center", justifyContent: "center", paddingHorizontal: 6 },

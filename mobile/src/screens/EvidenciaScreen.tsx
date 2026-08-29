@@ -63,7 +63,6 @@ export default function EvidenciaScreen() {
   const incidenteId: string | undefined = route.params?.incidenteId;
   const [tipo, setTipo] = useState("");
   const [descripcion, setDescripcion] = useState("");
-  const [cantidad, setCantidad] = useState("");
   const [lat, setLat] = useState<number | null>(null);
   const [lng, setLng] = useState<number | null>(null);
   const [medios, setMedios] = useState<Medio[]>([]);
@@ -112,21 +111,6 @@ export default function EvidenciaScreen() {
     agregar({ kind: "foto", uri: a.uri, nombre: a.fileName ?? `foto.jpg`, mime: a.mimeType ?? "image/jpeg" });
   }
 
-  async function video(desde: "camara" | "galeria") {
-    const perm =
-      desde === "camara"
-        ? await ImagePicker.requestCameraPermissionsAsync()
-        : await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) return Alert.alert("Permiso", "Se requiere el permiso correspondiente.");
-    const res =
-      desde === "camara"
-        ? await ImagePicker.launchCameraAsync({ mediaTypes: ["videos"], quality: 0.6 })
-        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["videos"], quality: 0.6 });
-    if (res.canceled) return;
-    const a = res.assets[0];
-    agregar({ kind: "video", uri: a.uri, nombre: a.fileName ?? "video.mp4", mime: a.mimeType ?? "video/mp4" });
-  }
-
   async function documento() {
     const res = await DocumentPicker.getDocumentAsync({ type: "*/*", copyToCacheDirectory: true });
     if (res.canceled) return;
@@ -169,7 +153,6 @@ export default function EvidenciaScreen() {
         .insert({
           tipo: tipo || null,
           descripcion: descripcion.trim() || null,
-          cantidad: cantidad.trim() || null,
           estado_evidencia: "recolectada",
           fecha_recoleccion: new Date().toISOString(),
           datos_adicionales: { gps: lat != null && lng != null ? { lat, lng } : null, origen: "app_movil" },
@@ -218,7 +201,7 @@ export default function EvidenciaScreen() {
         });
       }
 
-      setTipo(""); setDescripcion(""); setCantidad(""); setMedios([]);
+      setTipo(""); setDescripcion(""); setMedios([]);
       Alert.alert("Evidencia registrada", `Folio ${ev.folio ?? "asignado"}. Cadena de custodia iniciada.`, [
         { text: "OK", onPress: () => nav.goBack() },
       ]);
@@ -236,7 +219,7 @@ export default function EvidenciaScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={["bottom"]}>
       <KeyboardAwareScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }} keyboardShouldPersistTaps="handled" bottomOffset={24}>
-        <Text style={styles.sub}>Fotografía, video, audio y documentos · inicia la cadena de custodia</Text>
+        <Text style={styles.sub}>Fotografía, audio y documentos · inicia la cadena de custodia</Text>
 
         {/* Tipo */}
         <Text style={styles.label}>Tipo de evidencia</Text>
@@ -252,39 +235,24 @@ export default function EvidenciaScreen() {
         <Text style={styles.label}>Descripción</Text>
         <TextInput
           style={[styles.input, styles.textarea]}
-          placeholder="Descripción del objeto / evidencia"
+          placeholder="Descripción del objeto / evidencia (incluye cantidad, peso, etc.)"
           placeholderTextColor={T.textMute}
           value={descripcion}
           onChangeText={setDescripcion}
           multiline
         />
-        <Text style={styles.label}>Cantidad</Text>
-        <TextInput
-          style={styles.input}
-          placeholder='Ej. "2 piezas", "15.3 g"'
-          placeholderTextColor={T.textMute}
-          value={cantidad}
-          onChangeText={setCantidad}
-        />
 
-        {/* Captura de medios */}
+        {/* Captura de medios (Grabar audio ocupa el lugar de Video) */}
         <Text style={styles.label}>Capturar</Text>
         <View style={styles.grid}>
           <Cap icon="camera" label="Foto" onPress={() => foto("camara")} disabled={ocupado} />
           <Cap icon="image" label="Galería" onPress={() => foto("galeria")} disabled={ocupado} />
-          <Cap icon="videocam" label="Video" onPress={() => video("camara")} disabled={ocupado} />
+          <TouchableOpacity style={[styles.cap, recState.isRecording && styles.capAudioOn]} onPress={toggleAudio} disabled={ocupado}>
+            <Ionicons name={recState.isRecording ? "stop-circle" : "mic"} size={24} color={recState.isRecording ? T.white : T.accent} />
+            <Text style={[styles.capTxt, recState.isRecording && { color: T.white }]}>{recState.isRecording ? `Grabando ${seg}s` : "Grabar audio"}</Text>
+          </TouchableOpacity>
           <Cap icon="document-text" label="Documento" onPress={documento} disabled={ocupado} />
         </View>
-        <TouchableOpacity
-          style={[styles.audioBtn, recState.isRecording && styles.audioBtnOn]}
-          onPress={toggleAudio}
-          disabled={ocupado}
-        >
-          <Ionicons name={recState.isRecording ? "stop-circle" : "mic"} size={22} color={recState.isRecording ? T.white : T.accent} />
-          <Text style={[styles.audioTxt, recState.isRecording && { color: T.white }]}>
-            {recState.isRecording ? `Grabando… ${seg}s (tocar para detener)` : "Grabar audio"}
-          </Text>
-        </TouchableOpacity>
 
         {/* Bodycam HD en segundo plano (solo build Android): el video se descarga
             luego como evidencia independiente con cadena de custodia. */}
@@ -353,6 +321,7 @@ const styles = StyleSheet.create({
 
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   cap: { width: "47%", flexGrow: 1, alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: T.surface, borderWidth: 1, borderColor: T.accentDim, borderRadius: UI.radiusSm, paddingVertical: 16 },
+  capAudioOn: { backgroundColor: T.danger, borderColor: T.danger },
   capTxt: { color: T.text, fontWeight: "700", fontSize: 14 },
 
   audioBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, backgroundColor: T.surface, borderWidth: 1, borderColor: T.accentDim, borderRadius: UI.radiusSm, height: 54, marginTop: 10 },

@@ -96,6 +96,60 @@ TaskManager.defineTask(TASK, async ({ data, error }) => {
   }
 });
 
+// Estado del rastreo. En PRIMER PLANO se usa un watcher (sin servicio ni
+// notificación); al pasar a SEGUNDO PLANO se arranca el foreground-service (que
+// en Android obliga a mostrar la notificación "Ubicación activa"). Así la
+// notificación solo aparece cuando la app está en segundo plano.
+let rastreando = false;
+let intervaloSeg = 60;
+let fgSub: Location.LocationSubscription | null = null;
+
+async function iniciarWatcherFg(): Promise<void> {
+  if (fgSub) return;
+  fgSub = await Location.watchPositionAsync(
+    { accuracy: Location.Accuracy.Balanced, timeInterval: intervaloSeg * 1000, distanceInterval: 0 },
+    (loc) => { reportar(loc).catch(() => {}); }
+  );
+}
+function detenerWatcherFg(): void {
+  if (fgSub) { fgSub.remove(); fgSub = null; }
+}
+
+async function iniciarServicioBg(): Promise<void> {
+  const ya = await Location.hasStartedLocationUpdatesAsync(TASK).catch(() => false);
+  if (ya) return;
+  await Location.startLocationUpdatesAsync(TASK, {
+    accuracy: Location.Accuracy.Balanced,
+    timeInterval: intervaloSeg * 1000,
+    distanceInterval: 0,
+    pausesUpdatesAutomatically: false,
+    showsBackgroundLocationIndicator: true,
+    foregroundService: {
+      notificationTitle: "SGS — Ubicación activa",
+      notificationBody: "Compartiendo tu ubicación con central durante el turno.",
+      notificationColor: "#0b3d66",
+    },
+  });
+}
+async function detenerServicioBg(): Promise<void> {
+  const ya = await Location.hasStartedLocationUpdatesAsync(TASK).catch(() => false);
+  if (ya) await Location.stopLocationUpdatesAsync(TASK).catch(() => {});
+}
+
+// La app pasó a segundo plano: cambia al servicio (aparece la notificación).
+export async function pasarASegundoPlano(): Promise<void> {
+  if (!rastreando) return;
+  detenerWatcherFg();
+  try { await iniciarServicioBg(); } catch { /* ignore */ }
+}
+// La app volvió a primer plano: detiene el servicio (desaparece la notificación)
+// y vuelve al watcher sin notificación.
+export async function pasarAPrimerPlano(): Promise<void> {
+  if (!rastreando) return;
+  try { await detenerServicioBg(); } catch { /* ignore */ }
+  try { await iniciarWatcherFg(); } catch { /* ignore */ }
+}
+
 // Arranca el rastreo si hay "Mi elemento", sesión activa y el parámetro global
 // gps_activo está encendido. Reinicia con los valores actuales (identidad e
 // intervalo). Idempotente: se puede llamar en cada login o al cambiar elemento.
@@ -117,7 +171,7 @@ export async function iniciarRastreo(): Promise<void> {
       await detenerRastreo();
       return;
     }
-    const intervalo = Math.max(10, Number(cfg?.gps_intervalo_seg ?? 60));
+    intervaloSeg = Math.max(10, Number(cfg?.gps_intervalo_seg ?? 60));
 
     // Permisos: primero en uso; luego segundo plano (para pantalla bloqueada).
     const fg = await Location.requestForegroundPermissionsAsync();
@@ -134,21 +188,12 @@ export async function iniciarRastreo(): Promise<void> {
     };
     await AsyncStorage.setItem(IDENT_KEY, JSON.stringify(ident));
 
-    const yaCorre = await Location.hasStartedLocationUpdatesAsync(TASK).catch(() => false);
-    if (yaCorre) await Location.stopLocationUpdatesAsync(TASK).catch(() => {});
-
-    await Location.startLocationUpdatesAsync(TASK, {
-      accuracy: Location.Accuracy.Balanced,
-      timeInterval: intervalo * 1000,
-      distanceInterval: 0,
-      pausesUpdatesAutomatically: false,
-      showsBackgroundLocationIndicator: true,
-      foregroundService: {
-        notificationTitle: "SGS — Ubicación activa",
-        notificationBody: "Compartiendo tu ubicación con central durante el turno.",
-        notificationColor: "#0b3d66",
-      },
-    });
+    // Arranca en PRIMER PLANO con watcher (sin notificación). El servicio con
+    // notificación se activa al pasar a segundo plano (pasarASegundoPlano).
+    rastreando = true;
+    await detenerServicioBg();
+    detenerWatcherFg();
+    await iniciarWatcherFg();
   } catch {
     /* si algo falla, la app sigue operando normalmente */
   }
@@ -157,6 +202,8 @@ export async function iniciarRastreo(): Promise<void> {
 // Detiene el rastreo y marca la última posición como fuera de línea.
 export async function detenerRastreo(): Promise<void> {
   try {
+    rastreando = false;
+    detenerWatcherFg();
     const corre = await Location.hasStartedLocationUpdatesAsync(TASK).catch(() => false);
     if (corre) await Location.stopLocationUpdatesAsync(TASK).catch(() => {});
 

@@ -35,6 +35,10 @@ export default function MisIncidentesScreen() {
     const pid = g?.personalId ?? null;
     setPersonalId(pid);
     const sel = "id, folio, tipo, prioridad, estado_despacho, estatus, direccion, fecha_recepcion, sitio:sitios(nombre)";
+    // Ventana por rol: guardia últimos 3 días; supervisor/superior últimos 30 días.
+    const rol = await getRolActual();
+    const dias = esMando(rol) ? 30 : 3;
+    const desde = new Date(Date.now() - dias * 86400000).toISOString();
     let filas: any[] = [];
     if (modo === "guardias") {
       // Sitios de los turnos donde soy supervisor → incidencias de esos sitios.
@@ -47,12 +51,12 @@ export default function MisIncidentesScreen() {
       }
       if (sitioIds.length) {
         const { data } = await supabase.from("llamadas_cad").select(sel)
-          .in("sitio_id", sitioIds).order("fecha_recepcion", { ascending: false }).limit(100);
+          .in("sitio_id", sitioIds).gte("fecha_recepcion", desde).order("fecha_recepcion", { ascending: false }).limit(100);
         filas = (data as any[]) ?? [];
       }
     } else if (pid) {
       const { data } = await supabase.from("llamadas_cad").select(sel)
-        .eq("datos_adicionales->>personal_id", pid).order("fecha_recepcion", { ascending: false }).limit(100);
+        .eq("datos_adicionales->>personal_id", pid).gte("fecha_recepcion", desde).order("fecha_recepcion", { ascending: false }).limit(100);
       filas = (data as any[]) ?? [];
     }
     setItems(filas);

@@ -128,29 +128,83 @@ export default function AccesoCasetaScreen() {
     } catch { return { lat: null as number | null, lng: null as number | null }; }
   }
 
-  async function subirFoto(accesoId: string): Promise<string[]> {
-    if (!foto) return [];
+  // Divide un nombre completo en nombre + apellidos (heurística simple).
+  function partirNombre(full: string): { nombre: string; ap: string | null; am: string | null } {
+    const p = full.trim().split(/\s+/);
+    if (p.length <= 1) return { nombre: p[0] ?? full.trim(), ap: null, am: null };
+    if (p.length === 2) return { nombre: p[0], ap: p[1], am: null };
+    return { nombre: p.slice(0, -2).join(" "), ap: p[p.length - 2], am: p[p.length - 1] };
+  }
+
+  // Crea una persona en el REGISTRO MAESTRO (visitante a pie u operador del vehículo).
+  async function crearPersona(nombreCompleto: string): Promise<string | null> {
+    const { nombre, ap, am } = partirNombre(nombreCompleto);
+    const { data, error } = await supabase.from("personas")
+      .insert({ nombre, apellido_paterno: ap, apellido_materno: am, datos_adicionales: { origen: "control_acceso" } })
+      .select("id").single();
+    return error ? null : (data as any).id;
+  }
+
+  // Encuentra (por placas) o crea el vehículo en el REGISTRO MAESTRO.
+  async function encontrarOCrearVehiculo(placas: string): Promise<string | null> {
+    const pl = placas.trim().toUpperCase();
+    if (!pl) return null;
+    const { data: ex } = await supabase.from("vehiculos").select("id").ilike("placas", pl).eq("estatus", "activo").limit(1);
+    if (((ex as any[]) ?? [])[0]) return (ex as any[])[0].id;
+    const { data, error } = await supabase.from("vehiculos")
+      .insert({ placas: pl, datos_adicionales: { origen: "control_acceso" } })
+      .select("id").single();
+    return error ? null : (data as any).id;
+  }
+
+  // Sube la foto de la credencial/identificación COMO FOTO DE LA PERSONA (maestro).
+  async function subirFotoPersona(personaId: string): Promise<string | null> {
+    if (!foto) return null;
     const base64 = await FileSystem.readAsStringAsync(foto.uri, { encoding: FileSystem.EncodingType.Base64 });
-    const path = `accesos/${accesoId}/${Date.now()}.jpg`;
+    const path = `personas/${personaId}/${Date.now()}.jpg`;
     const { error } = await supabase.storage.from(BUCKET_FOTOS).upload(path, decode(base64), { contentType: foto.mime });
-    return error ? [] : [path];
+    if (error) return null;
+    const { data: cur } = await supabase.from("personas").select("fotografias").eq("id", personaId).maybeSingle();
+    const previas = Array.isArray((cur as any)?.fotografias) ? (cur as any).fotografias : [];
+    await supabase.from("personas").update({ fotografias: [path, ...previas], actualizado_en: new Date().toISOString() }).eq("id", personaId);
+    return path;
   }
 
   function validar(): string | null {
     if (!sitioId) return "No se detectó tu sitio/caseta (¿tienes turno activo hoy?).";
-    if (modo === "vehiculo") { if (!placa.trim() && !citaId) return "Captura la placa o elige la cita del camión."; return null; }
+    if (modo === "vehiculo") {
+      if (!placa.trim() && !citaId) return "Captura la placa o elige la cita del camión.";
+      if (!visitante.trim()) return "Captura el nombre del operador (responsable del vehículo).";
+      return null;
+    }
     if (!cred && !visitante.trim()) return "Escanea la credencial o escribe el nombre del visitante.";
     return null;
   }
 
-  // Inserta el acceso y devuelve su id (para foto / incidente).
+  // Inserta el acceso, guardando de paso en los REGISTROS MAESTROS: la persona
+  // (visitante a pie u operador del vehículo, con su foto de identidad) y el
+  // vehículo. En modo vehículo solo se registra el vehículo y su operador.
   async function insertarAcceso(res: "autorizado" | "rechazado" | "pendiente"): Promise<string | null> {
-    const g = { lat: null as number | null, lng: null as number | null };
-    const pos = await gps(); g.lat = pos.lat; g.lng = pos.lng;
+    const pos = await gps();
+    const nombreLibre = visitante.trim();
+
+    // Persona (maestro): credencial existente, o se crea a partir del nombre.
+    let personaId: string | null = cred?.persona_id ?? null;
+    if (!personaId && nombreLibre) personaId = await crearPersona(nombreLibre);
+
+    // Vehículo (maestro): solo en modo vehículo.
+    let vehiculoId: string | null = null;
+    if (modo === "vehiculo" && placa.trim()) vehiculoId = await encontrarOCrearVehiculo(placa.trim());
+
+    // La foto de la credencial/identificación queda como foto de la persona.
+    let fotoPath: string | null = null;
+    if (foto && personaId) fotoPath = await subirFotoPersona(personaId);
+
     const { data, error } = await supabase.from("accesos").insert({
       tipo,
-      persona_id: cred?.persona_id ?? null,
-      visitante_nombre: cred?.persona_id ? null : (visitante.trim() || cred?.descripcion || null),
+      persona_id: personaId,
+      visitante_nombre: personaId ? null : (nombreLibre || cred?.descripcion || null),
+      vehiculo_id: vehiculoId,
       sitio_id: sitioId,
       punto_id: puntoId,
       personal_id: personalId,
@@ -162,12 +216,11 @@ export default function AccesoCasetaScreen() {
       cita_id: modo === "vehiculo" ? (citaId || null) : null,
       anden: modo === "vehiculo" ? (anden.trim() || null) : null,
       remolque_placa: modo === "vehiculo" ? (remolque.trim() || null) : null,
-      latitud: g.lat, longitud: g.lng,
+      latitud: pos.lat, longitud: pos.lng,
+      fotografias: fotoPath ? [fotoPath] : [],
       datos_adicionales: { origen: "caseta_movil" },
     }).select("id, folio").single();
     if (error) { Alert.alert("Error", error.message); return null; }
-    const rutas = await subirFoto((data as any).id);
-    if (rutas.length) await supabase.from("accesos").update({ fotografias: rutas }).eq("id", (data as any).id);
     return (data as any).id;
   }
 
@@ -242,7 +295,7 @@ export default function AccesoCasetaScreen() {
         <View style={[styles.seg, { marginTop: 10 }]}>
           {(["persona", "vehiculo"] as const).map((m) => (
             <TouchableOpacity key={m} style={[styles.segBtn, modo === m && styles.segOn]} onPress={() => setModo(m)}>
-              <Text style={[styles.segTxt, modo === m && styles.segTxtOn]}>{m === "persona" ? "Persona" : "Vehículo"}</Text>
+              <Text style={[styles.segTxt, modo === m && styles.segTxtOn]}>{m === "persona" ? "A pie" : "Vehículo"}</Text>
             </TouchableOpacity>
           ))}
         </View>

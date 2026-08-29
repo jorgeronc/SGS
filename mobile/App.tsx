@@ -1,6 +1,6 @@
 import "react-native-url-polyfill/auto";
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, View, Image, Animated, StyleSheet } from "react-native";
+import { ActivityIndicator, View, Image, Animated, StyleSheet, Alert, AppState } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { NavigationContainer, DefaultTheme, createNavigationContainerRef } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
@@ -12,9 +12,10 @@ import type { Session } from "@supabase/supabase-js";
 
 import { supabase } from "./src/lib/supabase";
 import { registrarPush } from "./src/lib/push";
-import { iniciarRastreo, detenerRastreo } from "./src/lib/ubicacionVivo";
+import { iniciarRastreo, detenerRastreo, pasarAPrimerPlano, pasarASegundoPlano } from "./src/lib/ubicacionVivo";
 import { iniciarGeocercas, detenerGeocercas } from "./src/lib/geocercas";
 import { getRolActual, esMando } from "./src/lib/rol";
+import { estadoSesion } from "./src/lib/sesion";
 import type { RootStackParamList, TabParamList } from "./src/types";
 import { T } from "./src/theme";
 import LoginScreen from "./src/screens/LoginScreen";
@@ -132,6 +133,44 @@ export default function App() {
     if (logueado) { iniciarRastreo(); iniciarGeocercas(); }
     else { detenerRastreo(); detenerGeocercas(); }
   }, [logueado]);
+
+  // La notificación de "Ubicación activa" solo debe verse en segundo plano: en
+  // primer plano se rastrea con watcher (sin servicio/notificación) y al pasar a
+  // segundo plano se arranca el foreground-service (que muestra la notificación).
+  useEffect(() => {
+    if (!logueado) return;
+    const sub = AppState.addEventListener("change", (s) => {
+      if (s === "active") pasarAPrimerPlano();
+      else if (s === "background" || s === "inactive") pasarASegundoPlano();
+    });
+    return () => sub.remove();
+  }, [logueado]);
+
+  // Sesión por rol de servicio: guardia/supervisor solo mientras un turno activo
+  // cubra la hora. Se valida al iniciar sesión, al volver a primer plano y cada
+  // minuto; si el turno terminó (y no hay turno siguiente vigente) se cierra.
+  const avisando = useRef(false);
+  useEffect(() => {
+    if (!session) { avisando.current = false; return; }
+    let cancelado = false;
+    const chequear = async () => {
+      if (cancelado || avisando.current) return;
+      const e = await estadoSesion();
+      if (!e.vigente && e.gateada && !e.turnoDesconocido) {
+        avisando.current = true;
+        Alert.alert(
+          "Turno terminado",
+          "Tu turno ha terminado, la sesión se cerrará. Reporta con tu supervisor cualquier aspecto de tu jornada laboral.",
+          [{ text: "OK", onPress: () => supabase.auth.signOut() }],
+          { cancelable: false }
+        );
+      }
+    };
+    chequear();
+    const iv = setInterval(chequear, 60000);
+    const subApp = AppState.addEventListener("change", (s) => { if (s === "active") chequear(); });
+    return () => { cancelado = true; clearInterval(iv); subApp.remove(); };
+  }, [session]);
 
   const contenido = cargando ? (
     <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: T.bg }}>

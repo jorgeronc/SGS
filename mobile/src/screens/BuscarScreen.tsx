@@ -26,8 +26,6 @@ const TIPOS: { k: TipoConsulta; label: string; icon: IconName }[] = [
   { k: "persona", label: "Persona", icon: "person-outline" },
   { k: "vehiculo", label: "Vehículo", icon: "car-outline" },
   { k: "incidente", label: "Incidente", icon: "document-text-outline" },
-  { k: "orden", label: "Orden", icon: "shield-outline" },
-  { k: "caso", label: "Caso", icon: "clipboard-outline" },
 ];
 
 interface Resultado {
@@ -94,21 +92,6 @@ export default function BuscarScreen() {
           { l: "Color", v: v.color ?? "—" },
         ],
       }));
-    } else if (tipo === "orden") {
-      const { data } = await supabase
-        .from("ordenes")
-        .select("id, folio, tipo, autoridad_emisora, estado, estatus")
-        .or(`folio.ilike.%${term}%,asunto.ilike.%${term}%,autoridad_emisora.ilike.%${term}%`)
-        .limit(20);
-      res = ((data as any[]) ?? []).map((o) => ({
-        id: o.id,
-        titulo: o.folio ?? "Orden",
-        badge: o.estado === "vigente" ? { txt: "VIGENTE", tono: "danger" } : { txt: String(o.estado ?? "").toUpperCase(), tono: "warn" },
-        campos: [
-          { l: "Tipo", v: o.tipo ?? "—" },
-          { l: "Autoridad", v: o.autoridad_emisora ?? "—" },
-        ],
-      }));
     } else if (tipo === "incidente") {
       const { data } = await supabase
         .from("incidentes")
@@ -130,22 +113,6 @@ export default function BuscarScreen() {
           { l: "Folio", v: i.folio ?? "—" },
           { l: "Tipo", v: i.tipo ?? "—" },
           { l: "Lugar", v: i.direccion ?? "—" },
-        ],
-      }));
-    } else {
-      const { data } = await supabase
-        .from("casos")
-        .select("id, folio, titulo, delito, prioridad, estado_investigacion, estatus")
-        .or(`folio.ilike.%${term}%,titulo.ilike.%${term}%,delito.ilike.%${term}%`)
-        .limit(20);
-      res = ((data as any[]) ?? []).map((c) => ({
-        id: c.id,
-        titulo: c.titulo || c.folio || "Caso",
-        badge: c.prioridad === "alta" ? { txt: "ALTA PRIORIDAD", tono: "danger" } : undefined,
-        campos: [
-          { l: "Folio", v: c.folio ?? "—" },
-          { l: "Delito", v: c.delito ?? "—" },
-          { l: "Estado", v: c.estado_investigacion ?? "—" },
         ],
       }));
     }

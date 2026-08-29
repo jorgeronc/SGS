@@ -27,9 +27,13 @@ export default function InicioSgsScreen() {
   const [estatus, setEstatus] = useState<EstatusServicio>("en_servicio");
   const [motivoPausa, setMotivoPausa] = useState<string | null>(null);
   const [grabando, setGrabando] = useState(false);
+  // Motivos de pausa: catálogo (cat_opciones 'motivo_pausa'); respaldo sin "Otro".
+  const [motivosPausa, setMotivosPausa] = useState<string[]>(["Alimentos", "Baño", "Descanso"]);
   useFocusEffect(useCallback(() => {
     getMiOficial().then(setMio);
     getEstatusServicio().then((e) => { setEstatus(e.estatus); setMotivoPausa(e.motivo); });
+    supabase.from("cat_opciones").select("valor").eq("categoria", "motivo_pausa").eq("activo", true).order("orden")
+      .then(({ data }) => { const v = ((data as any[]) ?? []).map((r) => r.valor).filter(Boolean); if (v.length) setMotivosPausa(v); });
     setGrabando(bodycamGrabando());
     const i = setInterval(() => setGrabando(bodycamGrabando()), 1500);
     return () => clearInterval(i);
@@ -102,15 +106,15 @@ export default function InicioSgsScreen() {
     }
   }
 
-  const accesos: { label: string; icon: keyof typeof Ionicons.glyphMap; to: string }[] = [
+  const accesos: { label: string; icon: keyof typeof Ionicons.glyphMap; to: string; params?: any }[] = [
     { label: "Registrar rondín", icon: "qr-code", to: "Rondin" },
     { label: "Levantar incidente", icon: "alert-circle", to: "Incidente" },
     { label: "Mis incidentes", icon: "list", to: "MisIncidentes" },
     { label: "Control de acceso", icon: "id-card", to: "AccesoCaseta" },
     { label: "Nueva evidencia", icon: "camera", to: "Evidencia" },
     { label: "Mis tareas", icon: "checkbox", to: "Tareas" },
-    { label: "Descargar bodycam", icon: "cloud-upload", to: "Perfil" },
-    { label: "Crear un recordatorio", icon: "alarm", to: "Perfil" },
+    { label: "Descargar bodycam", icon: "cloud-upload", to: "Perfil", params: { iniciarDescarga: true } },
+    { label: "Crear un recordatorio", icon: "alarm", to: "Perfil", params: { nuevoRecordatorio: true } },
   ];
 
   const enLinea = !!mio;
@@ -136,10 +140,10 @@ export default function InicioSgsScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 16 }}>
-        <Text style={styles.hola}>{mio?.etiqueta ? `Hola, ${mio.etiqueta}` : "Sistema de Gestión de Seguridad"}</Text>
-        <Text style={styles.sub}>
-          {mio?.etiqueta ? "Turno en curso · registra tus rondines" : "Selecciona tu elemento en Perfil para operar como guardia."}
-        </Text>
+        <Text style={styles.hola}>{mio?.etiqueta || "Sistema de Gestión de Seguridad"}</Text>
+        {!mio?.etiqueta && (
+          <Text style={styles.sub}>Selecciona tu elemento en Perfil para operar como guardia.</Text>
+        )}
 
         {enLinea && (
           <View style={styles.estadoBox}>
@@ -154,7 +158,7 @@ export default function InicioSgsScreen() {
             </View>
             {estatus === "en_pausa" && (
               <View style={styles.motivoRow}>
-                {["Alimentos", "Baño", "Descanso", "Otro"].map((m) => (
+                {motivosPausa.map((m) => (
                   <TouchableOpacity key={m} style={[styles.motChip, motivoPausa === m && styles.motChipOn]} onPress={() => cambiarEstatus("en_pausa", m)}>
                     <Text style={[styles.motChipTxt, motivoPausa === m && { color: T.accent, fontWeight: "800" }]}>{m}</Text>
                   </TouchableOpacity>
@@ -166,26 +170,22 @@ export default function InicioSgsScreen() {
 
         <View style={styles.grid}>
           {accesos.map((a) => (
-            <TouchableOpacity key={a.label} style={styles.card} onPress={() => nav.navigate(a.to)}>
+            <TouchableOpacity key={a.label} style={styles.card} onPress={() => nav.navigate(a.to, a.params)}>
               <View style={styles.icoBox}><Ionicons name={a.icon} size={26} color={T.accent} /></View>
               <Text style={styles.cardTxt}>{a.label}</Text>
             </TouchableOpacity>
           ))}
-          {/* Acceso rápido: bodycam (activar/detener) — solo build Android */}
-          {bodycamDisponible && (
-            <TouchableOpacity style={styles.card} onPress={toggleBodycam}>
-              <View style={[styles.icoBox, grabando && { backgroundColor: T.dangerBg }]}>
-                <Ionicons name={grabando ? "stop-circle" : "videocam"} size={26} color={grabando ? T.danger : T.accent} />
-              </View>
-              <Text style={styles.cardTxt}>{grabando ? "Detener bodycam" : "Activar bodycam"}</Text>
-            </TouchableOpacity>
-          )}
-          {/* Acceso rápido: enviar alerta (pánico) */}
-          <TouchableOpacity style={styles.card} onPress={enviarAlerta}>
-            <View style={[styles.icoBox, { backgroundColor: T.dangerBg }]}><Ionicons name="warning" size={26} color={T.danger} /></View>
-            <Text style={styles.cardTxt}>Enviar alerta</Text>
-          </TouchableOpacity>
         </View>
+
+        {/* Bodycam: botón horizontal azul (como el de alerta) — solo build Android */}
+        {bodycamDisponible && (
+          <TouchableOpacity activeOpacity={0.85} onPress={toggleBodycam} style={styles.bodycamWrap}>
+            <View style={[styles.bodycamBtn, grabando && styles.bodycamBtnOn]}>
+              <Ionicons name={grabando ? "stop-circle" : "videocam"} size={24} color="#fff" />
+              <Text style={styles.bodycamTxt}>{grabando ? "DETENER BODYCAM" : "ACTIVAR BODYCAM"}</Text>
+            </View>
+          </TouchableOpacity>
+        )}
 
         {/* Enviar alerta (pánico) → despacho de emergencia + transmisión en vivo */}
         <TouchableOpacity activeOpacity={0.85} onPress={enviarAlerta} disabled={alertando} style={styles.alertaWrap}>
@@ -218,7 +218,7 @@ const styles = StyleSheet.create({
   pillOff: {},
   pillTxt: { color: T.textDim, fontSize: 12, fontWeight: "700" },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  hola: { color: T.text, fontSize: 22, fontWeight: "800" },
+  hola: { color: T.text, fontSize: 22, fontWeight: "800", marginBottom: 14 },
   sub: { color: T.textDim, fontSize: 13.5, marginTop: 4, marginBottom: 14 },
   estadoBox: { backgroundColor: T.surface, borderColor: T.border, borderWidth: 1, borderRadius: 14, padding: 12, marginBottom: 16 },
   estadoLbl: { color: T.textMute, fontSize: 12, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 8 },
@@ -234,7 +234,11 @@ const styles = StyleSheet.create({
   card: { width: "47%", backgroundColor: T.surface, borderColor: T.border, borderWidth: 1, borderRadius: 16, padding: 16, gap: 10 },
   icoBox: { width: 46, height: 46, borderRadius: 12, backgroundColor: T.accentBg, alignItems: "center", justifyContent: "center" },
   cardTxt: { color: T.text, fontSize: 15, fontWeight: "700" },
-  alertaWrap: { marginTop: 22, borderRadius: 16, overflow: "hidden" },
+  alertaWrap: { marginTop: 16, borderRadius: 16, overflow: "hidden" },
   alerta: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, paddingVertical: 18 },
   alertaTxt: { color: "#fff", fontSize: 18, fontWeight: "900", letterSpacing: 0.5 },
+  bodycamWrap: { marginTop: 22, borderRadius: 16, overflow: "hidden" },
+  bodycamBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, paddingVertical: 16, backgroundColor: "#1f6feb" },
+  bodycamBtnOn: { backgroundColor: "#0a4fc0" },
+  bodycamTxt: { color: "#fff", fontSize: 17, fontWeight: "900", letterSpacing: 0.5 },
 });

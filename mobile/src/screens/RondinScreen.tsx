@@ -27,6 +27,7 @@ export default function RondinScreen() {
   const [metodo, setMetodo] = useState<"qr" | "nfc">("qr");
   const [nfcOk, setNfcOk] = useState(false);
   const [leyendoNfc, setLeyendoNfc] = useState(false);
+  const [camActiva, setCamActiva] = useState(false);   // la cámara solo se prende al pulsar "Leer código QR"
   const [res, setRes] = useState<RondinResultado | null>(null);
   const yaEscaneado = useRef(false);
 
@@ -35,13 +36,24 @@ export default function RondinScreen() {
   function alEscanear(data: string) {
     if (yaEscaneado.current) return;
     yaEscaneado.current = true;
+    setCamActiva(false);
     setMetodo("qr");
     setCodigo(data.trim());
     setFase("confirmar");
   }
 
+  // "Leer código QR": pide permiso si hace falta y enciende la cámara en el cuadro.
+  async function activarQR() {
+    if (!permiso?.granted) { const r = await pedirPermiso(); if (!r.granted) { Alert.alert("Cámara", "Se necesita la cámara para leer el código QR."); return; } }
+    yaEscaneado.current = false;
+    setCamActiva(true);
+  }
+
+  // "Leer etiqueta NFC": apaga la cámara, valida que NFC esté disponible/activo y lee.
   async function leerEtiquetaNfc() {
     if (leyendoNfc) return;
+    setCamActiva(false); // se apaga la cámara al usar NFC
+    if (!(await nfcDisponible())) { Alert.alert("NFC", "La función NFC no está disponible o activada en este dispositivo. Actívala e inténtalo de nuevo."); return; }
     setLeyendoNfc(true);
     const r = await leerNfc();
     setLeyendoNfc(false);
@@ -80,13 +92,7 @@ export default function RondinScreen() {
       {fase === "escanear" && (
         <View style={{ flex: 1, padding: 16 }}>
           <View style={styles.camaraBox}>
-            {!permiso?.granted ? (
-              <View style={styles.permiso}>
-                <Ionicons name="qr-code-outline" size={48} color={T.textMute} />
-                <Text style={styles.permisoTxt}>Se necesita la cámara para escanear el punto de control.</Text>
-                <TouchableOpacity style={styles.btn} onPress={pedirPermiso}><Text style={styles.btnTxt}>Permitir cámara</Text></TouchableOpacity>
-              </View>
-            ) : enfocado ? (
+            {camActiva && enfocado && permiso?.granted ? (
               <CameraView
                 style={{ flex: 1 }}
                 facing="back"
@@ -95,21 +101,18 @@ export default function RondinScreen() {
               />
             ) : (
               <View style={styles.permiso}>
-                <Ionicons name="pause-circle-outline" size={48} color={T.textMute} />
-                <Text style={styles.permisoTxt}>Cámara en pausa</Text>
+                <Ionicons name={leyendoNfc ? "wifi" : "qr-code-outline"} size={48} color={T.textMute} />
+                <Text style={styles.permisoTxt}>{leyendoNfc ? "Acerca la etiqueta NFC al teléfono…" : 'Toca "Leer código QR" para activar la cámara, o "Leer etiqueta NFC".'}</Text>
               </View>
             )}
           </View>
-          <Text style={styles.oManual}>o teclea el código:</Text>
-          <View style={styles.filaManual}>
-            <TextInput style={styles.input} placeholder="Código del punto" placeholderTextColor={T.textMute} value={codigo} onChangeText={setCodigo} autoCapitalize="characters" />
-            <TouchableOpacity style={styles.btn} onPress={() => { setMetodo("qr"); if (codigo.trim()) setFase("confirmar"); }}><Text style={styles.btnTxt}>Usar</Text></TouchableOpacity>
-          </View>
-          {nfcOk && (
-            <TouchableOpacity style={styles.nfcBtn} onPress={leerEtiquetaNfc} disabled={leyendoNfc}>
-              {leyendoNfc ? <ActivityIndicator color={T.accent} /> : (<><Ionicons name="wifi" size={20} color={T.accent} /><Text style={styles.nfcTxt}>Acercar etiqueta NFC</Text></>)}
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity style={styles.accionBtn} onPress={activarQR}>
+            <Ionicons name="qr-code" size={20} color={T.white} />
+            <Text style={styles.accionTxt}>Leer código QR</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.accionBtnAlt} onPress={leerEtiquetaNfc} disabled={leyendoNfc}>
+            {leyendoNfc ? <ActivityIndicator color={T.accent} /> : (<><Ionicons name="wifi" size={20} color={T.accent} /><Text style={styles.accionTxtAlt}>Leer etiqueta NFC</Text></>)}
+          </TouchableOpacity>
         </View>
       )}
 
@@ -158,6 +161,10 @@ const styles = StyleSheet.create({
   filaManual: { flexDirection: "row", gap: 8, marginTop: 8 },
   nfcBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 10, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: T.accentDim, backgroundColor: T.surface },
   nfcTxt: { color: T.accent, fontWeight: "700", fontSize: 15 },
+  accionBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 14, paddingVertical: 15, borderRadius: 12, backgroundColor: T.accent2 },
+  accionTxt: { color: T.white, fontWeight: "800", fontSize: 16 },
+  accionBtnAlt: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 10, paddingVertical: 15, borderRadius: 12, borderWidth: 1, borderColor: T.accentDim, backgroundColor: T.surface },
+  accionTxtAlt: { color: T.accent, fontWeight: "800", fontSize: 16 },
   input: { flex: 1, color: T.text, backgroundColor: T.surfaceAlt, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, borderWidth: 1, borderColor: T.border },
   tarjeta: { backgroundColor: T.surface, borderRadius: 14, borderWidth: 1, borderColor: T.border, padding: 16 },
   lbl: { color: T.textMute, fontSize: 12, fontWeight: "700" },
