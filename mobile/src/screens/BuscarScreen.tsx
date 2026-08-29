@@ -93,26 +93,27 @@ export default function BuscarScreen() {
         ],
       }));
     } else if (tipo === "incidente") {
+      // Los incidentes de SGS viven en Central/Despacho (llamadas_cad), no en la
+      // tabla policial `incidentes`.
       const { data } = await supabase
-        .from("incidentes")
-        .select("id, folio, tipo, delito, estado, direccion, fecha_incidente, fotografias, estatus")
-        .or(`folio.ilike.%${term}%,tipo.ilike.%${term}%,delito.ilike.%${term}%,direccion.ilike.%${term}%,narrativa.ilike.%${term}%`)
-        .order("fecha_incidente", { ascending: false })
+        .from("llamadas_cad")
+        .select("id, folio, tipo, estado_despacho, estatus, direccion, descripcion, fecha_recepcion, sitio:sitios(nombre)")
+        .or(`folio.ilike.%${term}%,tipo.ilike.%${term}%,direccion.ilike.%${term}%,descripcion.ilike.%${term}%`)
+        .order("fecha_recepcion", { ascending: false })
         .limit(20);
       res = ((data as any[]) ?? []).map((i) => ({
         id: i.id,
-        titulo: i.delito || i.tipo || i.folio || "Incidente",
-        img: primeraFoto(i.fotografias),
+        titulo: i.tipo || i.folio || "Incidente",
         badge:
-          i.estado === "cancelado"
+          i.estatus === "cancelado"
             ? { txt: "CANCELADO", tono: "danger" }
-            : i.estado === "cerrado"
+            : i.estatus === "cerrado"
             ? { txt: "CERRADO", tono: "ok" }
             : { txt: "ABIERTO", tono: "warn" },
         campos: [
           { l: "Folio", v: i.folio ?? "—" },
           { l: "Tipo", v: i.tipo ?? "—" },
-          { l: "Lugar", v: i.direccion ?? "—" },
+          { l: "Sitio", v: i.sitio?.nombre ?? i.direccion ?? "—" },
         ],
       }));
     }
@@ -216,10 +217,12 @@ export default function BuscarScreen() {
               <View style={styles.acciones}>
                 <TouchableOpacity
                   style={styles.btnPrim}
-                  onPress={() => nav.navigate("Expediente", { tipo, id: item.id, titulo: item.titulo })}
+                  onPress={() => tipo === "incidente"
+                    ? nav.navigate("IncidenteDetalle", { id: item.id })
+                    : nav.navigate("Expediente", { tipo, id: item.id, titulo: item.titulo })}
                 >
                   <Ionicons name="document-text-outline" size={16} color={T.white} />
-                  <Text style={styles.btnPrimTxt}>Ver expediente</Text>
+                  <Text style={styles.btnPrimTxt}>{tipo === "incidente" ? "Ver incidente" : "Ver expediente"}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.btnSec} onPress={() => compartir(item)}>
                   <Ionicons name="share-outline" size={16} color={T.text} />
@@ -244,8 +247,8 @@ const styles = StyleSheet.create({
   input: { flex: 1, color: T.text, fontSize: 16 },
   scan: { width: 52, height: 52, borderRadius: UI.radiusSm, backgroundColor: T.surface, borderWidth: 1, borderColor: T.border, alignItems: "center", justifyContent: "center" },
 
-  chips: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingHorizontal: 16, paddingTop: 12 },
-  chip: { flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1, borderColor: T.accentDim, borderRadius: 20, paddingVertical: 9, paddingHorizontal: 14, backgroundColor: T.accentBg },
+  chips: { flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingTop: 12 },
+  chip: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderWidth: 1, borderColor: T.accentDim, borderRadius: 20, paddingVertical: 9, paddingHorizontal: 8, backgroundColor: T.accentBg },
   chipOn: { backgroundColor: T.accent, borderColor: T.accent },
   chipTxt: { color: T.accent, fontWeight: "700", fontSize: 14 },
   chipTxtOn: { color: T.white },

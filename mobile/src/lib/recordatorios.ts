@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Notifications from "expo-notifications";
+import { asegurarNotificaciones } from "./push";
 
 // Recordatorios del oficial durante el turno activo. Son locales al dispositivo
 // y EXPIRAN al terminar el turno (diurno 06–18, nocturno 18–06). Pueden llevar
@@ -65,9 +66,10 @@ export async function agregarRecordatorio(texto: string, alarma?: Date): Promise
   let hora: string | undefined;
   if (alarma && alarma.getTime() > Date.now()) {
     try {
+      await asegurarNotificaciones(); // permiso + canal con sonido
       notifId = await Notifications.scheduleNotificationAsync({
-        content: { title: "⏰ Recordatorio de turno", body: t, sound: true },
-        trigger: { date: alarma } as any,
+        content: { title: "⏰ Recordatorio de turno", body: t, sound: "default" },
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: alarma, channelId: "default" } as any,
       });
       hora = alarma.toISOString();
     } catch { /* si falla, se guarda sin alarma */ }

@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CameraView, useCameraPermissions } from "expo-camera";
-import { useIsFocused } from "@react-navigation/native";
+import { useIsFocused, useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { T } from "../theme";
 import { getMiOficial, type MiOficial } from "../lib/oficial";
@@ -81,8 +81,16 @@ export default function RondinScreen() {
 
   function reiniciar() {
     yaEscaneado.current = false;
-    setCodigo(""); setNovedad(""); setMetodo("qr"); setRes(null); setFase("escanear");
+    setCamActiva(false);
+    setCodigo(""); setNovedad(""); setMetodo("qr"); setRes(null); setLeyendoNfc(false); setFase("escanear");
   }
+
+  // Al salir de la pantalla (cambiar de tab), vuelve al estado inicial: no deja
+  // la última lectura ni la cámara encendida.
+  useFocusEffect(useCallback(() => {
+    return () => reiniciar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []));
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>

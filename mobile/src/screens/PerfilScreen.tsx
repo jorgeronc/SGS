@@ -322,7 +322,7 @@ export default function PerfilScreen() {
 
         {/* Bodycam: descargar (subir) las grabaciones guardadas en el teléfono */}
         {bodycamDisponible && (
-          <View onLayout={(e) => { bodycamY.current = e.nativeEvent.layout.y; }}>
+          <View style={{ alignSelf: "stretch" }} onLayout={(e) => { bodycamY.current = e.nativeEvent.layout.y; }}>
             <Text style={styles.seccion}>Bodycam</Text>
             <View style={styles.card}>
               <TouchableOpacity style={styles.row} onPress={descargarBodycam} disabled={descargandoBc}>

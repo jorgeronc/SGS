@@ -20,27 +20,38 @@ Notifications.setNotificationHandler({
 
 let tokenActual: string | null = null;
 
+// Crea el canal de Android (con sonido y vibración) y asegura el permiso de
+// notificaciones. Se usa tanto para push remoto (chat/despachos) como para las
+// notificaciones locales (recordatorios del turno). Devuelve true si hay permiso.
+export async function asegurarNotificaciones(): Promise<boolean> {
+  try {
+    if (Platform.OS === "android") {
+      await Notifications.setNotificationChannelAsync("default", {
+        name: "Alertas SGS",
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: "#0b3d66",
+        sound: "default",
+        enableVibrate: true,
+      });
+    }
+    const { status: existente } = await Notifications.getPermissionsAsync();
+    let status = existente;
+    if (status !== "granted") status = (await Notifications.requestPermissionsAsync()).status;
+    return status === "granted";
+  } catch {
+    return false;
+  }
+}
+
 // Registra el dispositivo para push: pide permiso, obtiene el token de Expo y
 // lo guarda en `dispositivos_push` ligado al usuario y a su elemento (personal).
 export async function registrarPush(): Promise<void> {
   try {
     if (!Device.isDevice) return; // los emuladores no reciben push remoto
 
-    if (Platform.OS === "android") {
-      await Notifications.setNotificationChannelAsync("default", {
-        name: "Incidentes",
-        importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: [0, 250, 250, 250],
-        lightColor: "#0b3d66",
-      });
-    }
-
-    const { status: existente } = await Notifications.getPermissionsAsync();
-    let status = existente;
-    if (status !== "granted") {
-      status = (await Notifications.requestPermissionsAsync()).status;
-    }
-    if (status !== "granted") return;
+    const ok = await asegurarNotificaciones();
+    if (!ok) return;
 
     const { data: token } = await Notifications.getExpoPushTokenAsync({ projectId: PROJECT_ID });
     tokenActual = token;
