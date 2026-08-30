@@ -15,6 +15,7 @@ const AZUL = "#1F3A5F";
 const nomPersona = (p: any) => [p?.nombre, p?.apellido_paterno, p?.apellido_materno].filter(Boolean).join(" ") || "—";
 const TIPO_VINC: Record<string, string> = { persona: "Persona", vehiculo: "Vehículo", evidencia: "Evidencia", tarea: "Tarea", cad: "Incidente" };
 const fFecha = (s: any) => (s ? new Date(s).toLocaleString() : "—");
+const mmss = (s: number | null | undefined) => { if (!s) return "—"; const m = Math.floor(s / 60); return `${m}:${(s % 60).toString().padStart(2, "0")}`; };
 const blobToDataURL = (b: Blob) => new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result as string); r.onerror = rej; r.readAsDataURL(b); });
 async function urlToDataURL(url: string): Promise<string | null> { try { const r = await fetch(url); if (!r.ok) return null; return await blobToDataURL(await r.blob()); } catch { return null; } }
 
@@ -31,6 +32,8 @@ export default function IncidenteImprimirPage() {
   const [evidencias, setEvidencias] = useState<any[]>([]);
   const [tareas, setTareas] = useState<any[]>([]);
   const [vinculos, setVinculos] = useState<any[]>([]);
+  const [videos, setVideos] = useState<any[]>([]);            // transmisiones con grabación
+  const [videoPosters, setVideoPosters] = useState<(string | null)[] | undefined>(undefined);
   const [listo, setListo] = useState(false);
   // Recursos gráficos (dataURL). undefined = cargando, null = no disponible.
   const [logo, setLogo] = useState<string | null | undefined>(undefined);
@@ -71,6 +74,12 @@ export default function IncidenteImprimirPage() {
       if (idsE.length) { const { data } = await supabase.from("evidencias").select("id, folio, tipo, descripcion, fecha_recoleccion").in("id", idsE); setEvidencias((data as any[]) ?? []); }
       if (idsT.length) { const { data } = await supabase.from("tareas").select("*").in("id", idsT); setTareas((data as any[]) ?? []); }
 
+      // Video en vivo: grabaciones de las transmisiones (bodycam) de este incidente.
+      const { data: tx } = await supabase.from("transmisiones")
+        .select("id, folio, video_ruta, duracion_seg, iniciado_en, bodycam_folio, personal:personal(numero_placa, rango, persona:personas(nombre, apellido_paterno, apellido_materno)), evidencia:evidencias(folio, fotografias)")
+        .eq("llamada_id", params.id).eq("estatus", "activo").not("video_ruta", "is", null).order("iniciado_en", { ascending: false });
+      setVideos((tx as any[]) ?? []);
+
       setListo(true);
     })();
   }, [params.id]);
@@ -99,6 +108,19 @@ export default function IncidenteImprimirPage() {
     })();
   }, [listo, fotos]);
 
+  // Miniaturas (poster) de las grabaciones de video, alineadas con `videos`.
+  useEffect(() => {
+    if (!listo) return;
+    if (videos.length === 0) { setVideoPosters([]); return; }
+    (async () => {
+      const urls = await Promise.all(videos.map((t) => {
+        const fp = Array.isArray(t.evidencia?.fotografias) ? t.evidencia.fotografias[0] : null;
+        return fp ? urlToDataURL(supabase.storage.from("fotos").getPublicUrl(fp).data.publicUrl) : Promise.resolve(null);
+      }));
+      setVideoPosters(urls);
+    })();
+  }, [listo, videos]);
+
   const tiempoRespuesta = useMemo(() => {
     const recep = inc?.fecha_recepcion || inc?.creado_en;
     const at = historial.find((h) => h.campo === "estado_despacho" && h.estado === "en_atencion")?.cambiado_en;
@@ -108,7 +130,7 @@ export default function IncidenteImprimirPage() {
     return h > 0 ? `${h} h ${m} min` : `${m} min`;
   }, [inc, historial]);
 
-  const preparando = !listo || logo === undefined || mapa === undefined || fotosData === undefined;
+  const preparando = !listo || logo === undefined || mapa === undefined || fotosData === undefined || videoPosters === undefined;
 
   function nombreArchivo(): string {
     const ubic = inc?.direccion || sitio || "";
@@ -182,6 +204,18 @@ export default function IncidenteImprimirPage() {
 
     content.push(...tabla("Evidencias", ["Folio", "Tipo", "Descripción", "Recolección"],
       evidencias.map((e) => [e.folio, e.tipo, e.descripcion, e.fecha_recoleccion ? fFecha(e.fecha_recoleccion) : "—"]), "Sin evidencias registradas."));
+
+    // Video en vivo (transmisión) — grabaciones registradas del incidente.
+    const elemTx = (t: any) => { const p = t.personal; const nom = p?.persona ? `${p.persona.nombre ?? ""} ${p.persona.apellido_paterno ?? ""}`.trim() : ""; return [p?.rango, nom, p?.numero_placa ? `#${p.numero_placa}` : ""].filter(Boolean).join(" ") || "—"; };
+    content.push(...tabla("Video de la transmisión en vivo (grabaciones)", ["Folio", "Fecha / hora", "Duración", "Elemento", "Bodycam", "Evidencia"],
+      videos.map((t) => [t.folio, fFecha(t.iniciado_en), mmss(t.duracion_seg), elemTx(t), t.bodycam_folio ?? "—", t.evidencia?.folio ?? "—"]), "Sin grabaciones de transmisión."));
+    const posters = (videoPosters ?? []).filter((p): p is string => !!p);
+    if (posters.length) {
+      content.push({ text: "El video se resguarda como evidencia (bucket privado) con cadena de custodia. Cuadros de referencia:", fontSize: 8, color: "#666", margin: [0, 3, 0, 2] });
+      for (let i = 0; i < posters.length; i += 3) {
+        content.push({ columns: posters.slice(i, i + 3).map((d) => ({ image: d, width: 165, height: 93 })), columnGap: 6, margin: [0, 4, 0, 0] });
+      }
+    }
 
     // Archivos adjuntos (fotografías)
     content.push({ text: "Archivos adjuntos", style: "sec" });
