@@ -43,6 +43,16 @@ const GRUPOS: { grupo: string; items: { href: string; label: string; ico: string
     ],
   },
   {
+    grupo: "Seguridad Logística",
+    items: [
+      { href: "/logistica/movimientos", label: "Movimientos", ico: "🚛" },
+      { href: "/logistica/activos", label: "Activos de transporte", ico: "🚆" },
+      { href: "/logistica/unidades-carga", label: "Unidades de carga", ico: "📦" },
+      { href: "/logistica/sellos", label: "Sellos", ico: "🔒" },
+      { href: "/logistica/inspecciones", label: "Inspecciones", ico: "🔎" },
+    ],
+  },
+  {
     grupo: "Registros Maestros",
     items: [
       { href: "/personas", label: "Personas", ico: "☷" },

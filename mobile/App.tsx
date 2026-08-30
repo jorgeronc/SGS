@@ -16,6 +16,7 @@ import { iniciarRastreo, detenerRastreo, pasarAPrimerPlano, pasarASegundoPlano }
 import { iniciarGeocercas, detenerGeocercas } from "./src/lib/geocercas";
 import { getRolActual, esMando } from "./src/lib/rol";
 import { estadoSesion } from "./src/lib/sesion";
+import { sincronizarInspecciones } from "./src/lib/colaInspecciones";
 import type { RootStackParamList, TabParamList } from "./src/types";
 import { T } from "./src/theme";
 import LoginScreen from "./src/screens/LoginScreen";
@@ -29,6 +30,7 @@ import IncidenteScreen from "./src/screens/IncidenteScreen";
 import MisIncidentesScreen from "./src/screens/MisIncidentesScreen";
 import IncidenteDetalleScreen from "./src/screens/IncidenteDetalleScreen";
 import AccesoCasetaScreen from "./src/screens/AccesoCasetaScreen";
+import InspeccionScreen from "./src/screens/InspeccionScreen";
 import TransmisionScreen from "./src/screens/TransmisionScreen";
 import TareasScreen from "./src/screens/TareasScreen";
 import SupervisionScreen from "./src/screens/SupervisionScreen";
@@ -134,6 +136,15 @@ export default function App() {
     else { detenerRastreo(); detenerGeocercas(); }
   }, [logueado]);
 
+  // Cola offline de inspecciones: reintenta subir las pendientes al haber sesión
+  // y cada vez que la app vuelve a primer plano (cuando puede recuperar señal).
+  useEffect(() => {
+    if (!logueado) return;
+    sincronizarInspecciones();
+    const sub = AppState.addEventListener("change", (s) => { if (s === "active") sincronizarInspecciones(); });
+    return () => sub.remove();
+  }, [logueado]);
+
   // La notificación de "Ubicación activa" solo debe verse en segundo plano: en
   // primer plano se rastrea con watcher (sin servicio/notificación) y al pasar a
   // segundo plano se arranca el foreground-service (que muestra la notificación).
@@ -197,6 +208,7 @@ export default function App() {
             <Stack.Screen name="Evidencia" component={EvidenciaScreen} options={{ title: "Nueva evidencia" }} />
             <Stack.Screen name="Incidente" component={IncidenteScreen} options={{ title: "Levantar incidente" }} />
             <Stack.Screen name="AccesoCaseta" component={AccesoCasetaScreen} options={{ title: "Control de acceso" }} />
+            <Stack.Screen name="Inspeccion" component={InspeccionScreen} options={{ title: "Inspección" }} />
             <Stack.Screen name="MisIncidentes" component={MisIncidentesScreen} options={{ title: "Incidentes" }} />
             <Stack.Screen name="IncidenteDetalle" component={IncidenteDetalleScreen} options={{ title: "Incidente" }} />
             <Stack.Screen name="Transmision" component={TransmisionScreen} options={{ headerShown: false, presentation: "fullScreenModal", animation: "fade" }} />

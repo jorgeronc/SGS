@@ -28,6 +28,8 @@ export type RootStackParamList = {
   Incidente: undefined;
   // Control de accesos: registro de entrada/salida en caseta.
   AccesoCaseta: undefined;
+  // Inspección de seguridad logística (checklist + sello + foto + GPS).
+  Inspeccion: { movimientoId?: string; movimientoFolio?: string } | undefined;
   // Incidentes propios (guardia) o de mis guardias (supervisor).
   MisIncidentes: undefined;
   // Detalle de un incidente con novedades.
