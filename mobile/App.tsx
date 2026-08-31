@@ -18,6 +18,7 @@ import { getRolActual, esMando } from "./src/lib/rol";
 import { estadoSesion } from "./src/lib/sesion";
 import { sincronizarInspecciones } from "./src/lib/colaInspecciones";
 import { alCambiarRed } from "./src/lib/conectividad";
+import { sincronizarMiElemento } from "./src/lib/oficial";
 import type { RootStackParamList, TabParamList } from "./src/types";
 import { T } from "./src/theme";
 import LoginScreen from "./src/screens/LoginScreen";
@@ -133,8 +134,10 @@ export default function App() {
   // no hay elemento seleccionado (Perfil lo dispara al elegirlo).
   const logueado = !!session;
   useEffect(() => {
-    if (logueado) { iniciarRastreo(); iniciarGeocercas(); }
-    else { detenerRastreo(); detenerGeocercas(); }
+    if (logueado) {
+      // Auto-resuelve "Mi elemento" desde la cuenta (usuario↔guardia) y luego rastrea.
+      sincronizarMiElemento().finally(() => { iniciarRastreo(); iniciarGeocercas(); });
+    } else { detenerRastreo(); detenerGeocercas(); }
   }, [logueado]);
 
   // Cola offline de inspecciones: reintenta subir las pendientes al haber sesión,

@@ -19,6 +19,33 @@ export default function UsuariosPanel() {
   const [nPass, setNPass] = useState("");
   const [nRol, setNRol] = useState<Rol>("oficial");
   const [creando, setCreando] = useState(false);
+  // Vínculo usuario ↔ guardia (para que la app móvil auto-resuelva "Mi elemento").
+  const [guardias, setGuardias] = useState<any[]>([]);
+  const [ligas, setLigas] = useState<Record<string, string>>({});
+
+  async function cargarGuardias() {
+    const { data } = await supabase.from("personal")
+      .select("id, usuario_id, numero_placa, rango, persona:personas(nombre, apellido_paterno)")
+      .eq("estatus", "activo").limit(1000);
+    const list = ((data as any[]) ?? []).map((p) => ({
+      id: p.id as string,
+      usuario_id: p.usuario_id as string | null,
+      etiqueta: `${p.persona ? `${p.persona.nombre ?? ""} ${p.persona.apellido_paterno ?? ""}`.trim() : ""}${p.numero_placa ? ` #${p.numero_placa}` : ""}`.trim() || (p.id as string),
+    }));
+    list.sort((a, b) => a.etiqueta.localeCompare(b.etiqueta));
+    setGuardias(list);
+    const m: Record<string, string> = {};
+    list.forEach((p) => { if (p.usuario_id) m[p.usuario_id] = p.id; });
+    setLigas(m);
+  }
+
+  async function ligarGuardia(userId: string, personalId: string) {
+    setError(null); setMensaje(null);
+    const { error } = await supabase.rpc("rpc_ligar_usuario_guardia", { p_usuario: userId, p_personal: personalId || null });
+    if (error) { setError(error.message); return; }
+    setMensaje("Vínculo usuario ↔ guardia actualizado.");
+    cargarGuardias();
+  }
 
   async function cargar() {
     setCargando(true);
@@ -35,7 +62,7 @@ export default function UsuariosPanel() {
     setCargando(false);
   }
 
-  useEffect(() => { cargar(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+  useEffect(() => { cargar(); cargarGuardias(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
   function editar(id: string, campo: "nombre" | "rol" | "activo", valor: string | boolean) {
     setUsuarios((prev) => prev.map((u) => (u.id === id ? { ...u, [campo]: valor } : u)));
@@ -109,7 +136,7 @@ export default function UsuariosPanel() {
       ) : (
         <table>
           <thead>
-            <tr><th>Correo</th><th>Nombre</th><th>Rol</th><th>Activo</th><th>Alta</th><th></th></tr>
+            <tr><th>Correo</th><th>Nombre</th><th>Rol</th><th>Guardia (app)</th><th>Activo</th><th>Alta</th><th></th></tr>
           </thead>
           <tbody>
             {usuarios.map((u) => (
@@ -119,6 +146,14 @@ export default function UsuariosPanel() {
                 <td>
                   <select value={u.rol} onChange={(e) => editar(u.id, "rol", e.target.value)}>
                     {ROLES.map((r) => (<option key={r} value={r}>{r}</option>))}
+                  </select>
+                </td>
+                <td>
+                  <select value={ligas[u.id] ?? ""} onChange={(e) => ligarGuardia(u.id, e.target.value)}>
+                    <option value="">— Sin guardia —</option>
+                    {guardias.filter((g) => !g.usuario_id || g.usuario_id === u.id).map((g) => (
+                      <option key={g.id} value={g.id}>{g.etiqueta}</option>
+                    ))}
                   </select>
                 </td>
                 <td><input type="checkbox" checked={u.activo} onChange={(e) => editar(u.id, "activo", e.target.checked)} /></td>

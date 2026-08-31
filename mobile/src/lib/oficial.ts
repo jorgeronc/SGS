@@ -31,6 +31,38 @@ export async function clearMiOficial(): Promise<void> {
   await AsyncStorage.removeItem(KEY);
 }
 
+// Resuelve el elemento (personal) LIGADO a la cuenta de login actual
+// (personal.usuario_id = auth.uid). Devuelve undefined si hubo error de red
+// (para no invalidar la selección offline), null si la cuenta no está ligada.
+export async function getElementoDeUsuario(): Promise<MiOficial | null | undefined> {
+  const { data: u } = await supabase.auth.getUser();
+  if (!u.user) return null;
+  const { data, error } = await supabase
+    .from("personal")
+    .select("id, numero_placa, rango, estatus, persona:personas(nombre, apellido_paterno, apellido_materno, estatus)")
+    .eq("usuario_id", u.user.id)
+    .eq("estatus", "activo")
+    .maybeSingle();
+  if (error) return undefined; // sin conexión / error: no tocar lo guardado
+  if (!data) return null;
+  const p: any = data;
+  if ((p.persona?.estatus ?? "activo") !== "activo") return null;
+  const nom = p.persona ? `${p.persona.nombre ?? ""} ${p.persona.apellido_paterno ?? ""} ${p.persona.apellido_materno ?? ""}`.trim() : "";
+  const emp = `${p.rango ?? ""}${p.numero_placa ? ` #${p.numero_placa}` : ""}`.trim();
+  return { personalId: p.id as string, etiqueta: [nom, emp].filter(Boolean).join(" — ") || (p.id as string) };
+}
+
+// Sincroniza "Mi elemento" con la cuenta: lo auto-asigna si la cuenta está
+// ligada a un guardia; lo limpia si NO está ligada. En error de red conserva lo
+// que hubiera. Devuelve el elemento vigente (o null).
+export async function sincronizarMiElemento(): Promise<MiOficial | null> {
+  const e = await getElementoDeUsuario();
+  if (e === undefined) return await getMiOficial();  // error de red: conservar
+  if (e) { await setMiOficial(e); return e; }
+  await clearMiOficial();
+  return null;
+}
+
 // CRP (Carro Radio Patrulla) = la patrulla asignada en el rol de servicio, que el
 // elemento tiene fijada como "Mi unidad". Se hereda a los registros nuevos. Se
 // devuelve el número de patrulla (o su etiqueta si no se pudo resolver el número).
