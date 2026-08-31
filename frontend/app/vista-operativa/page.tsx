@@ -220,8 +220,8 @@ function VistaOperativa() {
             </div>
           </div>
 
-          {/* KPIs contextuales */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 12, marginBottom: 16 }}>
+          {/* KPIs contextuales (valor + etiqueta en línea, para ocupar menos espacio) */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginBottom: 16 }}>
             {[
               { l: "Activos", v: k?.activos ?? 0 },
               { l: "Hallazgos", v: k?.hallazgos ?? 0, c: (k?.hallazgos ?? 0) > 0 ? "#b8860b" : undefined },
@@ -230,9 +230,9 @@ function VistaOperativa() {
               { l: "Unidades", v: k?.unidades ?? 0 },
               { l: "Carga sensible", v: k?.carga_sensible ?? 0, c: (k?.carga_sensible ?? 0) > 0 ? "#7a3fbf" : undefined },
             ].map((x) => (
-              <div key={x.l} style={{ background: "var(--sc-content)", border: "1px solid var(--sc-card-line)", borderRadius: 12, padding: "12px 14px" }}>
-                <div style={{ fontSize: 24, fontWeight: 800, color: x.c ?? AZUL, lineHeight: 1 }}>{x.v}</div>
-                <div style={{ fontSize: 12, color: "var(--sc-text-soft)", marginTop: 4, textTransform: "uppercase", letterSpacing: 0.4 }}>{x.l}</div>
+              <div key={x.l} style={{ display: "flex", alignItems: "center", gap: 9, background: "var(--sc-content)", border: "1px solid var(--sc-card-line)", borderRadius: 12, padding: "9px 13px" }}>
+                <div style={{ fontSize: 23, fontWeight: 800, color: x.c ?? AZUL, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{x.v}</div>
+                <div style={{ fontSize: 11.5, color: "var(--sc-text-soft)", textTransform: "uppercase", letterSpacing: 0.3, lineHeight: 1.15 }}>{x.l}</div>
               </div>
             ))}
           </div>
