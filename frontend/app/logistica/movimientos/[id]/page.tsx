@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabaseClient";
 import VinculosPanel from "@/app/components/VinculosPanel";
 
 const AZUL = "#1F3A5F";
+const NIVELES = ["Normal", "Controlada", "Alto valor", "Sensible", "Crítica"];
 const EST_COLOR: Record<string, string> = {
   PROGRAMADO: "#607d8b", EN_PREPARACION: "#b8860b", EN_TRANSITO: "#1e73be", DETENIDO: "#e23b53",
   EN_PATIO: "#7a3fbf", FINALIZADO: "#0a7c2f", CANCELADO: "#8a1220",
@@ -21,11 +22,11 @@ export default function MovimientoDetallePage() {
   const [inspecciones, setInspecciones] = useState<any[]>([]);
   const [validaciones, setValidaciones] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
-  // Alta de unidad
+  // Alta de unidad (con su carga y riesgo capturados en línea)
   const [opcUC, setOpcUC] = useState<any[]>([]);
-  const [opcCarga, setOpcCarga] = useState<any[]>([]);
   const [opcSello, setOpcSello] = useState<any[]>([]);
-  const [ucSel, setUcSel] = useState(""); const [cargaSel, setCargaSel] = useState(""); const [selloSel, setSelloSel] = useState("");
+  const [ucSel, setUcSel] = useState(""); const [selloSel, setSelloSel] = useState("");
+  const [cargaDesc, setCargaDesc] = useState(""); const [cargaRiesgo, setCargaRiesgo] = useState("Normal");
   const [addMsg, setAddMsg] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
@@ -51,17 +52,28 @@ export default function MovimientoDetallePage() {
   useEffect(() => { cargar(); }, [cargar]);
   useEffect(() => {
     supabase.from("unidades_carga").select("id, folio, identificador, tipo_unidad").eq("estatus", "activo").order("creado_en", { ascending: false }).then(({ data }) => setOpcUC((data as any[]) ?? []));
-    supabase.from("cargas").select("id, folio, descripcion, nivel_riesgo").eq("estatus", "activo").order("creado_en", { ascending: false }).then(({ data }) => setOpcCarga((data as any[]) ?? []));
     supabase.from("sellos").select("id, codigo_sello, estado").eq("estatus", "activo").in("estado", ["DISPONIBLE", "ASIGNADO", "VALIDADO"]).order("creado_en", { ascending: false }).then(({ data }) => setOpcSello((data as any[]) ?? []));
   }, []);
 
   async function agregarUnidad() {
     if (!ucSel) { setAddMsg("Elige una unidad de carga."); return; }
+    // Si se describió la carga, se crea el registro de carga con su nivel de riesgo.
+    let cargaId: string | null = null;
+    if (cargaDesc.trim()) {
+      const { data: cg, error: ec } = await supabase.from("cargas")
+        .insert({ descripcion: cargaDesc.trim(), nivel_riesgo: cargaRiesgo || "Normal" })
+        .select("id").single();
+      if (ec) { setAddMsg(ec.message); return; }
+      cargaId = (cg as any).id;
+    }
     const { error: e } = await supabase.from("movimiento_unidades").insert({
-      movimiento_id: params.id, unidad_carga_id: ucSel, carga_id: cargaSel || null, sello_id: selloSel || null, secuencia: unidades.length + 1,
+      movimiento_id: params.id, unidad_carga_id: ucSel, carga_id: cargaId, sello_id: selloSel || null, secuencia: unidades.length + 1,
     });
     if (e) { setAddMsg(e.message); return; }
-    setAddMsg(null); setUcSel(""); setCargaSel(""); setSelloSel(""); cargar();
+    // El riesgo del movimiento deriva del riesgo de sus cargas: se recalcula solo
+    // (best-effort; si el rol no tiene permiso, no interrumpe el alta).
+    if (cargaId) { await supabase.rpc("rpc_recalcular_riesgo", { p_movimiento_id: params.id }); }
+    setAddMsg(null); setUcSel(""); setCargaDesc(""); setCargaRiesgo("Normal"); setSelloSel(""); cargar();
   }
 
   if (error) return <main className="contenedor"><p style={{ color: "#b00020" }}>{error}</p></main>;
@@ -116,10 +128,12 @@ export default function MovimientoDetallePage() {
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12, alignItems: "center" }}>
           <select value={ucSel} onChange={(e) => setUcSel(e.target.value)}><option value="">— Unidad de carga —</option>{opcUC.map((x) => <option key={x.id} value={x.id}>{[x.identificador, x.tipo_unidad].filter(Boolean).join(" · ")}</option>)}</select>
-          <select value={cargaSel} onChange={(e) => setCargaSel(e.target.value)}><option value="">— Carga (opcional) —</option>{opcCarga.map((x) => <option key={x.id} value={x.id}>{[x.descripcion, x.nivel_riesgo].filter(Boolean).join(" · ") || x.folio}</option>)}</select>
+          <input value={cargaDesc} onChange={(e) => setCargaDesc(e.target.value)} placeholder="Carga (descripción)" style={{ minWidth: 180 }} />
+          <select value={cargaRiesgo} onChange={(e) => setCargaRiesgo(e.target.value)} title="Nivel de riesgo de la carga">{NIVELES.map((n) => <option key={n} value={n}>{n}</option>)}</select>
           <select value={selloSel} onChange={(e) => setSelloSel(e.target.value)}><option value="">— Sello (opcional) —</option>{opcSello.map((x) => <option key={x.id} value={x.id}>{x.codigo_sello}</option>)}</select>
           <button className="sc-btn" onClick={agregarUnidad}>Agregar unidad</button>
           {addMsg && <span style={{ color: "#e23b53", fontSize: 12.5 }}>{addMsg}</span>}
+          <span style={{ color: "var(--sc-text-faint)", fontSize: 12, width: "100%" }}>El riesgo del movimiento se recalcula a partir del riesgo de sus cargas.</span>
         </div>
       </div>
 

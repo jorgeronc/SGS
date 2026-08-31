@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import ListaMaestra from "@/app/components/ListaMaestra";
-import { CatalogoSelect } from "@/app/components/CatalogoSelect";
 
 const TIPOS = ["CARRETERO", "FERROVIARIO", "INTERMODAL", "INTERNO"];
 const ESTADOS = ["PROGRAMADO", "EN_PREPARACION", "EN_TRANSITO", "DETENIDO", "EN_PATIO", "FINALIZADO", "CANCELADO"];
@@ -20,7 +19,6 @@ function NuevoMovimiento({ onCreado }: { onCreado: () => void }) {
   const [origen, setOrigen] = useState("");
   const [destino, setDestino] = useState("");
   const [activo, setActivo] = useState("");
-  const [riesgo, setRiesgo] = useState("");
   const [prog, setProg] = useState("");
   const [ref, setRef] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
@@ -36,13 +34,12 @@ function NuevoMovimiento({ onCreado }: { onCreado: () => void }) {
       sitio_origen_id: origen || null,
       sitio_destino_id: destino || null,
       transporte_activo_id: activo || null,
-      nivel_riesgo: riesgo || null,
       programado_inicio: prog ? new Date(prog).toISOString() : null,
       referencia_externa: ref.trim() || null,
       estado: "PROGRAMADO",
     });
     if (error) { setMsg(error.message); return; }
-    setMsg(null); setOrigen(""); setDestino(""); setActivo(""); setRiesgo(""); setProg(""); setRef("");
+    setMsg(null); setOrigen(""); setDestino(""); setActivo(""); setProg(""); setRef("");
     onCreado();
   }
 
@@ -52,7 +49,6 @@ function NuevoMovimiento({ onCreado }: { onCreado: () => void }) {
       <label>Sitio origen<select value={origen} onChange={(e) => setOrigen(e.target.value)}><option value="">—</option>{sitios.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}</select></label>
       <label>Sitio destino<select value={destino} onChange={(e) => setDestino(e.target.value)}><option value="">—</option>{sitios.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}</select></label>
       <label>Activo de transporte<select value={activo} onChange={(e) => setActivo(e.target.value)}><option value="">—</option>{activos.map((a) => <option key={a.id} value={a.id}>{[a.identificador, a.placas, a.tipo_activo].filter(Boolean).join(" · ")}</option>)}</select></label>
-      <label>Nivel de riesgo<CatalogoSelect categoria="nivel_riesgo_carga" value={riesgo} onChange={setRiesgo} /></label>
       <label>Programado inicio<input type="datetime-local" value={prog} onChange={(e) => setProg(e.target.value)} /></label>
       <label>Referencia externa<input value={ref} maxLength={60} onChange={(e) => setRef(e.target.value)} placeholder="OC / embarque / pedido" /></label>
       <div style={{ gridColumn: "1 / -1", display: "flex", alignItems: "center", gap: 12 }}>
