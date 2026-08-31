@@ -198,6 +198,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <span className="ico">◫</span>
             <span>Dashboard</span>
           </Link>
+          <Link href="/vista-operativa" className={pathname.startsWith("/vista-operativa") ? "on" : ""}>
+            <span className="ico">🧭</span>
+            <span>Vista Operativa</span>
+          </Link>
           <Link href="/copiloto" className={pathname.startsWith("/copiloto") ? "on" : ""}>
             <span className="ico">🔎</span>
             <span>Copiloto IA</span>
