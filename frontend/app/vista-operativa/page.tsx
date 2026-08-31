@@ -159,6 +159,10 @@ function VistaOperativa() {
   }
   async function registrarAcceso(resultado: "autorizado" | "rechazado") {
     if (!sel) return;
+    if (resultado === "autorizado" && !accOperador.trim()) {
+      alert("Captura el nombre del operador para autorizar (valida la identidad).");
+      return;
+    }
     setAccion(true);
     const { error } = await supabase.rpc("rpc_acceso_movimiento", { p_movimiento_id: sel, p_tipo: accTipo, p_operador: accOperador || null, p_resultado: resultado });
     setAccion(false);
@@ -428,7 +432,7 @@ function VistaOperativa() {
                     <button key={t} onClick={() => setAccTipo(t)} style={{ flex: 1, padding: 8, borderRadius: 8, border: `1px solid ${accTipo === t ? AZUL : "var(--sc-card-line)"}`, background: accTipo === t ? AZUL : "var(--sc-content)", color: accTipo === t ? "#fff" : "var(--sc-text)", fontWeight: 700, cursor: "pointer" }}>{t === "entrada" ? "Entrada" : "Salida"}</button>
                   ))}
                 </div>
-                <input placeholder="Operador (nombre)" value={accOperador} onChange={(e) => setAccOperador(e.target.value)} style={{ width: "100%", marginTop: 8, padding: "8px 10px", borderRadius: 8, border: "1px solid var(--sc-card-line)", background: "var(--sc-content)", color: "var(--sc-text)" }} />
+                <input placeholder="Operador / conductor (nombre) — requiere para identidad" value={accOperador} onChange={(e) => setAccOperador(e.target.value)} style={{ width: "100%", marginTop: 8, padding: "8px 10px", borderRadius: 8, border: "1px solid var(--sc-card-line)", background: "var(--sc-content)", color: "var(--sc-text)" }} />
                 <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
                   <button onClick={() => registrarAcceso("autorizado")} disabled={accion} style={{ flex: 1, background: "#0a7c2f", color: "#fff", border: "none", borderRadius: 9, padding: 10, fontWeight: 800, cursor: "pointer" }}>Autorizar</button>
                   <button onClick={() => registrarAcceso("rechazado")} disabled={accion} style={{ flex: 1, background: "#fff", color: "#e23b53", border: "1.5px solid #e23b53", borderRadius: 9, padding: 10, fontWeight: 800, cursor: "pointer" }}>Rechazar</button>
