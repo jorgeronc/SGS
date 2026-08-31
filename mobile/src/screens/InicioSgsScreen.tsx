@@ -12,6 +12,7 @@ import { getMiBodycam } from "../lib/bodycam";
 import { ubicacionActual, panicoNuevoDespacho } from "../lib/panico";
 import { getEstatusServicio, setEstatusServicio, type EstatusServicio } from "../lib/ubicacionVivo";
 import { bodycamDisponible, bodycamGrabando, iniciarBodycam, detenerBodycam, pedirPermisosBodycam } from "../lib/bodycamHd";
+import { useConectividad } from "../lib/conectividad";
 
 // Turno actual según la hora (diurno 06:00–18:00, nocturno 18:00–06:00).
 function turnoActual(): string {
@@ -22,6 +23,7 @@ function turnoActual(): string {
 // Inicio del guardia (SGS): encabezado con logo + estado, y accesos rápidos.
 export default function InicioSgsScreen() {
   const nav = useNavigation<any>();
+  const red = useConectividad();
   const [mio, setMio] = useState<MiOficial | null>(null);
   const [alertando, setAlertando] = useState(false);
   const [estatus, setEstatus] = useState<EstatusServicio>("en_servicio");
@@ -127,6 +129,10 @@ export default function InicioSgsScreen() {
         <Image source={require("../../assets/escudo.png")} style={styles.logo} resizeMode="contain" />
         <Text style={styles.marca}>SGS Móvil</Text>
         <View style={styles.headerRight}>
+          <View style={[styles.pill, red.conectado ? styles.pillOn : styles.pillOff]}>
+            <Ionicons name={red.conectado ? (red.wifi ? "wifi" : "cellular") : "cloud-offline-outline"} size={13} color={red.conectado ? "#22c55e" : T.textMute} />
+            <Text style={[styles.pillTxt, red.conectado && { color: "#22c55e" }]}>{red.conectado ? (red.wifi ? "WiFi" : "Red") : "Sin conexión"}</Text>
+          </View>
           <View style={styles.pill}>
             <Ionicons name="time-outline" size={13} color={T.textDim} />
             <Text style={styles.pillTxt}>{turnoActual()}</Text>

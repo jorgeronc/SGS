@@ -17,6 +17,7 @@ import { iniciarGeocercas, detenerGeocercas } from "./src/lib/geocercas";
 import { getRolActual, esMando } from "./src/lib/rol";
 import { estadoSesion } from "./src/lib/sesion";
 import { sincronizarInspecciones } from "./src/lib/colaInspecciones";
+import { alCambiarRed } from "./src/lib/conectividad";
 import type { RootStackParamList, TabParamList } from "./src/types";
 import { T } from "./src/theme";
 import LoginScreen from "./src/screens/LoginScreen";
@@ -136,13 +137,16 @@ export default function App() {
     else { detenerRastreo(); detenerGeocercas(); }
   }, [logueado]);
 
-  // Cola offline de inspecciones: reintenta subir las pendientes al haber sesión
-  // y cada vez que la app vuelve a primer plano (cuando puede recuperar señal).
+  // Cola offline de inspecciones: reintenta subir las pendientes al haber sesión,
+  // al volver a primer plano y EN CUANTO SE DETECTA RED (WiFi o datos). Así el
+  // envío ocurre aunque el teléfono no tenga datos móviles (solo WiFi) y aunque
+  // la app siga abierta al conectarse a la red.
   useEffect(() => {
     if (!logueado) return;
     sincronizarInspecciones();
     const sub = AppState.addEventListener("change", (s) => { if (s === "active") sincronizarInspecciones(); });
-    return () => sub.remove();
+    const netUnsub = alCambiarRed((e) => { if (e.conectado) sincronizarInspecciones(); });
+    return () => { sub.remove(); netUnsub(); };
   }, [logueado]);
 
   // La notificación de "Ubicación activa" solo debe verse en segundo plano: en
