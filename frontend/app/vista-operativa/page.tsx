@@ -2,10 +2,18 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
 const AZUL = "#1F3A5F";
+const NIVELES = ["Normal", "Controlada", "Alto valor", "Sensible", "Crítica"];
+const LIB_LBL: Record<string, string> = {
+  access_validated: "Acceso autorizado", identity_validated: "Identidad validada",
+  asset_validated: "Activo de transporte", cargo_units_validated: "Unidades de carga",
+  inspection_completed: "Inspección completa", seal_validated: "Sello sin alteración",
+  required_evidence_completed: "Evidencia requerida", gps_available: "GPS disponible",
+  risk_protocol_completed: "Riesgo evaluado", supervisor_approval: "Aprobación de mando",
+};
 
 // Colores y glifo por estado de etapa.
 const EST: Record<string, { c: string; ico: string; lbl: string }> = {
@@ -25,12 +33,15 @@ const fHora = (s: any) => (s ? new Date(s).toLocaleString() : "—");
 
 function VistaOperativa() {
   const sp = useSearchParams();
+  const router = useRouter();
   const [movs, setMovs] = useState<any[]>([]);
   const [q, setQ] = useState("");
   const [sel, setSel] = useState<string | null>(sp.get("movementId"));
   const [data, setData] = useState<any>(null);
   const [cargando, setCargando] = useState(false);
   const [etapaSel, setEtapaSel] = useState<any>(null);
+  const [accion, setAccion] = useState(false);
+  const [nivelManual, setNivelManual] = useState("");
   const canalRef = useRef<any>(null);
 
   // Lista para el selector: movimientos no finalizados (folio/ref/placa/ruta).
@@ -77,6 +88,60 @@ function VistaOperativa() {
   const stages: any[] = data?.stages ?? [];
   const incidentes: any[] = data?.exceptions?.incidentes ?? [];
   const timeline: any[] = data?.timeline ?? [];
+  const permisos: string[] = data?.permisos ?? [];
+  const puede = (p: string) => permisos.includes(p);
+  const clearance = data?.clearance;
+
+  // Acciones de Fase B (liberación, riesgo, incidente).
+  async function aprobarLib() {
+    if (!sel) return;
+    const notas = window.prompt("Notas de aprobación (opcional):");
+    if (notas === null) return;
+    setAccion(true);
+    const { error } = await supabase.rpc("rpc_aprobar_liberacion", { p_movimiento_id: sel, p_notas: notas || null });
+    setAccion(false);
+    if (error) return alert(error.message);
+    setEtapaSel(null); cargar(sel);
+  }
+  async function rechazarLib() {
+    if (!sel) return;
+    const motivo = window.prompt("Motivo del rechazo de la liberación:");
+    if (!motivo) return;
+    setAccion(true);
+    const { error } = await supabase.rpc("rpc_rechazar_liberacion", { p_movimiento_id: sel, p_motivo: motivo });
+    setAccion(false);
+    if (error) return alert(error.message);
+    setEtapaSel(null); cargar(sel);
+  }
+  async function recalcRiesgo() {
+    if (!sel) return;
+    setAccion(true);
+    const { error } = await supabase.rpc("rpc_recalcular_riesgo", { p_movimiento_id: sel });
+    setAccion(false);
+    if (error) return alert(error.message);
+    cargar(sel);
+  }
+  async function ajustarRiesgo() {
+    if (!sel || !nivelManual) return;
+    const motivo = window.prompt("Motivo del ajuste de riesgo:") || "";
+    setAccion(true);
+    const { error } = await supabase.rpc("rpc_ajustar_riesgo", { p_movimiento_id: sel, p_nivel: nivelManual, p_motivo: motivo });
+    setAccion(false);
+    if (error) return alert(error.message);
+    setNivelManual(""); cargar(sel);
+  }
+  async function crearIncidente() {
+    if (!sel) return;
+    const tipo = window.prompt("Tipo de incidente:", "Incidente logístico");
+    if (!tipo) return;
+    const desc = window.prompt("Descripción (opcional):") || null;
+    setAccion(true);
+    const { data: r, error } = await supabase.rpc("rpc_incidente_desde_movimiento", { p_movimiento_id: sel, p_tipo: tipo, p_descripcion: desc, p_prioridad: "media" });
+    setAccion(false);
+    if (error) return alert(error.message);
+    cargar(sel);
+    if ((r as any)?.id) router.push(`/cad/${(r as any).id}`);
+  }
 
   const card: React.CSSProperties = { background: "var(--sc-content)", border: "1px solid var(--sc-card-line)", borderRadius: 12, padding: 16, marginBottom: 16 };
 
@@ -177,7 +242,15 @@ function VistaOperativa() {
 
           {/* Rama de excepciones: hallazgos (Fase C) + incidentes ligados */}
           <div style={card}>
-            <h3 style={{ margin: "0 0 10px", fontSize: 13, color: AZUL, textTransform: "uppercase", letterSpacing: 0.5 }}>Excepciones</h3>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+              <h3 style={{ margin: 0, fontSize: 13, color: AZUL, textTransform: "uppercase", letterSpacing: 0.5 }}>Excepciones</h3>
+              {puede("incident.create") && (
+                <button onClick={crearIncidente} disabled={accion}
+                  style={{ marginLeft: "auto", background: "#e23b53", color: "#fff", border: "none", borderRadius: 8, padding: "6px 12px", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}>
+                  + Crear incidente
+                </button>
+              )}
+            </div>
             {incidentes.length === 0 ? (
               <p style={{ color: "var(--sc-text-soft)", fontSize: 13, margin: 0 }}>Sin incidentes ligados. Los hallazgos de monitoreo llegan en la Fase C.</p>
             ) : (
@@ -228,6 +301,70 @@ function VistaOperativa() {
               {etapaSel.blockReason && <div style={{ color: "#e23b53" }}><b>Falta:</b> {etapaSel.blockReason}</div>}
               <div><b>Obligatoria:</b> {etapaSel.required ? "Sí" : "No"}</div>
             </div>
+
+            {/* Liberación de seguridad: checklist + aprobar/rechazar */}
+            {etapaSel.id === "liberacion" && clearance?.checklist && (
+              <div style={{ marginTop: 16 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--sc-text-soft)", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 8 }}>Checklist del gate</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                  {Object.entries(LIB_LBL).map(([k2, lbl]) => {
+                    const ok = !!clearance.checklist[k2];
+                    return (
+                      <div key={k2} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+                        <span style={{ color: ok ? "#0a7c2f" : "#e23b53", fontWeight: 900 }}>{ok ? "✓" : "✗"}</span>
+                        <span style={{ color: ok ? "var(--sc-text)" : "#e23b53" }}>{lbl}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+                {clearance.aprobacion && (
+                  <div style={{ marginTop: 12, fontSize: 12.5, color: "var(--sc-text-soft)" }}>
+                    Última: <b>{clearance.aprobacion.resultado}</b> {clearance.aprobacion.folio ? `(${clearance.aprobacion.folio})` : ""} · {clearance.aprobacion.aprobado_por ?? ""}
+                  </div>
+                )}
+                {puede("logistics.clearance.approve") && (
+                  <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+                    <button onClick={aprobarLib} disabled={accion || clearance.resultado !== "READY"}
+                      title={clearance.resultado !== "READY" ? `Faltan controles: ${clearance.faltantes ?? ""}` : ""}
+                      style={{ flex: 1, background: clearance.resultado === "READY" ? "#0a7c2f" : "#9aa3ad", color: "#fff", border: "none", borderRadius: 9, padding: "10px", fontWeight: 800, cursor: clearance.resultado === "READY" ? "pointer" : "not-allowed" }}>
+                      Aprobar liberación
+                    </button>
+                    <button onClick={rechazarLib} disabled={accion}
+                      style={{ flex: 1, background: "#fff", color: "#e23b53", border: "1.5px solid #e23b53", borderRadius: 9, padding: "10px", fontWeight: 800, cursor: "pointer" }}>
+                      Rechazar
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Evaluación de riesgo: recalcular + ajuste manual */}
+            {etapaSel.id === "riesgo" && (
+              <div style={{ marginTop: 16 }}>
+                <div style={{ fontSize: 13 }}>Nivel actual: <b>{mv?.nivel_riesgo ?? "sin evaluar"}</b></div>
+                {puede("logistics.risk.manage") && (
+                  <>
+                    <button onClick={recalcRiesgo} disabled={accion}
+                      style={{ marginTop: 12, background: AZUL, color: "#fff", border: "none", borderRadius: 9, padding: "9px 14px", fontWeight: 800, cursor: "pointer" }}>
+                      Recalcular por reglas
+                    </button>
+                    <div style={{ marginTop: 12, fontSize: 12, fontWeight: 700, color: "var(--sc-text-soft)", textTransform: "uppercase", letterSpacing: 0.4 }}>Ajuste manual</div>
+                    <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+                      <select value={nivelManual} onChange={(e) => setNivelManual(e.target.value)}
+                        style={{ flex: 1, padding: "8px 10px", borderRadius: 8, border: "1px solid var(--sc-card-line)", background: "var(--sc-content)", color: "var(--sc-text)" }}>
+                        <option value="">— Nivel —</option>
+                        {NIVELES.map((n) => <option key={n} value={n}>{n}</option>)}
+                      </select>
+                      <button onClick={ajustarRiesgo} disabled={accion || !nivelManual}
+                        style={{ background: "var(--sc-btn,#f4a03f)", color: "#3a2a10", border: "none", borderRadius: 8, padding: "8px 14px", fontWeight: 800, cursor: nivelManual ? "pointer" : "not-allowed" }}>
+                        Ajustar
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
             {etapaSel.route && (
               <Link href={etapaSel.route} style={{ display: "inline-block", marginTop: 20, background: "var(--sc-btn,#f4a03f)", color: "#3a2a10", fontWeight: 800, borderRadius: 10, padding: "10px 16px", textDecoration: "none" }}>
                 Abrir módulo completo →
