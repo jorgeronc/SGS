@@ -60,17 +60,31 @@ export default function AccesoCasetaScreen() {
 
   // Citas activas del sitio (para ligar el acceso del camión a su cita).
   useEffect(() => {
-    if (!sitioId) { setCitas([]); setMovimientos([]); return; }
+    if (!sitioId) { setCitas([]); return; }
     supabase.from("citas").select("id, folio, placa, anden, vehiculo:vehiculos(placas)")
       .eq("estatus", "activo").eq("sitio_id", sitioId)
       .not("estado", "in", "(finalizada,salida,cancelada)").order("programada_en").limit(100)
       .then(({ data }) => setCitas((data as any[]) ?? []));
-    // Movimientos (origen o destino en este sitio) no finalizados.
-    supabase.from("movimientos").select("id, folio, transporte_activo_id, activo:transporte_activos(placas, identificador)")
-      .eq("estatus", "activo").not("estado", "in", "(FINALIZADO,CANCELADO)")
-      .or(`sitio_origen_id.eq.${sitioId},sitio_destino_id.eq.${sitioId}`)
-      .order("creado_en", { ascending: false }).limit(100)
-      .then(({ data }) => setMovimientos((data as any[]) ?? []));
+  }, [sitioId]);
+
+  // Movimientos para ligar el acceso del camión: los de este sitio (origen o
+  // destino); si no hay ninguno con este sitio (o no se detectó sitio), se
+  // muestran TODOS los movimientos activos para no bloquear el registro.
+  useEffect(() => {
+    (async () => {
+      const cols = "id, folio, transporte_activo_id, sitio_origen_id, activo:transporte_activos(placas, identificador)";
+      if (sitioId) {
+        const { data } = await supabase.from("movimientos").select(cols)
+          .eq("estatus", "activo").not("estado", "in", "(FINALIZADO,CANCELADO)")
+          .or(`sitio_origen_id.eq.${sitioId},sitio_destino_id.eq.${sitioId}`)
+          .order("creado_en", { ascending: false }).limit(100);
+        if ((data as any[])?.length) { setMovimientos(data as any[]); return; }
+      }
+      const { data: todos } = await supabase.from("movimientos").select(cols)
+        .eq("estatus", "activo").not("estado", "in", "(FINALIZADO,CANCELADO)")
+        .order("creado_en", { ascending: false }).limit(100);
+      setMovimientos((todos as any[]) ?? []);
+    })();
   }, [sitioId]);
 
   async function resolverCaseta() {
@@ -180,7 +194,9 @@ export default function AccesoCasetaScreen() {
   }
 
   function validar(): string | null {
-    if (!sitioId) return "No se detectó tu sitio/caseta (¿tienes turno activo hoy?).";
+    const movSel = movimientos.find((m) => m.id === movimientoId);
+    const sitioEfectivo = sitioId || (modo === "vehiculo" ? (movSel?.sitio_origen_id ?? null) : null);
+    if (!sitioEfectivo) return "No se detectó tu sitio/caseta (¿tienes turno activo hoy?). En modo Vehículo, elige un movimiento con sitio de origen.";
     if (modo === "vehiculo") {
       if (!placa.trim() && !citaId) return "Captura la placa o elige la cita del camión.";
       if (!visitante.trim()) return "Captura el nombre del operador (responsable del vehículo).";
@@ -215,7 +231,7 @@ export default function AccesoCasetaScreen() {
       persona_id: personaId,
       visitante_nombre: personaId ? null : (nombreLibre || cred?.descripcion || null),
       vehiculo_id: vehiculoId,
-      sitio_id: sitioId,
+      sitio_id: sitioId || (modo === "vehiculo" ? (movSel?.sitio_origen_id ?? null) : null),
       punto_id: puntoId,
       personal_id: personalId,
       credencial_id: cred?.id ?? null,
