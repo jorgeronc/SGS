@@ -16,8 +16,8 @@ const LIB_LBL: Record<string, string> = {
 };
 // Qué hacer para completar cada control (cuando está en ✗).
 const LIB_HINT: Record<string, string> = {
-  access_validated: "Registra el acceso del movimiento en la etapa «Control de acceso» → Autorizar.",
-  identity_validated: "Captura el nombre del operador al registrar el acceso.",
+  access_validated: "En la caseta (app móvil → Control de acceso, modo Vehículo), registra la entrada del movimiento y autorízala.",
+  identity_validated: "En ese registro de caseta, captura el nombre del operador/conductor (esa es la identidad).",
   asset_validated: "Asigna un activo de transporte al movimiento (en su detalle).",
   cargo_units_validated: "Agrega al menos una unidad de carga (en el detalle del movimiento).",
   inspection_completed: "Registra una inspección de PRE-SALIDA con resultado OK (app móvil, eligiendo este movimiento). La de tipo «Entrada» cuenta para Arribo, no aquí.",
@@ -55,8 +55,6 @@ function VistaOperativa() {
   const [etapaSel, setEtapaSel] = useState<any>(null);
   const [accion, setAccion] = useState(false);
   const [nivelManual, setNivelManual] = useState("");
-  const [accTipo, setAccTipo] = useState<"entrada" | "salida">("entrada");
-  const [accOperador, setAccOperador] = useState("");
   const canalRef = useRef<any>(null);
 
   // Lista para el selector: movimientos no finalizados (folio/ref/placa/ruta).
@@ -156,18 +154,6 @@ function VistaOperativa() {
     setAccion(false);
     if (error) return alert(error.message);
     setNivelManual(""); cargar(sel);
-  }
-  async function registrarAcceso(resultado: "autorizado" | "rechazado") {
-    if (!sel) return;
-    if (resultado === "autorizado" && !accOperador.trim()) {
-      alert("Captura el nombre del operador para autorizar (valida la identidad).");
-      return;
-    }
-    setAccion(true);
-    const { error } = await supabase.rpc("rpc_acceso_movimiento", { p_movimiento_id: sel, p_tipo: accTipo, p_operador: accOperador || null, p_resultado: resultado });
-    setAccion(false);
-    if (error) return alert(error.message);
-    setAccOperador(""); setEtapaSel(null); cargar(sel);
   }
   async function crearIncidente() {
     if (!sel) return;
@@ -423,20 +409,11 @@ function VistaOperativa() {
               </div>
             )}
 
-            {/* Control de acceso: registrar entrada/salida del movimiento */}
-            {etapaSel.id === "acceso" && puede("access.authorize") && (
-              <div style={{ marginTop: 16 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--sc-text-soft)", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 8 }}>Registrar acceso del movimiento</div>
-                <div style={{ display: "flex", gap: 8 }}>
-                  {(["entrada", "salida"] as const).map((t) => (
-                    <button key={t} onClick={() => setAccTipo(t)} style={{ flex: 1, padding: 8, borderRadius: 8, border: `1px solid ${accTipo === t ? AZUL : "var(--sc-card-line)"}`, background: accTipo === t ? AZUL : "var(--sc-content)", color: accTipo === t ? "#fff" : "var(--sc-text)", fontWeight: 700, cursor: "pointer" }}>{t === "entrada" ? "Entrada" : "Salida"}</button>
-                  ))}
-                </div>
-                <input placeholder="Operador / conductor (nombre) — requiere para identidad" value={accOperador} onChange={(e) => setAccOperador(e.target.value)} style={{ width: "100%", marginTop: 8, padding: "8px 10px", borderRadius: 8, border: "1px solid var(--sc-card-line)", background: "var(--sc-content)", color: "var(--sc-text)" }} />
-                <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-                  <button onClick={() => registrarAcceso("autorizado")} disabled={accion} style={{ flex: 1, background: "#0a7c2f", color: "#fff", border: "none", borderRadius: 9, padding: 10, fontWeight: 800, cursor: "pointer" }}>Autorizar</button>
-                  <button onClick={() => registrarAcceso("rechazado")} disabled={accion} style={{ flex: 1, background: "#fff", color: "#e23b53", border: "1.5px solid #e23b53", borderRadius: 9, padding: 10, fontWeight: 800, cursor: "pointer" }}>Rechazar</button>
-                </div>
+            {/* Control de acceso: la validación ocurre en CAMPO (caseta / app móvil).
+                Aquí solo se supervisa el estado. */}
+            {etapaSel.id === "acceso" && (
+              <div style={{ marginTop: 16, fontSize: 12.5, color: "var(--sc-text-soft)", background: "var(--sc-surface,rgba(0,0,0,.03))", borderRadius: 8, padding: 10 }}>
+                El acceso e identidad del conductor se validan en <b>campo</b>: en la caseta desde la app móvil (Control de acceso, modo Vehículo, eligiendo este movimiento). La Vista Operativa solo supervisa el estado.
               </div>
             )}
 

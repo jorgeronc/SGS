@@ -46,6 +46,9 @@ export default function AccesoCasetaScreen() {
   const [anden, setAnden] = useState("");
   const [citaId, setCitaId] = useState("");
   const [citas, setCitas] = useState<any[]>([]);
+  // Movimiento de seguridad logística (para ligar el acceso del camión).
+  const [movimientos, setMovimientos] = useState<any[]>([]);
+  const [movimientoId, setMovimientoId] = useState("");
 
   useEffect(() => {
     supabase.from("cat_opciones").select("valor").eq("categoria", "tipo_persona_acceso").eq("activo", true).order("orden")
@@ -57,11 +60,17 @@ export default function AccesoCasetaScreen() {
 
   // Citas activas del sitio (para ligar el acceso del camión a su cita).
   useEffect(() => {
-    if (!sitioId) { setCitas([]); return; }
+    if (!sitioId) { setCitas([]); setMovimientos([]); return; }
     supabase.from("citas").select("id, folio, placa, anden, vehiculo:vehiculos(placas)")
       .eq("estatus", "activo").eq("sitio_id", sitioId)
       .not("estado", "in", "(finalizada,salida,cancelada)").order("programada_en").limit(100)
       .then(({ data }) => setCitas((data as any[]) ?? []));
+    // Movimientos (origen o destino en este sitio) no finalizados.
+    supabase.from("movimientos").select("id, folio, transporte_activo_id, activo:transporte_activos(placas, identificador)")
+      .eq("estatus", "activo").not("estado", "in", "(FINALIZADO,CANCELADO)")
+      .or(`sitio_origen_id.eq.${sitioId},sitio_destino_id.eq.${sitioId}`)
+      .order("creado_en", { ascending: false }).limit(100)
+      .then(({ data }) => setMovimientos((data as any[]) ?? []));
   }, [sitioId]);
 
   async function resolverCaseta() {
@@ -187,6 +196,7 @@ export default function AccesoCasetaScreen() {
   async function insertarAcceso(res: "autorizado" | "rechazado" | "pendiente"): Promise<string | null> {
     const pos = await gps();
     const nombreLibre = visitante.trim();
+    const movSel = movimientos.find((m) => m.id === movimientoId);
 
     // Persona (maestro): credencial existente, o se crea a partir del nombre.
     let personaId: string | null = cred?.persona_id ?? null;
@@ -216,11 +226,24 @@ export default function AccesoCasetaScreen() {
       cita_id: modo === "vehiculo" ? (citaId || null) : null,
       anden: modo === "vehiculo" ? (anden.trim() || null) : null,
       remolque_placa: modo === "vehiculo" ? (remolque.trim() || null) : null,
+      // Liga con el movimiento de seguridad logística (valida acceso/identidad en el flujo).
+      movimiento_id: modo === "vehiculo" ? (movimientoId || null) : null,
+      transporte_activo_id: modo === "vehiculo" ? (movSel?.transporte_activo_id ?? null) : null,
       latitud: pos.lat, longitud: pos.lng,
       fotografias: fotoPath ? [fotoPath] : [],
-      datos_adicionales: { origen: "caseta_movil" },
+      datos_adicionales: { origen: "caseta_movil", movimiento_folio: movSel?.folio ?? null },
     }).select("id, folio").single();
     if (error) { Alert.alert("Error", error.message); return null; }
+    // Evento en el timeline del movimiento (best-effort; no interrumpe el registro).
+    if (movimientoId) {
+      supabase.from("movimiento_eventos").insert({
+        movimiento_id: movimientoId,
+        tipo_evento: res === "rechazado" ? "access.rejected" : "access.authorized",
+        etapa: "CONTROL_ACCESO",
+        datos: { acceso_id: (data as any).id, tipo, operador: nombreLibre || null, resultado: res },
+        latitud: pos.lat, longitud: pos.lng,
+      }).then(() => {}, () => {});
+    }
     return (data as any).id;
   }
 
@@ -302,6 +325,18 @@ export default function AccesoCasetaScreen() {
 
         {modo === "vehiculo" && (
           <>
+            {movimientos.length > 0 && (
+              <>
+                <Text style={styles.label}>Movimiento (seguridad logística)</Text>
+                <View style={styles.chips}>
+                  {movimientos.map((m) => (
+                    <TouchableOpacity key={m.id} style={[styles.chip, movimientoId === m.id && styles.chipOn]} onPress={() => { const n = movimientoId === m.id ? "" : m.id; setMovimientoId(n); if (n && !placa) setPlaca(m.activo?.placas ?? ""); }}>
+                      <Text style={[styles.chipTxt, movimientoId === m.id && styles.chipTxtOn]}>{m.folio ?? "mov"}{m.activo?.placas ? ` · ${m.activo.placas}` : ""}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </>
+            )}
             <Text style={styles.label}>Vehículo</Text>
             <TextInput style={styles.input} placeholder="Placa" placeholderTextColor={T.textMute} value={placa} onChangeText={setPlaca} autoCapitalize="characters" />
             <TextInput style={styles.input} placeholder="Placa de remolque (opcional)" placeholderTextColor={T.textMute} value={remolque} onChangeText={setRemolque} autoCapitalize="characters" />
