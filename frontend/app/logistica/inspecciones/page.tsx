@@ -16,7 +16,7 @@ export default function InspeccionesPage() {
       select="id, folio, tipo_inspeccion, resultado, creado_en, movimiento:movimientos(folio), realizada:personal(numero_placa, persona:personas(nombre, apellido_paterno)), sitio:sitios(nombre), estatus"
       placeholderBuscar="Folio, tipo…"
       textoBusqueda={(r) => `${r.folio ?? ""} ${r.tipo_inspeccion ?? ""} ${r.resultado ?? ""}`}
-      detalleHref={() => "/logistica/inspecciones"}
+      detalleHref={(r) => `/logistica/inspecciones/${r.id}`}
       columnas={[
         { header: "Folio", celda: (r) => r.folio ?? "—", campo: "folio" },
         { header: "Tipo", celda: (r) => r.tipo_inspeccion ?? "—" },

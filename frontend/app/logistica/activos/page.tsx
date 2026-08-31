@@ -53,7 +53,7 @@ export default function ActivosPage() {
       select="id, folio, tipo_activo, identificador, placas, economico, estado_activo, gps_device_id, empresa:transportistas(razon_social), estatus, creado_en"
       placeholderBuscar="Identificador, placas…"
       textoBusqueda={(r) => `${r.folio ?? ""} ${r.identificador ?? ""} ${r.placas ?? ""} ${r.economico ?? ""}`}
-      detalleHref={() => "/logistica/activos"}
+      detalleHref={(r) => `/logistica/activos/${r.id}`}
       columnas={[
         { header: "Folio", celda: (r) => r.folio ?? "—", campo: "folio" },
         { header: "Tipo", celda: (r) => r.tipo_activo ?? "—" },

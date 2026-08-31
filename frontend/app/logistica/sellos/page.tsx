@@ -41,7 +41,7 @@ export default function SellosPage() {
       select="id, folio, codigo_sello, tipo_sello, estado, unidad:unidades_carga(identificador), estatus, creado_en"
       placeholderBuscar="Código de sello…"
       textoBusqueda={(r) => `${r.folio ?? ""} ${r.codigo_sello ?? ""} ${r.tipo_sello ?? ""}`}
-      detalleHref={() => "/logistica/sellos"}
+      detalleHref={(r) => `/logistica/sellos/${r.id}`}
       columnas={[
         { header: "Folio", celda: (r) => r.folio ?? "—", campo: "folio" },
         { header: "Código", celda: (r) => r.codigo_sello ?? "—" },

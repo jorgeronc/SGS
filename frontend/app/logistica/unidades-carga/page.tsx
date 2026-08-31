@@ -44,7 +44,7 @@ export default function UnidadesCargaPage() {
       select="id, folio, tipo_unidad, identificador, estado_unidad, empresa:transportistas(razon_social), estatus, creado_en"
       placeholderBuscar="Identificador…"
       textoBusqueda={(r) => `${r.folio ?? ""} ${r.identificador ?? ""} ${r.tipo_unidad ?? ""}`}
-      detalleHref={() => "/logistica/unidades-carga"}
+      detalleHref={(r) => `/logistica/unidades-carga/${r.id}`}
       columnas={[
         { header: "Folio", celda: (r) => r.folio ?? "—", campo: "folio" },
         { header: "Tipo", celda: (r) => r.tipo_unidad ?? "—" },

@@ -14,6 +14,19 @@ const LIB_LBL: Record<string, string> = {
   required_evidence_completed: "Evidencia requerida", gps_available: "GPS disponible",
   risk_protocol_completed: "Riesgo evaluado", supervisor_approval: "Aprobación de mando",
 };
+// Qué hacer para completar cada control (cuando está en ✗).
+const LIB_HINT: Record<string, string> = {
+  access_validated: "Registra el acceso del movimiento en la etapa «Control de acceso» → Autorizar.",
+  identity_validated: "Captura el nombre del operador al registrar el acceso.",
+  asset_validated: "Asigna un activo de transporte al movimiento (en su detalle).",
+  cargo_units_validated: "Agrega al menos una unidad de carga (en el detalle del movimiento).",
+  inspection_completed: "Registra una inspección con resultado OK (app móvil o web).",
+  seal_validated: "Valida el sello sin alteración (no debe haber sellos alterados/no coincide).",
+  required_evidence_completed: "Adjunta la evidencia requerida.",
+  gps_available: "Asigna un GPS al activo de transporte (en el detalle del activo).",
+  risk_protocol_completed: "Evalúa el riesgo en la etapa «Evaluación de riesgo» → Recalcular.",
+  supervisor_approval: "Requiere aprobación de mando (riesgo alto).",
+};
 
 // Colores y glifo por estado de etapa.
 const EST: Record<string, { c: string; ico: string; lbl: string }> = {
@@ -42,6 +55,8 @@ function VistaOperativa() {
   const [etapaSel, setEtapaSel] = useState<any>(null);
   const [accion, setAccion] = useState(false);
   const [nivelManual, setNivelManual] = useState("");
+  const [accTipo, setAccTipo] = useState<"entrada" | "salida">("entrada");
+  const [accOperador, setAccOperador] = useState("");
   const canalRef = useRef<any>(null);
 
   // Lista para el selector: movimientos no finalizados (folio/ref/placa/ruta).
@@ -141,6 +156,14 @@ function VistaOperativa() {
     setAccion(false);
     if (error) return alert(error.message);
     setNivelManual(""); cargar(sel);
+  }
+  async function registrarAcceso(resultado: "autorizado" | "rechazado") {
+    if (!sel) return;
+    setAccion(true);
+    const { error } = await supabase.rpc("rpc_acceso_movimiento", { p_movimiento_id: sel, p_tipo: accTipo, p_operador: accOperador || null, p_resultado: resultado });
+    setAccion(false);
+    if (error) return alert(error.message);
+    setAccOperador(""); setEtapaSel(null); cargar(sel);
   }
   async function crearIncidente() {
     if (!sel) return;
@@ -338,9 +361,12 @@ function VistaOperativa() {
                   {Object.entries(LIB_LBL).map(([k2, lbl]) => {
                     const ok = !!clearance.checklist[k2];
                     return (
-                      <div key={k2} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
-                        <span style={{ color: ok ? "#0a7c2f" : "#e23b53", fontWeight: 900 }}>{ok ? "✓" : "✗"}</span>
-                        <span style={{ color: ok ? "var(--sc-text)" : "#e23b53" }}>{lbl}</span>
+                      <div key={k2} style={{ fontSize: 13 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ color: ok ? "#0a7c2f" : "#e23b53", fontWeight: 900 }}>{ok ? "✓" : "✗"}</span>
+                          <span style={{ color: ok ? "var(--sc-text)" : "#e23b53" }}>{lbl}</span>
+                        </div>
+                        {!ok && LIB_HINT[k2] && <div style={{ marginLeft: 20, fontSize: 11.5, color: "var(--sc-text-soft)", marginTop: 2 }}>→ {LIB_HINT[k2]}</div>}
                       </div>
                     );
                   })}
@@ -390,6 +416,23 @@ function VistaOperativa() {
                     </div>
                   </>
                 )}
+              </div>
+            )}
+
+            {/* Control de acceso: registrar entrada/salida del movimiento */}
+            {etapaSel.id === "acceso" && puede("access.authorize") && (
+              <div style={{ marginTop: 16 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--sc-text-soft)", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 8 }}>Registrar acceso del movimiento</div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  {(["entrada", "salida"] as const).map((t) => (
+                    <button key={t} onClick={() => setAccTipo(t)} style={{ flex: 1, padding: 8, borderRadius: 8, border: `1px solid ${accTipo === t ? AZUL : "var(--sc-card-line)"}`, background: accTipo === t ? AZUL : "var(--sc-content)", color: accTipo === t ? "#fff" : "var(--sc-text)", fontWeight: 700, cursor: "pointer" }}>{t === "entrada" ? "Entrada" : "Salida"}</button>
+                  ))}
+                </div>
+                <input placeholder="Operador (nombre)" value={accOperador} onChange={(e) => setAccOperador(e.target.value)} style={{ width: "100%", marginTop: 8, padding: "8px 10px", borderRadius: 8, border: "1px solid var(--sc-card-line)", background: "var(--sc-content)", color: "var(--sc-text)" }} />
+                <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                  <button onClick={() => registrarAcceso("autorizado")} disabled={accion} style={{ flex: 1, background: "#0a7c2f", color: "#fff", border: "none", borderRadius: 9, padding: 10, fontWeight: 800, cursor: "pointer" }}>Autorizar</button>
+                  <button onClick={() => registrarAcceso("rechazado")} disabled={accion} style={{ flex: 1, background: "#fff", color: "#e23b53", border: "1.5px solid #e23b53", borderRadius: 9, padding: 10, fontWeight: 800, cursor: "pointer" }}>Rechazar</button>
+                </div>
               </div>
             )}
 
