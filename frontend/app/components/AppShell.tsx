@@ -15,7 +15,10 @@ const LIMPIAS: string[] = ["/monitoreo", "/cad/mapa"];
 const SIN_2FA = ["/login"];
 // Rutas con topbar de "consola": muestran título + fecha/hora (sin el buscador
 // global ni los accesos rápidos, porque la consola tiene los suyos).
-const TITULOS_TOP: Record<string, string> = { "/cad": "Central de Despacho — Incidentes" };
+const TITULOS_TOP: Record<string, string> = {
+  "/cad": "Central de Despacho — Incidentes",
+  "/vista-operativa": "Vista Operativa — Seguridad Logística",
+};
 
 const GRUPOS: { grupo: string; items: { href: string; label: string; ico: string; nueva?: boolean }[] }[] = [
   {

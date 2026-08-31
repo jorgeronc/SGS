@@ -73,6 +73,18 @@ function VistaOperativa() {
     return () => { supabase.removeChannel(ch); canalRef.current = null; };
   }, [sel, cargar]);
 
+  // Indicadores globales (todos los movimientos activos) — siempre visibles.
+  const gk = useMemo(() => {
+    const c = (f: (m: any) => boolean) => movs.filter(f).length;
+    return {
+      activos: movs.length,
+      transito: c((m) => m.estado === "EN_TRANSITO"),
+      detenidos: c((m) => m.estado === "DETENIDO"),
+      patio: c((m) => m.estado === "EN_PATIO"),
+      programados: c((m) => m.estado === "PROGRAMADO" || m.estado === "EN_PREPARACION"),
+    };
+  }, [movs]);
+
   const filtrados = useMemo(() => {
     const t = q.trim().toLowerCase();
     if (!t) return movs.slice(0, 40);
@@ -147,10 +159,26 @@ function VistaOperativa() {
 
   return (
     <main className="contenedor" style={{ padding: 18 }}>
+      {/* Indicadores globales (todos los movimientos) — arriba, siempre visibles */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12, marginBottom: 14 }}>
+        {[
+          { l: "Movimientos activos", v: gk.activos, c: AZUL },
+          { l: "En tránsito", v: gk.transito, c: "#1e73be" },
+          { l: "Detenidos", v: gk.detenidos, c: gk.detenidos > 0 ? "#e23b53" : undefined },
+          { l: "En patio", v: gk.patio, c: "#7a3fbf" },
+          { l: "Programados", v: gk.programados, c: "#607d8b" },
+        ].map((x) => (
+          <div key={x.l} style={{ background: "var(--sc-content)", border: "1px solid var(--sc-card-line)", borderRadius: 12, padding: "12px 14px" }}>
+            <div style={{ fontSize: 26, fontWeight: 800, color: x.c ?? AZUL, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{x.v}</div>
+            <div style={{ fontSize: 12, color: "var(--sc-text-soft)", marginTop: 4, textTransform: "uppercase", letterSpacing: 0.4 }}>{x.l}</div>
+          </div>
+        ))}
+      </div>
+
       {/* Selector de movimiento */}
       <div style={{ ...card, marginBottom: 14 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <b style={{ fontSize: 16, color: AZUL }}>🧭 Vista Operativa</b>
+          <b style={{ fontSize: 15, color: AZUL }}>Movimiento</b>
           <input
             placeholder="Buscar movimiento: folio, referencia, placa, económico, ruta…"
             value={q} onChange={(e) => setQ(e.target.value)}
