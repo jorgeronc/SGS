@@ -10,7 +10,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { json, preflight } from "../_shared/cors.ts";
 
-const ROLES = ["oficial", "supervisor", "investigador", "asuntos_internos", "administrador"];
+const ROLES = ["oficial", "guardia", "supervisor", "investigador", "asuntos_internos", "administrador", "operador", "coordinador"];
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return preflight(req);

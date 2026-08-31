@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import type { UsuarioAdmin, Rol } from "@/lib/types";
 
-const ROLES: Rol[] = ["oficial", "supervisor", "investigador", "asuntos_internos", "administrador"];
+// Roles SGS relevantes primero; los heredados de SCP (dormidos) al final.
+const ROLES: Rol[] = ["guardia", "operador", "coordinador", "supervisor", "administrador", "oficial", "investigador", "asuntos_internos"];
 
 // Panel de Usuarios y roles (alta, rol y estado). Solo administrador.
 export default function UsuariosPanel() {

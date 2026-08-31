@@ -392,7 +392,7 @@ export interface Equipo {
   } | null;
 }
 
-export type Rol = "oficial" | "supervisor" | "investigador" | "administrador" | "asuntos_internos";
+export type Rol = "oficial" | "guardia" | "supervisor" | "investigador" | "administrador" | "asuntos_internos" | "operador" | "coordinador";
 
 export interface UsuarioAdmin {
   id: string;
