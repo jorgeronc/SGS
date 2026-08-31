@@ -4,14 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
-import { CatalogoSelect } from "@/app/components/CatalogoSelect";
 
-const HORARIO: Record<string, [string, string]> = {
-  "Diurno (08:00-20:00)": ["08:00", "20:00"],
-  "Nocturno (20:00-08:00)": ["20:00", "08:00"],
-  "24 horas": ["00:00", "23:59"],
-  "Mixto / rolado": ["", ""],
-};
+const hhmm = (t: any) => (t ? String(t).slice(0, 5) : "");
 const hoyISO = () => new Date().toISOString().slice(0, 10);
 function nombre(p: any) {
   const x = p?.persona;
@@ -28,8 +22,10 @@ export default function TurnosPage() {
   const router = useRouter();
   const [turnos, setTurnos] = useState<any[]>([]);
   const [supervisores, setSupervisores] = useState<any[]>([]);
+  const [tiposTurno, setTiposTurno] = useState<any[]>([]);
+  const [sitios, setSitios] = useState<any[]>([]);
   const [cargando, setCargando] = useState(true);
-  const [f, setF] = useState({ supervisor_id: "", fecha: hoyISO(), tipo_turno: "", hora_inicio: "", hora_fin: "" });
+  const [f, setF] = useState({ supervisor_id: "", fecha: hoyISO(), sitio_id: "", tipo_turno: "", hora_inicio: "", hora_fin: "" });
   const [error, setError] = useState<string | null>(null);
   const [creando, setCreando] = useState(false);
   const set = (k: string, v: string) => setF((p) => ({ ...p, [k]: v }));
@@ -37,7 +33,7 @@ export default function TurnosPage() {
   async function cargar() {
     setCargando(true);
     const { data } = await supabase.from("turnos")
-      .select("id, folio, fecha, tipo_turno, hora_inicio, hora_fin, estado, estatus, supervisor:personal!turnos_supervisor_id_fkey(persona:personas(nombre, apellido_paterno, apellido_materno)), turno_guardias(count)")
+      .select("id, folio, fecha, tipo_turno, hora_inicio, hora_fin, estado, estatus, sitio:sitios(nombre), supervisor:personal!turnos_supervisor_id_fkey(persona:personas(nombre, apellido_paterno, apellido_materno)), turno_guardias(count)")
       .eq("estatus", "activo").order("fecha", { ascending: false });
     setTurnos((data as any[]) ?? []);
     setCargando(false);
@@ -48,12 +44,16 @@ export default function TurnosPage() {
     supabase.from("personal").select("id, categoria, persona:personas(nombre, apellido_paterno, apellido_materno)")
       .eq("estatus", "activo").eq("estado_laboral", "activo")
       .then(({ data }) => setSupervisores((data as any[]) ?? []));
+    supabase.from("tipos_turno").select("id, nombre, hora_inicio, hora_fin").eq("activo", true).order("orden").order("nombre")
+      .then(({ data }) => setTiposTurno((data as any[]) ?? []));
+    supabase.from("sitios").select("id, nombre, cliente:clientes(razon_social)").eq("estatus", "activo").order("nombre")
+      .then(({ data }) => setSitios((data as any[]) ?? []));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function pickTipo(v: string) {
-    const [hi, hf] = HORARIO[v] ?? ["", ""];
-    setF((p) => ({ ...p, tipo_turno: v, hora_inicio: hi, hora_fin: hf }));
+  function pickTipo(nombre: string) {
+    const t = tiposTurno.find((x) => x.nombre === nombre);
+    setF((p) => ({ ...p, tipo_turno: nombre, hora_inicio: hhmm(t?.hora_inicio), hora_fin: hhmm(t?.hora_fin) }));
   }
 
   async function crear(e: React.FormEvent) {
@@ -63,7 +63,7 @@ export default function TurnosPage() {
     if (!f.fecha) { setError("Indica la fecha."); return; }
     setCreando(true);
     const { data, error } = await supabase.from("turnos").insert({
-      supervisor_id: f.supervisor_id, fecha: f.fecha, estado: "borrador",
+      supervisor_id: f.supervisor_id, fecha: f.fecha, estado: "borrador", sitio_id: f.sitio_id || null,
       tipo_turno: f.tipo_turno || null, hora_inicio: f.hora_inicio || null, hora_fin: f.hora_fin || null,
     }).select("id").single();
     setCreando(false);
@@ -89,7 +89,14 @@ export default function TurnosPage() {
           <label className="dash-sub" style={{ display: "flex", flexDirection: "column" }}>Fecha
             <input type="date" value={f.fecha} onChange={(e) => set("fecha", e.target.value)} required />
           </label>
-          <CatalogoSelect categoria="tipo_turno" value={f.tipo_turno} onChange={pickTipo} placeholder="— Tipo de turno —" />
+          <select value={f.sitio_id} onChange={(e) => set("sitio_id", e.target.value)} style={{ flex: 2 }}>
+            <option value="">— Sitio (opcional) —</option>
+            {sitios.map((s) => <option key={s.id} value={s.id}>{s.nombre}{s.cliente?.razon_social ? ` · ${s.cliente.razon_social}` : ""}</option>)}
+          </select>
+          <select value={f.tipo_turno} onChange={(e) => pickTipo(e.target.value)}>
+            <option value="">— Tipo de turno —</option>
+            {tiposTurno.map((t) => <option key={t.id} value={t.nombre}>{t.nombre}{t.hora_inicio ? ` (${hhmm(t.hora_inicio)}–${hhmm(t.hora_fin)})` : ""}</option>)}
+          </select>
           <label className="dash-sub" style={{ display: "flex", flexDirection: "column" }}>Inicio
             <input type="time" value={f.hora_inicio} onChange={(e) => set("hora_inicio", e.target.value)} />
           </label>
@@ -107,12 +114,13 @@ export default function TurnosPage() {
         <p className="dash-sub">Aún no hay turnos.</p>
       ) : (
         <table>
-          <thead><tr><th>Folio</th><th>Fecha</th><th>Supervisor</th><th>Turno</th><th>Horario</th><th>Guardias</th><th>Estado</th></tr></thead>
+          <thead><tr><th>Folio</th><th>Fecha</th><th>Sitio</th><th>Supervisor</th><th>Turno</th><th>Horario</th><th>Guardias</th><th>Estado</th></tr></thead>
           <tbody>
             {turnos.map((t) => (
               <tr key={t.id}>
                 <td><Link href={`/turnos/${t.id}`} className="sc-folio">{t.folio ?? "s/folio"}</Link></td>
                 <td>{t.fecha ? new Date(t.fecha + "T00:00:00").toLocaleDateString() : "—"}</td>
+                <td>{t.sitio?.nombre ?? "—"}</td>
                 <td>{nombre(t.supervisor)}</td>
                 <td>{t.tipo_turno ?? "—"}</td>
                 <td>{t.hora_inicio ? `${String(t.hora_inicio).slice(0, 5)}–${String(t.hora_fin ?? "").slice(0, 5)}` : "—"}</td>

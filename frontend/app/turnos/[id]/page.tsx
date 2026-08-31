@@ -29,7 +29,7 @@ export default function TurnoDetallePage() {
 
   async function cargar() {
     const { data: t } = await supabase.from("turnos")
-      .select("id, folio, fecha, tipo_turno, hora_inicio, hora_fin, estado, supervisor_id, supervisor:personal!turnos_supervisor_id_fkey(persona:personas(nombre, apellido_paterno, apellido_materno))")
+      .select("id, folio, fecha, tipo_turno, hora_inicio, hora_fin, estado, supervisor_id, sitio_id, sitio:sitios(nombre), supervisor:personal!turnos_supervisor_id_fkey(persona:personas(nombre, apellido_paterno, apellido_materno))")
       .eq("id", params.id).maybeSingle();
     setTurno(t);
 
@@ -50,7 +50,13 @@ export default function TurnoDetallePage() {
   useEffect(() => { cargar(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [params.id]);
 
   function toggle(pid: string) {
-    setSel((s) => ({ ...s, [pid]: { ...s[pid], checked: !s[pid]?.checked } }));
+    setSel((s) => {
+      const cur = s[pid] ?? { checked: false, sitio_id: "" };
+      const nextChecked = !cur.checked;
+      // Rol de servicio por sitio: al marcar, prellena el sitio del turno.
+      const sitio_id = nextChecked && !cur.sitio_id && turno?.sitio_id ? turno.sitio_id : cur.sitio_id;
+      return { ...s, [pid]: { checked: nextChecked, sitio_id } };
+    });
   }
   function setSitio(pid: string, sitio_id: string) {
     setSel((s) => ({ ...s, [pid]: { ...s[pid], sitio_id } }));
@@ -114,6 +120,9 @@ export default function TurnoDetallePage() {
 
   if (!turno) return <main className="contenedor">{error ? <p style={{ color: "#b00020" }}>{error}</p> : <p>Cargando…</p>}</main>;
 
+  // Se puede editar (agregar/quitar guardias) en borrador y en activo; al cerrar
+  // el turno queda bloqueado.
+  const puedeEditar = turno.estado === "borrador" || turno.estado === "activo";
   const seleccionados = Object.values(sel).filter((v) => v.checked).length;
   const lista = guardias.filter((g) => {
     const t = filtro.trim().toLowerCase();
@@ -129,14 +138,16 @@ export default function TurnoDetallePage() {
       </h2>
       <div className="cad-status">
         <div className="cad-stat"><span className="cad-stat-lbl">Supervisor</span><b>{nombre(turno.supervisor)}</b></div>
+        <div className="cad-stat"><span className="cad-stat-lbl">Sitio</span><b>{turno.sitio?.nombre ?? "Varios / por guardia"}</b></div>
         <div className="cad-stat"><span className="cad-stat-lbl">Tipo</span><b>{turno.tipo_turno ?? "—"}</b></div>
         <div className="cad-stat"><span className="cad-stat-lbl">Horario</span><b>{turno.hora_inicio ? `${String(turno.hora_inicio).slice(0, 5)}–${String(turno.hora_fin ?? "").slice(0, 5)}` : "—"}</b></div>
         <div className="cad-stat"><span className="cad-stat-lbl">Guardias marcados</span><b>{seleccionados}</b></div>
       </div>
 
       <div className="form-fila" style={{ marginTop: 12, gap: 10, flexWrap: "wrap" }}>
-        <button onClick={guardar} disabled={guardando}>{guardando ? "Guardando…" : "💾 Guardar guardias"}</button>
+        <button onClick={guardar} disabled={guardando || !puedeEditar}>{guardando ? "Guardando…" : "💾 Guardar guardias"}</button>
         {turno.estado === "borrador" && <button className="cad-guardar" onClick={activar} disabled={guardando}>✔ Activar turno</button>}
+        {!puedeEditar && <span className="dash-sub" style={{ color: "#8a1220" }}>Turno cerrado: no admite cambios.</span>}
         <span style={{ flex: 1 }} />
         <label className="dash-sub" style={{ display: "flex", alignItems: "center", gap: 6 }}>Copiar a
           <input type="date" value={copiaFecha} onChange={(e) => setCopiaFecha(e.target.value)} />
@@ -147,7 +158,7 @@ export default function TurnoDetallePage() {
       {error && <p style={{ color: "#b00020" }}>{error}</p>}
 
       <h3 style={{ marginTop: 16 }}>Guardias del turno</h3>
-      <p className="dash-sub">Marca los guardias que integran el turno y asigna a cada uno su sitio/puesto.</p>
+      <p className="dash-sub">Marca los guardias que integran el turno y asigna a cada uno su sitio/puesto{turno.sitio?.nombre ? ` (por defecto: ${turno.sitio.nombre})` : ""}. Se pueden agregar o quitar guardias mientras el turno esté en borrador o activo.</p>
       <input placeholder="Filtrar guardia…" value={filtro} onChange={(e) => setFiltro(e.target.value)} style={{ maxWidth: 320, marginBottom: 10 }} />
       <table>
         <thead><tr><th style={{ width: 40 }}></th><th>Guardia</th><th>Categoría</th><th>Sitio / puesto</th></tr></thead>
@@ -156,11 +167,11 @@ export default function TurnoDetallePage() {
             const s = sel[g.id] ?? { checked: false, sitio_id: "" };
             return (
               <tr key={g.id} style={s.checked ? { background: "rgba(62,116,112,.08)" } : undefined}>
-                <td><input type="checkbox" checked={s.checked} onChange={() => toggle(g.id)} /></td>
+                <td><input type="checkbox" checked={s.checked} disabled={!puedeEditar} onChange={() => toggle(g.id)} /></td>
                 <td>{nombre(g)}</td>
                 <td>{g.categoria ?? "—"}</td>
                 <td>
-                  <select value={s.sitio_id} disabled={!s.checked} onChange={(e) => setSitio(g.id, e.target.value)}>
+                  <select value={s.sitio_id} disabled={!s.checked || !puedeEditar} onChange={(e) => setSitio(g.id, e.target.value)}>
                     <option value="">— Sitio —</option>
                     {sitios.map((si) => <option key={si.id} value={si.id}>{si.nombre}{si.cliente?.razon_social ? ` · ${si.cliente.razon_social}` : ""}</option>)}
                   </select>

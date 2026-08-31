@@ -5,11 +5,13 @@ import UsuariosPanel from "./UsuariosPanel";
 import InicialesPanel from "./InicialesPanel";
 import ConsecutivosPanel from "./ConsecutivosPanel";
 import CatalogosPanel from "./CatalogosPanel";
+import TiposTurnoPanel from "./TiposTurnoPanel";
 
 const PESTANAS = [
   { k: "usuarios", label: "Usuarios y roles" },
   { k: "iniciales", label: "Iniciales por módulo" },
   { k: "consecutivos", label: "Consecutivos por año" },
+  { k: "tipos_turno", label: "Tipos de turno" },
   { k: "catalogos", label: "Catálogos" },
 ];
 
@@ -31,6 +33,7 @@ export default function AdminTabs({ initial = "usuarios" }: { initial?: string }
         {tab === "usuarios" && <UsuariosPanel />}
         {tab === "iniciales" && <InicialesPanel />}
         {tab === "consecutivos" && <ConsecutivosPanel />}
+        {tab === "tipos_turno" && <TiposTurnoPanel />}
         {tab === "catalogos" && <CatalogosPanel />}
       </div>
     </main>
