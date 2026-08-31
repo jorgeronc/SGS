@@ -173,17 +173,31 @@ async function subirUna(p: InspeccionPendiente): Promise<void> {
   }
 }
 
-// Guarda una inspección: intenta subirla; si falla, la encola para reintentar.
-// Devuelve { subida: boolean } — true si se registró en línea al momento.
-export async function guardarInspeccion(p: InspeccionPendiente): Promise<{ subida: boolean }> {
+// ¿El error fue por falta de red (fetch falló) y NO una respuesta del servidor?
+// Un error de Postgres/RLS trae `code`/`details` (el servidor SÍ respondió) — eso
+// NO es "sin conexión". Solo los fallos de fetch/timeout se tratan como offline.
+export function esErrorDeRed(e: any): boolean {
+  if (!e) return false;
+  if (e.code || e.details || e.hint) return false; // respuesta del servidor
+  const msg = String(e?.message ?? e).toLowerCase();
+  return e instanceof TypeError || /network|fetch|timeout|connection|offline|failed to/.test(msg);
+}
+
+// Guarda una inspección: intenta subirla; si falla, la encola para reintentar
+// (nunca se pierde). Distingue "sin conexión" (fetch) de un error de servidor
+// (p. ej. permiso/RLS), para no mentir en el mensaje.
+export async function guardarInspeccion(
+  p: InspeccionPendiente
+): Promise<{ subida: boolean; offline?: boolean; error?: string }> {
   try {
     await subirUna(p);
     return { subida: true };
-  } catch {
+  } catch (e: any) {
     const cola = await leerCola();
     cola.push(p);
     await escribirCola(cola);
-    return { subida: false };
+    const red = esErrorDeRed(e);
+    return { subida: false, offline: red, error: red ? undefined : (e?.message ?? String(e)) };
   }
 }
 

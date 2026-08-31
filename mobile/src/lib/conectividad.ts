@@ -7,9 +7,10 @@ import NetInfo, { type NetInfoState } from "@react-native-community/netinfo";
 export type EstadoRed = { conectado: boolean; tipo: string | null; wifi: boolean };
 
 export function estadoDesde(s: NetInfoState): EstadoRed {
-  // isInternetReachable puede ser null mientras se determina; solo se toma como
-  // "sin conexión" cuando es explícitamente false.
-  const conectado = !!s.isConnected && s.isInternetReachable !== false;
+  // Se basa en isConnected (estar en una red): isInternetReachable es poco
+  // fiable en algunos equipos (WiFi sin SIM) y daba falsos "sin conexión".
+  // El envío real igual se intenta y sube si hay internet.
+  const conectado = !!s.isConnected;
   return { conectado, tipo: s.type ?? null, wifi: s.type === "wifi" };
 }
 

@@ -243,7 +243,7 @@ export default function InspeccionScreen() {
       const g = await getMiOficialValido();
       const fotoB64 = foto ? { base64: await fotoABase64(foto.uri), mime: foto.mime } : null;
       const clientId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-      const { subida } = await guardarInspeccion({
+      const { subida, offline, error } = await guardarInspeccion({
         clientId,
         tipo_inspeccion: tipo,
         movimiento_id: movimientoId,
@@ -261,13 +261,13 @@ export default function InspeccionScreen() {
         creado_en: new Date().toISOString(),
       });
       setEnviando(false);
-      Alert.alert(
-        subida ? "Inspección registrada" : "Guardada sin conexión",
-        subida
-          ? "La inspección quedó registrada correctamente."
-          : "No hubo conexión; la inspección se guardó en el teléfono y se enviará automáticamente al recuperar señal.",
-        [{ text: "OK", onPress: () => nav.goBack() }]
-      );
+      const titulo = subida ? "Inspección registrada" : offline ? "Guardada sin conexión" : "No se pudo registrar ahora";
+      const cuerpo = subida
+        ? "La inspección quedó registrada correctamente."
+        : offline
+          ? "No hubo conexión; la inspección se guardó en el teléfono y se enviará automáticamente al recuperar señal."
+          : `El servidor rechazó el registro (posible permiso): ${error ?? "error"}. Quedó guardada y se reintentará.`;
+      Alert.alert(titulo, cuerpo, [{ text: "OK", onPress: () => nav.goBack() }]);
     } catch (e: any) {
       setEnviando(false);
       Alert.alert("Error", e.message ?? String(e));

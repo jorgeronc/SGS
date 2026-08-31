@@ -129,10 +129,6 @@ export default function InicioSgsScreen() {
         <Image source={require("../../assets/escudo.png")} style={styles.logo} resizeMode="contain" />
         <Text style={styles.marca}>SGS Móvil</Text>
         <View style={styles.headerRight}>
-          <View style={[styles.pill, red.conectado ? styles.pillOn : styles.pillOff]}>
-            <Ionicons name={red.conectado ? (red.wifi ? "wifi" : "cellular") : "cloud-offline-outline"} size={13} color={red.conectado ? "#22c55e" : T.textMute} />
-            <Text style={[styles.pillTxt, red.conectado && { color: "#22c55e" }]}>{red.conectado ? (red.wifi ? "WiFi" : "Red") : "Sin conexión"}</Text>
-          </View>
           <View style={styles.pill}>
             <Ionicons name="time-outline" size={13} color={T.textDim} />
             <Text style={styles.pillTxt}>{turnoActual()}</Text>
@@ -147,6 +143,12 @@ export default function InicioSgsScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 16 }}>
+        <View style={[styles.netChip, red.conectado ? styles.netOn : styles.netOff]}>
+          <Ionicons name={red.conectado ? (red.wifi ? "wifi" : "cellular") : "cloud-offline-outline"} size={14} color={red.conectado ? "#16a34a" : "#b91c1c"} />
+          <Text style={[styles.netTxt, { color: red.conectado ? "#16a34a" : "#b91c1c" }]}>
+            {red.conectado ? (red.wifi ? "Conectado por WiFi" : "Conectado") : "Sin conexión"}
+          </Text>
+        </View>
         <Text style={styles.hola}>{mio?.etiqueta || "Sistema de Gestión de Seguridad"}</Text>
         {!mio?.etiqueta && (
           <Text style={styles.sub}>Selecciona tu elemento en Perfil para operar como guardia.</Text>
@@ -225,6 +227,10 @@ const styles = StyleSheet.create({
   pillOff: {},
   pillTxt: { color: T.textDim, fontSize: 12, fontWeight: "700" },
   dot: { width: 8, height: 8, borderRadius: 4 },
+  netChip: { flexDirection: "row", alignItems: "center", alignSelf: "flex-start", gap: 6, borderRadius: 999, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 5, marginBottom: 12 },
+  netOn: { borderColor: "rgba(22,163,74,0.4)", backgroundColor: "rgba(22,163,74,0.10)" },
+  netOff: { borderColor: "rgba(185,28,28,0.4)", backgroundColor: "rgba(185,28,28,0.10)" },
+  netTxt: { fontSize: 12.5, fontWeight: "700" },
   hola: { color: T.text, fontSize: 22, fontWeight: "800", marginBottom: 14 },
   sub: { color: T.textDim, fontSize: 13.5, marginTop: 4, marginBottom: 14 },
   estadoBox: { backgroundColor: T.surface, borderColor: T.border, borderWidth: 1, borderRadius: 14, padding: 12, marginBottom: 16 },
