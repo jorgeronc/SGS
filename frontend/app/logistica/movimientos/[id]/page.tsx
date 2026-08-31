@@ -25,6 +25,7 @@ export default function MovimientoDetallePage() {
   // Alta de unidad (con su carga y riesgo capturados en línea)
   const [opcUC, setOpcUC] = useState<any[]>([]);
   const [opcSello, setOpcSello] = useState<any[]>([]);
+  const [opcActivo, setOpcActivo] = useState<any[]>([]);
   const [ucSel, setUcSel] = useState(""); const [selloSel, setSelloSel] = useState("");
   const [cargaDesc, setCargaDesc] = useState(""); const [cargaRiesgo, setCargaRiesgo] = useState("Normal");
   const [addMsg, setAddMsg] = useState<string | null>(null);
@@ -53,7 +54,14 @@ export default function MovimientoDetallePage() {
   useEffect(() => {
     supabase.from("unidades_carga").select("id, folio, identificador, tipo_unidad").eq("estatus", "activo").order("creado_en", { ascending: false }).then(({ data }) => setOpcUC((data as any[]) ?? []));
     supabase.from("sellos").select("id, codigo_sello, estado").eq("estatus", "activo").in("estado", ["DISPONIBLE", "ASIGNADO", "VALIDADO"]).order("creado_en", { ascending: false }).then(({ data }) => setOpcSello((data as any[]) ?? []));
+    supabase.from("transporte_activos").select("id, identificador, placas, tipo_activo, gps_device_id").eq("estatus", "activo").order("creado_en", { ascending: false }).then(({ data }) => setOpcActivo((data as any[]) ?? []));
   }, []);
+
+  async function asignarActivo(id: string) {
+    const { error } = await supabase.from("movimientos").update({ transporte_activo_id: id || null, actualizado_en: new Date().toISOString() }).eq("id", params.id);
+    if (error) { setError(error.message); return; }
+    cargar();
+  }
 
   async function agregarUnidad() {
     if (!ucSel) { setAddMsg("Elige una unidad de carga."); return; }
@@ -98,7 +106,13 @@ export default function MovimientoDetallePage() {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 24px", marginTop: 12, fontSize: 13 }}>
           <div><b>Origen:</b> {mov.origen?.nombre ?? "—"}</div>
           <div><b>Destino:</b> {mov.destino?.nombre ?? "—"}</div>
-          <div><b>Activo:</b> {mov.activo ? [mov.activo.identificador, mov.activo.placas].filter(Boolean).join(" ") : "—"}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <b>Activo:</b>
+            <select value={mov.transporte_activo_id ?? ""} onChange={(e) => asignarActivo(e.target.value)}>
+              <option value="">— Sin activo —</option>
+              {opcActivo.map((a) => <option key={a.id} value={a.id}>{[a.identificador, a.placas, a.tipo_activo].filter(Boolean).join(" · ")}{a.gps_device_id ? " · GPS ✓" : " · sin GPS"}</option>)}
+            </select>
+          </div>
           <div><b>Referencia:</b> {mov.referencia_externa ?? "—"}</div>
           <div><b>Programado:</b> {fFecha(mov.programado_inicio)} → {fFecha(mov.programado_fin)}</div>
           <div><b>Real:</b> {fFecha(mov.real_inicio)} → {fFecha(mov.real_fin)}</div>
