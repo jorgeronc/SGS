@@ -20,7 +20,7 @@ const LIB_HINT: Record<string, string> = {
   identity_validated: "Captura el nombre del operador al registrar el acceso.",
   asset_validated: "Asigna un activo de transporte al movimiento (en su detalle).",
   cargo_units_validated: "Agrega al menos una unidad de carga (en el detalle del movimiento).",
-  inspection_completed: "Registra una inspección con resultado OK (app móvil o web).",
+  inspection_completed: "Registra una inspección de PRE-SALIDA con resultado OK (app móvil, eligiendo este movimiento). La de tipo «Entrada» cuenta para Arribo, no aquí.",
   seal_validated: "Valida el sello sin alteración (no debe haber sellos alterados/no coincide).",
   required_evidence_completed: "Adjunta la evidencia requerida.",
   gps_available: "Asigna un GPS al activo de transporte (en el detalle del activo).",
