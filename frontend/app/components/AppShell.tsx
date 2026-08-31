@@ -45,6 +45,7 @@ const GRUPOS: { grupo: string; items: { href: string; label: string; ico: string
   {
     grupo: "Seguridad Logística",
     items: [
+      { href: "/vista-operativa", label: "Vista Operativa", ico: "🧭" },
       { href: "/logistica/movimientos", label: "Movimientos", ico: "🚛" },
       { href: "/logistica/activos", label: "Activos de transporte", ico: "🚆" },
       { href: "/logistica/unidades-carga", label: "Unidades de carga", ico: "📦" },
@@ -197,10 +198,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <Link href="/" className={pathname === "/" ? "on" : ""}>
             <span className="ico">◫</span>
             <span>Dashboard</span>
-          </Link>
-          <Link href="/vista-operativa" className={pathname.startsWith("/vista-operativa") ? "on" : ""}>
-            <span className="ico">🧭</span>
-            <span>Vista Operativa</span>
           </Link>
           <Link href="/copiloto" className={pathname.startsWith("/copiloto") ? "on" : ""}>
             <span className="ico">🔎</span>
