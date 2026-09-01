@@ -5,7 +5,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { RTCView } from "react-native-webrtc";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { iniciarTransmision, type Transmision } from "../lib/transmision";
-import { setTransmisionActiva } from "../lib/ubicacionVivo";
+import { iniciarSostenTransmision, detenerSostenTransmision } from "../lib/bodycamHd";
 import { T, UI } from "../theme";
 
 const LIMITE_SEG = 5 * 60;
@@ -31,9 +31,9 @@ export default function TransmisionScreen() {
 
   useEffect(() => {
     let vivo = true;
-    // Fuerza el foreground-service mientras dura la transmisión, para que la
-    // cámara no se congele al bloquear la pantalla.
-    setTransmisionActiva(true);
+    // Foreground service de tipo cámara mientras dura la transmisión: permite que
+    // WebRTC siga capturando aunque se bloquee la pantalla (Android 14+).
+    iniciarSostenTransmision();
     (async () => {
       const t = await iniciarTransmision({
         despachoId: p.despachoId ?? null,
@@ -49,7 +49,7 @@ export default function TransmisionScreen() {
       setTx(t);
       setCargando(false);
     })();
-    return () => { vivo = false; txRef.current?.stop("salida"); setTransmisionActiva(false); };
+    return () => { vivo = false; txRef.current?.stop("salida"); detenerSostenTransmision(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

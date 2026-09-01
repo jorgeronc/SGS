@@ -7,6 +7,10 @@ export interface BodycamHdModule {
   start(): Promise<boolean>;
   stop(): Promise<boolean>;
   isRecording(): boolean;
+  // Sostén de transmisión: foreground service de tipo cámara (sin abrir la cámara)
+  // para que WebRTC capture con la pantalla bloqueada durante una alerta.
+  startStreamHold(): Promise<boolean>;
+  stopStreamHold(): Promise<boolean>;
   addListener(event: "onSegment" | "onError", listener: (payload: any) => void): { remove: () => void };
 }
 

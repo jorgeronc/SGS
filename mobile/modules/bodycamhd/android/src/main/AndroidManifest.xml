@@ -12,6 +12,10 @@
       android:name="expo.modules.bodycamhd.BodycamRecordingService"
       android:exported="false"
       android:foregroundServiceType="camera|microphone" />
+    <service
+      android:name="expo.modules.bodycamhd.StreamHoldService"
+      android:exported="false"
+      android:foregroundServiceType="camera|microphone" />
   </application>
 
 </manifest>

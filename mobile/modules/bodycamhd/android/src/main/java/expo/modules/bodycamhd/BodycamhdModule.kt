@@ -46,5 +46,22 @@ class BodycamhdModule : Module() {
     Function("isRecording") {
       BodycamRecordingService.isRecording
     }
+
+    // Sostén de transmisión: arranca un foreground service de tipo cámara+micrófono
+    // (SIN abrir la cámara) para que WebRTC siga capturando con la pantalla
+    // bloqueada durante una alerta en vivo.
+    AsyncFunction("startStreamHold") { promise: Promise ->
+      val ctx = appContext.reactContext ?: run { promise.reject("no_ctx", "Sin contexto", null); return@AsyncFunction }
+      val intent = Intent(ctx, StreamHoldService::class.java)
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) ctx.startForegroundService(intent)
+      else ctx.startService(intent)
+      promise.resolve(true)
+    }
+
+    AsyncFunction("stopStreamHold") { promise: Promise ->
+      val ctx = appContext.reactContext ?: run { promise.reject("no_ctx", "Sin contexto", null); return@AsyncFunction }
+      ctx.stopService(Intent(ctx, StreamHoldService::class.java))
+      promise.resolve(true)
+    }
   }
 }

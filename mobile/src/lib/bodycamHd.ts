@@ -83,6 +83,16 @@ export async function detenerBodycam(): Promise<void> {
   try { await Native.stop(); } catch { /* ignore */ }
 }
 
+// Sostén de transmisión en vivo: foreground service de tipo cámara+micrófono
+// (sin abrir la cámara) para que WebRTC siga capturando con la pantalla bloqueada
+// durante una alerta. Solo Android build; en iOS/Expo Go es no-op.
+export async function iniciarSostenTransmision(): Promise<void> {
+  try { await Native?.startStreamHold?.(); } catch { /* ignore */ }
+}
+export async function detenerSostenTransmision(): Promise<void> {
+  try { await Native?.stopStreamHold?.(); } catch { /* ignore */ }
+}
+
 // Asocia (o reasigna) el origen de la sesión de grabación en curso. Sella también
 // los segmentos ya encolados de esta sesión que aún no tuvieran origen — para los
 // formularios que solo conocen el folio DESPUÉS de guardar (Abordamiento/Accidente).
