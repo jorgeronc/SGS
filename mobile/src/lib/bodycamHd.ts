@@ -130,69 +130,94 @@ async function encolar(uri: string, durationMs: number) {
 export async function descargarPendientes(
   onProgreso?: (hechos: number, total: number) => void
 ): Promise<{ subidos: number; fallidos: number; error?: string }> {
-  const cola = await leerCola();
-  const total = cola.length;
+  const items = await leerCola();
+  const total = items.length;
   let subidos = 0, fallidos = 0;
   let ultimoError: string | undefined;
-  const exitos = new Set<string>();
+  let restantes = [...items];
+
+  // Quita un segmento de la cola persistida EN CUANTO se confirma subido: si la
+  // descarga se interrumpe (app cerrada, sin señal), no quedan "fantasmas
+  // pendientes" que ya se habían transferido al web.
+  async function marcarHecho(uri: string) {
+    restantes = restantes.filter((x) => x.uri !== uri);
+    await guardarCola(restantes);
+  }
 
   for (let i = 0; i < total; i++) {
-    const s = cola[i];
+    const s = items[i];
+    let ok = false;
     try {
       const info = await FileSystem.getInfoAsync(s.uri);
-      if (!info.exists) { exitos.add(s.uri); subidos++; onProgreso?.(subidos + fallidos, total); continue; }
-
       const path = `bodycam_local/${Date.parse(s.fecha) || Date.now()}_${i}.mp4`;
-      const { data: signed, error: eSign } = await supabase.storage.from("videos").createSignedUploadUrl(path);
-      if (eSign || !signed?.signedUrl) { ultimoError = `firma: ${eSign?.message ?? "sin URL"}`; fallidos++; onProgreso?.(subidos + fallidos, total); continue; }
 
-      const res = await FileSystem.uploadAsync(signed.signedUrl, s.uri, {
-        httpMethod: "PUT",
-        uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
-        headers: { "content-type": "video/mp4", "x-upsert": "true" },
-      });
-      if (res.status < 200 || res.status >= 300) {
-        ultimoError = `HTTP ${res.status}: ${(res.body ?? "").slice(0, 140)}`; fallidos++; onProgreso?.(subidos + fallidos, total); continue;
-      }
-
-      const origenTxt = s.origenFolio ? ` · Origen ${s.origenFolio}` : "";
-      const { data: ev, error: eEv } = await supabase.from("evidencias").insert({
-        tipo: "video_bodycam",
-        estado_evidencia: "recolectada",
-        fecha_recoleccion: s.fecha,
-        descripcion: `Grabación bodycam HD${s.bodycamFolio ? ` ${s.bodycamFolio}` : ""} — ${s.elemento}${s.unidad ? ` · ${s.unidad}` : ""}${origenTxt}.`,
-        datos_adicionales: {
-          bucket: "videos", video_ruta: path, duracion_seg: s.durSeg, modo: "local_hd",
-          personal_id: s.personalId, bodycam_folio: s.bodycamFolio, bodycam_id: s.bodycamId,
-          elemento: s.elemento, unidad: s.unidad, grabado_en: s.fecha,
-          origen_tipo: s.origenTipo, origen_id: s.origenId, origen_folio: s.origenFolio,
-        },
-      }).select("id").single();
-      if (eEv) { ultimoError = `registro: ${eEv.message}`; fallidos++; onProgreso?.(subidos + fallidos, total); continue; }
-
-      if ((ev as any)?.id) {
-        await supabase.from("cadena_custodia").insert({
-          evidencia_id: (ev as any).id, tipo_evento: "recoleccion", responsable: s.elemento,
-          ubicacion: "Almacenamiento digital (bucket privado 'videos')",
-          notas: `Segmento bodycam HD local${s.bodycamFolio ? ` · Bodycam ${s.bodycamFolio}` : ""}${origenTxt}. Descargado en la agencia.`,
-        });
-        // Vincula la evidencia al registro (Caso/Tarea/Informe/…) donde se originó.
-        if (s.origenTipo && s.origenId) {
-          await supabase.from("vinculos").insert({
-            entidad_origen_tipo: s.origenTipo, entidad_origen_id: s.origenId,
-            entidad_destino_tipo: "evidencia", entidad_destino_id: (ev as any).id,
-            tipo_relacion: "EVIDENCIA",
-          });
+      if (!info.exists) {
+        ok = true; // ya se subió y se borró el archivo local
+      } else {
+        // Dedup: si ya existe una evidencia con esta ruta, no se re-sube ni duplica.
+        const { data: ya } = await supabase.from("evidencias").select("id").eq("datos_adicionales->>video_ruta", path).limit(1);
+        if (((ya as any[]) ?? []).length) {
+          try { await FileSystem.deleteAsync(s.uri, { idempotent: true }); } catch { /* ignore */ }
+          ok = true;
+        } else {
+          const { data: signed, error: eSign } = await supabase.storage.from("videos").createSignedUploadUrl(path);
+          if (eSign || !signed?.signedUrl) {
+            ultimoError = `firma: ${eSign?.message ?? "sin URL"}`;
+          } else {
+            const res = await FileSystem.uploadAsync(signed.signedUrl, s.uri, {
+              httpMethod: "PUT",
+              uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+              headers: { "content-type": "video/mp4", "x-upsert": "true" },
+            });
+            if (res.status < 200 || res.status >= 300) {
+              ultimoError = `HTTP ${res.status}: ${(res.body ?? "").slice(0, 140)}`;
+            } else {
+              const origenTxt = s.origenFolio ? ` · Origen ${s.origenFolio}` : "";
+              const { data: ev, error: eEv } = await supabase.from("evidencias").insert({
+                tipo: "video_bodycam",
+                estado_evidencia: "recolectada",
+                fecha_recoleccion: s.fecha,
+                descripcion: `Grabación bodycam HD${s.bodycamFolio ? ` ${s.bodycamFolio}` : ""} — ${s.elemento}${s.unidad ? ` · ${s.unidad}` : ""}${origenTxt}.`,
+                datos_adicionales: {
+                  bucket: "videos", video_ruta: path, duracion_seg: s.durSeg, modo: "local_hd",
+                  personal_id: s.personalId, bodycam_folio: s.bodycamFolio, bodycam_id: s.bodycamId,
+                  elemento: s.elemento, unidad: s.unidad, grabado_en: s.fecha,
+                  origen_tipo: s.origenTipo, origen_id: s.origenId, origen_folio: s.origenFolio,
+                },
+              }).select("id").single();
+              if (eEv) {
+                ultimoError = `registro: ${eEv.message}`;
+              } else {
+                if ((ev as any)?.id) {
+                  await supabase.from("cadena_custodia").insert({
+                    evidencia_id: (ev as any).id, tipo_evento: "recoleccion", responsable: s.elemento,
+                    ubicacion: "Almacenamiento digital (bucket privado 'videos')",
+                    notas: `Segmento bodycam HD local${s.bodycamFolio ? ` · Bodycam ${s.bodycamFolio}` : ""}${origenTxt}. Descargado en la agencia.`,
+                  });
+                  // Vincula la evidencia al registro (Caso/Tarea/Informe/…) donde se originó.
+                  if (s.origenTipo && s.origenId) {
+                    await supabase.from("vinculos").insert({
+                      entidad_origen_tipo: s.origenTipo, entidad_origen_id: s.origenId,
+                      entidad_destino_tipo: "evidencia", entidad_destino_id: (ev as any).id,
+                      tipo_relacion: "EVIDENCIA",
+                    });
+                  }
+                }
+                try { await FileSystem.deleteAsync(s.uri, { idempotent: true }); } catch { /* ignore */ }
+                ok = true;
+              }
+            }
+          }
         }
       }
-      try { await FileSystem.deleteAsync(s.uri, { idempotent: true }); } catch { /* ignore */ }
-      exitos.add(s.uri); subidos++;
     } catch (e: any) {
-      ultimoError = e?.message ?? String(e); fallidos++;
+      ultimoError = e?.message ?? String(e);
     }
+
+    if (ok) { subidos++; await marcarHecho(s.uri); }
+    else fallidos++;
     onProgreso?.(subidos + fallidos, total);
   }
 
-  await guardarCola(cola.filter((s) => !exitos.has(s.uri)));
   return { subidos, fallidos, error: ultimoError };
 }
