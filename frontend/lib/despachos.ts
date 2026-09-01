@@ -63,13 +63,13 @@ export async function unidadesPorLlamada(llamadaIds?: string[]): Promise<Record<
     .from("despachos")
     .select("llamada_id, estado, fecha_asignacion, patrulla:patrullas(numero), personal:personal(numero_placa, rango, persona:personas(nombre, apellido_paterno))")
     .eq("estatus", "activo")
-    .order("fecha_asignacion", { ascending: false });
+    .order("fecha_asignacion", { ascending: true });
   if (llamadaIds && llamadaIds.length) q = q.in("llamada_id", llamadaIds);
   const { data } = await q;
 
   const map: Record<string, UnidadDespacho> = {};
   for (const d of ((data as any[]) ?? [])) {
-    if (map[d.llamada_id]) continue; // ya guardamos el más reciente
+    if (map[d.llamada_id]) continue; // conservamos el PRIMER recurso asignado
     const p = d.personal;
     const nombre = p?.persona ? `${p.persona.nombre ?? ""} ${p.persona.apellido_paterno ?? ""}`.trim() : "";
     const empleo = `${p?.rango ?? ""}${p?.numero_placa ? ` #${p.numero_placa}` : ""}`.trim();

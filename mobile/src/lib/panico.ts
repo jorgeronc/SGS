@@ -65,7 +65,8 @@ export async function panicoNuevoDespacho(
     .insert({
       tipo: "EMERGENCIA - PÁNICO",
       prioridad: "alta",
-      reportante: correo,
+      // Reportante = nombre del elemento (no el correo).
+      reportante: origen?.oficialEtq ?? correo,
       descripcion: `Alerta de pánico activada por el elemento en campo. ${quien}${unidad}${bc}Solicita apoyo inmediato.`.replace(/\s+/g, " ").trim(),
       direccion: dir,
       latitud: g.lat,

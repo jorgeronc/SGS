@@ -409,8 +409,12 @@ export default function CentralDespachoPage() {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5 }}>
             <thead>
               <tr style={{ textAlign: "left", color: "var(--sc-text-soft)", fontSize: 11.5, textTransform: "uppercase", letterSpacing: ".03em" }}>
-                {["Folio", "Tipo de incidente", "Recepción", "Prioridad", "Ubicación", "Reportante", "Despacho", "Unidad asignada", "Estatus", "Tiempo transcurrido", "Acciones"].map((h) => (
-                  <th key={h} style={{ padding: "10px 12px", borderBottom: "1px solid var(--sc-card-line)", whiteSpace: "nowrap" }}>{h}</th>
+                {[
+                  { h: "Folio" }, { h: "Tipo de incidente" }, { h: "Recepción" }, { h: "Prioridad" },
+                  { h: "Ubicación", w: 340 }, { h: "Reportante" }, { h: "Despacho" }, { h: "Unidad asignada" },
+                  { h: "Estatus" }, { h: "Tiempo transcurrido", w: 84, wrap: true }, { h: "Acciones" },
+                ].map((c) => (
+                  <th key={c.h} style={{ padding: "10px 12px", borderBottom: "1px solid var(--sc-card-line)", whiteSpace: c.wrap ? "normal" : "nowrap", width: c.w, verticalAlign: "bottom" }}>{c.h}</th>
                 ))}
               </tr>
             </thead>
@@ -422,6 +426,9 @@ export default function CentralDespachoPage() {
               ) : visibles.map((l) => {
                 const pr = PRIO[l.prioridad] ?? { p: "P?", lbl: l.prioridad, col: "#607d8b" };
                 const u = unidades[l.id];
+                // Un incidente cerrado/resuelto congela su "tiempo transcurrido".
+                const cerrado = l.estatus !== "activo" || l.estado_despacho === "resuelta";
+                const fin = cerrado ? new Date(l.fecha_cierre ?? (l as any).actualizado_en ?? l.fecha_recepcion) : ahora;
                 return (
                   <tr key={l.id} style={{ borderBottom: "1px solid var(--sc-card-line)", borderLeft: l.prioridad === "alta" ? "3px solid #e23b53" : "3px solid transparent" }}>
                     <td style={{ padding: "12px" }}>
@@ -432,15 +439,15 @@ export default function CentralDespachoPage() {
                     <td style={{ padding: "12px" }}><b>{l.tipo ?? "—"}</b></td>
                     <td style={{ padding: "12px", whiteSpace: "nowrap", color: "var(--sc-text-soft)" }}>{new Date(l.fecha_recepcion).toLocaleString("es-MX", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}<div style={{ fontSize: 11.5 }}>{new Date(l.fecha_recepcion).toLocaleDateString("es-MX")}</div></td>
                     <td style={{ padding: "12px" }}><span className={`cad-pill prio-${l.prioridad}`}>{pr.lbl}</span></td>
-                    <td style={{ padding: "12px", minWidth: 170 }}>{l.direccion ?? "—"}
+                    <td style={{ padding: "12px", minWidth: 340 }}>{l.direccion ?? "—"}
                       {l.latitud != null && <div><a href={`/mapa-operacional?incidente=${l.id}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: "var(--sc-btn,#f4a03f)", textDecoration: "none" }}>Ver en mapa</a></div>}</td>
                     <td style={{ padding: "12px" }}>{l.reportante ?? "—"}{l.telefono && <div style={{ fontSize: 12, color: "var(--sc-text-soft)" }}>📞 {l.telefono}</div>}</td>
                     <td style={{ padding: "12px" }}><span className={`cad-pill desp-${l.estado_despacho}`}>{DESP_LABEL[l.estado_despacho] ?? l.estado_despacho}</span></td>
-                    <td style={{ padding: "12px" }}>{u ? (
-                      <span title={u.oficial}><b>{u.numero ? `#${u.numero}` : "unidad"}</b> <span style={{ color: "#fff", fontSize: 10.5, fontWeight: 700, borderRadius: 5, padding: "1px 6px", background: DESPACHO_COLOR[u.estado] ?? "#607d8b" }}>{DESPACHO_LABEL[u.estado] ?? u.estado}</span></span>
-                    ) : <span style={{ color: "var(--sc-text-faint)" }}>Sin asignar</span>}</td>
+                    <td style={{ padding: "12px" }}>{u && u.numero != null ? (
+                      <span title={u.oficial}><b>#{u.numero}</b> <span style={{ color: "#fff", fontSize: 10.5, fontWeight: 700, borderRadius: 5, padding: "1px 6px", background: DESPACHO_COLOR[u.estado] ?? "#607d8b" }}>{DESPACHO_LABEL[u.estado] ?? u.estado}</span></span>
+                    ) : <span style={{ color: "var(--sc-text-faint)" }}>N/A</span>}</td>
                     <td style={{ padding: "12px" }}><span className={`cad-pill est-${l.estatus}`}>{l.estatus}</span></td>
-                    <td style={{ padding: "12px", fontWeight: 700, fontVariantNumeric: "tabular-nums", color: l.estatus === "activo" ? (l.prioridad === "alta" ? "#e23b53" : "var(--sc-text)") : "var(--sc-text-faint)" }}>{ahora ? transcurrido(l.fecha_recepcion, ahora) : "—"}</td>
+                    <td style={{ padding: "12px", fontWeight: 700, fontVariantNumeric: "tabular-nums", color: cerrado ? "var(--sc-text-faint)" : (l.prioridad === "alta" ? "#e23b53" : "var(--sc-text)") }}>{fin ? transcurrido(l.fecha_recepcion, fin) : "—"}</td>
                     <td style={{ padding: "12px", whiteSpace: "nowrap" }}><Link href={`/cad/${l.id}`} style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid var(--sc-card-line)", color: "var(--sc-text)", textDecoration: "none", fontSize: 12.5, fontWeight: 600 }}>Ver detalle</Link></td>
                   </tr>
                 );
