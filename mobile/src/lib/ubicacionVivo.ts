@@ -103,6 +103,11 @@ TaskManager.defineTask(TASK, async ({ data, error }) => {
 let rastreando = false;
 let intervaloSeg = 60;
 let fgSub: Location.LocationSubscription | null = null;
+// Cuando hay una transmisión en vivo (alerta), se FUERZA el foreground-service
+// aunque la app esté en primer plano, para que el proceso —y la cámara ya
+// abierta por WebRTC— sigan vivos al bloquear la pantalla (si no, el video se
+// congela). Se activa desde la pantalla de Transmisión.
+let txActiva = false;
 
 async function iniciarWatcherFg(): Promise<void> {
   if (fgSub) return;
@@ -143,11 +148,29 @@ export async function pasarASegundoPlano(): Promise<void> {
   try { await iniciarServicioBg(); } catch { /* ignore */ }
 }
 // La app volvió a primer plano: detiene el servicio (desaparece la notificación)
-// y vuelve al watcher sin notificación.
+// y vuelve al watcher sin notificación. Si hay transmisión activa, se conserva
+// el servicio (no se apaga) para que la cámara sobreviva a la pantalla bloqueada.
 export async function pasarAPrimerPlano(): Promise<void> {
+  if (txActiva) { try { await iniciarServicioBg(); } catch { /* ignore */ } return; }
   if (!rastreando) return;
   try { await detenerServicioBg(); } catch { /* ignore */ }
   try { await iniciarWatcherFg(); } catch { /* ignore */ }
+}
+
+// La pantalla de Transmisión activa/desactiva este modo. Con transmisión activa
+// se fuerza el foreground-service (proceso vivo con pantalla bloqueada); al
+// terminar, se restaura el modo normal.
+export async function setTransmisionActiva(activa: boolean): Promise<void> {
+  txActiva = activa;
+  if (activa) {
+    detenerWatcherFg();
+    try { await iniciarServicioBg(); } catch { /* ignore */ }
+  } else if (rastreando) {
+    try { await detenerServicioBg(); } catch { /* ignore */ }
+    try { await iniciarWatcherFg(); } catch { /* ignore */ }
+  } else {
+    try { await detenerServicioBg(); } catch { /* ignore */ }
+  }
 }
 
 // Arranca el rastreo si hay "Mi elemento", sesión activa y el parámetro global

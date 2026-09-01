@@ -5,6 +5,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { RTCView } from "react-native-webrtc";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { iniciarTransmision, type Transmision } from "../lib/transmision";
+import { setTransmisionActiva } from "../lib/ubicacionVivo";
 import { T, UI } from "../theme";
 
 const LIMITE_SEG = 5 * 60;
@@ -30,6 +31,9 @@ export default function TransmisionScreen() {
 
   useEffect(() => {
     let vivo = true;
+    // Fuerza el foreground-service mientras dura la transmisión, para que la
+    // cámara no se congele al bloquear la pantalla.
+    setTransmisionActiva(true);
     (async () => {
       const t = await iniciarTransmision({
         despachoId: p.despachoId ?? null,
@@ -45,7 +49,7 @@ export default function TransmisionScreen() {
       setTx(t);
       setCargando(false);
     })();
-    return () => { vivo = false; txRef.current?.stop("salida"); };
+    return () => { vivo = false; txRef.current?.stop("salida"); setTransmisionActiva(false); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
