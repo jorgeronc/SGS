@@ -142,4 +142,9 @@ workflows:
         api_key: $APP_STORE_CONNECT_PRIVATE_KEY
         key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
         issuer_id: $APP_STORE_CONNECT_ISSUER_ID
-        submit_to_testflight: true
+        # Sube el build a TestFlight (queda disponible para testers INTERNOS sin
+        # revision). NO lo enviamos a revision de testing EXTERNO (submit_to_testflight)
+        # porque eso exige llenar "Test Information" en ASC. Para habilitar externo:
+        # 1) Llena Test Info en ASC (feedback email + datos de contacto).
+        # 2) Pon submit_to_testflight: true y agrega beta_groups: ["<tu grupo externo>"].
+        submit_to_testflight: false
