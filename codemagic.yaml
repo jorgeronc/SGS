@@ -73,21 +73,28 @@ workflows:
           # --- Genera un export_options.plist VALIDO para Xcode 16 (method
           #     'app-store-connect', firma manual, teamID + perfil reales). ---
           # Busca el provisioning profile instalado que corresponde a este bundle id.
-          PP=""
+          PP=""; APPID=""
           for f in "$HOME/Library/MobileDevice/Provisioning Profiles/"*.mobileprovision; do
             [ -e "$f" ] || continue
             security cms -D -i "$f" > /tmp/pp.plist 2>/dev/null || continue
-            APPID=$(/usr/libexec/PlistBuddy -c "Print :Entitlements:application-identifier" /tmp/pp.plist 2>/dev/null || echo "")
-            case "$APPID" in *".$BUNDLE_ID") PP="/tmp/pp.plist"; break;; esac
+            A=$(/usr/libexec/PlistBuddy -c "Print :Entitlements:application-identifier" /tmp/pp.plist 2>/dev/null || echo "")
+            case "$A" in *".$BUNDLE_ID") cp /tmp/pp.plist /tmp/pp_match.plist; PP="/tmp/pp_match.plist"; APPID="$A"; break;; esac
           done
           # Fallback: el perfil mas reciente si no hubo match exacto.
           if [ -z "$PP" ]; then
             LAST=$(ls -t "$HOME/Library/MobileDevice/Provisioning Profiles/"*.mobileprovision 2>/dev/null | head -1)
-            [ -n "$LAST" ] && security cms -D -i "$LAST" > /tmp/pp.plist && PP="/tmp/pp.plist"
+            if [ -n "$LAST" ]; then
+              security cms -D -i "$LAST" > /tmp/pp.plist; PP="/tmp/pp.plist"
+              APPID=$(/usr/libexec/PlistBuddy -c "Print :Entitlements:application-identifier" "$PP" 2>/dev/null || echo "")
+            fi
           fi
-          TEAM_ID=$(/usr/libexec/PlistBuddy -c "Print :TeamIdentifier:0" "$PP")
-          PROFILE_NAME=$(/usr/libexec/PlistBuddy -c "Print :Name" "$PP")
-          echo "Team: $TEAM_ID · Profile: $PROFILE_NAME"
+          # El Team ID = primer segmento del application-identifier (TEAMID.bundle.id).
+          TEAM_ID="${APPID%%.*}"
+          PROFILE_NAME=$(/usr/libexec/PlistBuddy -c "Print :Name" "$PP" 2>/dev/null || echo "")
+          echo "Team: $TEAM_ID · Profile: $PROFILE_NAME · AppID: $APPID"
+          if [ -z "$TEAM_ID" ] || [ -z "$PROFILE_NAME" ]; then
+            echo "ERROR: no se pudo determinar Team ID o nombre de perfil."; exit 1
+          fi
 
           P="$HOME/export_options.plist"
           rm -f "$P"
