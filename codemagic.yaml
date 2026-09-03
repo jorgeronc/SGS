@@ -102,8 +102,17 @@ workflows:
           /usr/libexec/PlistBuddy -c "Add :uploadSymbols bool true" "$P"
           plutil -lint "$P"
 
-          xcode-project build-ipa --workspace "$WORKSPACE" --scheme "$SCHEME" \
-            --export-options-plist "$P"
+          # build-ipa de esta version de codemagic-cli-tools NO reconoce el method
+          # 'app-store-connect' (Xcode 16) y rechaza el plist. Archivamos y exportamos
+          # con xcodebuild directo, que si lo acepta. La firma ya la configuro
+          # use-profiles (manual, con el perfil correcto) en el .xcodeproj.
+          rm -rf build/ios
+          xcodebuild -workspace "$WORKSPACE" -scheme "$SCHEME" -configuration Release \
+            -archivePath build/ios/App.xcarchive -destination "generic/platform=iOS" \
+            clean archive
+          xcodebuild -exportArchive -archivePath build/ios/App.xcarchive \
+            -exportPath build/ios/ipa -exportOptionsPlist "$P"
+          echo "--- IPA generado ---"; ls -la build/ios/ipa
     artifacts:
       - mobile/build/ios/ipa/*.ipa
       - build/ios/ipa/*.ipa
