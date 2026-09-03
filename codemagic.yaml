@@ -55,12 +55,7 @@ workflows:
             --create
           keychain add-certificates
           # Solo el proyecto de la app (no los .xcodeproj de node_modules/pods).
-          # use-profiles instala los perfiles Y genera ~/export_options.plist con el
-          # team/perfil reales. --custom-export-options sobreescribe el 'method' con
-          # el valor que exige Xcode 16 (app-store-connect en vez de app-store).
-          xcode-project use-profiles \
-            --project "ios/*.xcodeproj" \
-            --custom-export-options '{"method": "app-store-connect"}'
+          xcode-project use-profiles --project "ios/*.xcodeproj"
 
       - name: Número de build (CFBundleVersion = build de Codemagic)
         script: |
@@ -74,10 +69,41 @@ workflows:
           # workspace). NO usar schemes[0] (puede ser un pod como EXApplication).
           SCHEME=$(basename "$WORKSPACE" .xcworkspace)
           echo "Workspace: $WORKSPACE · Scheme: $SCHEME"
-          echo "--- export_options.plist generado por use-profiles ---"
-          cat "$HOME/export_options.plist" || true
-          # build-ipa usa por defecto ~/export_options.plist (ya con method corregido).
-          xcode-project build-ipa --workspace "$WORKSPACE" --scheme "$SCHEME"
+
+          # --- Genera export_options.plist VALIDO para Xcode 16 (method
+          #     'app-store-connect', firma manual, teamID + perfil reales). ---
+          # Xcode 16 guarda los perfiles en UserData; versiones previas en MobileDevice.
+          PP=""; APPID=""
+          for d in "$HOME/Library/MobileDevice/Provisioning Profiles" \
+                   "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"; do
+            [ -d "$d" ] || continue
+            for f in "$d/"*.mobileprovision "$d/"*.provisionprofile; do
+              [ -e "$f" ] || continue
+              security cms -D -i "$f" > /tmp/pp.plist 2>/dev/null || continue
+              A=$(/usr/libexec/PlistBuddy -c "Print :Entitlements:application-identifier" /tmp/pp.plist 2>/dev/null || echo "")
+              case "$A" in *".$BUNDLE_ID") cp /tmp/pp.plist /tmp/pp_match.plist; PP="/tmp/pp_match.plist"; APPID="$A"; break 2;; esac
+            done
+          done
+          TEAM_ID="${APPID%%.*}"
+          PROFILE_NAME=$(/usr/libexec/PlistBuddy -c "Print :Name" "$PP" 2>/dev/null || echo "")
+          echo "Team: $TEAM_ID · Profile: $PROFILE_NAME · AppID: $APPID"
+          if [ -z "$TEAM_ID" ] || [ -z "$PROFILE_NAME" ]; then
+            echo "ERROR: no se encontro el provisioning profile para $BUNDLE_ID."; exit 1
+          fi
+
+          P="$HOME/export_options.plist"
+          rm -f "$P"
+          /usr/libexec/PlistBuddy -c "Add :method string app-store-connect" "$P"
+          /usr/libexec/PlistBuddy -c "Add :signingStyle string manual" "$P"
+          /usr/libexec/PlistBuddy -c "Add :teamID string $TEAM_ID" "$P"
+          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles dict" "$P"
+          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles:$BUNDLE_ID string $PROFILE_NAME" "$P"
+          /usr/libexec/PlistBuddy -c "Add :destination string export" "$P"
+          /usr/libexec/PlistBuddy -c "Add :uploadSymbols bool true" "$P"
+          plutil -lint "$P"
+
+          xcode-project build-ipa --workspace "$WORKSPACE" --scheme "$SCHEME" \
+            --export-options-plist "$P"
     artifacts:
       - mobile/build/ios/ipa/*.ipa
       - build/ios/ipa/*.ipa
