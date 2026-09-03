@@ -55,7 +55,11 @@ workflows:
             --create
           keychain add-certificates
           # Solo el proyecto de la app (no los .xcodeproj de node_modules/pods).
+          # use-profiles también genera ~/export_options.plist para el export del IPA.
           xcode-project use-profiles --project "ios/*.xcodeproj"
+          # Xcode 16 renombró el metodo de export: 'app-store' -> 'app-store-connect'.
+          # Codemagic aun escribe el valor viejo; lo corregimos en el plist generado.
+          /usr/bin/plutil -replace method -string app-store-connect "$HOME/export_options.plist" || true
 
       - name: Número de build (CFBundleVersion = build de Codemagic)
         script: |
@@ -67,7 +71,10 @@ workflows:
           SCHEME=$(xcodebuild -list -workspace "$WORKSPACE" -json \
             | /usr/bin/python3 -c "import sys,json;print(json.load(sys.stdin)['workspace']['schemes'][0])")
           echo "Workspace: $WORKSPACE · Scheme: $SCHEME"
-          xcode-project build-ipa --workspace "$WORKSPACE" --scheme "$SCHEME"
+          # Usa el export_options.plist ya parchado (method=app-store-connect) en vez
+          # de dejar que build-ipa regenere uno con el valor viejo.
+          xcode-project build-ipa --workspace "$WORKSPACE" --scheme "$SCHEME" \
+            --export-options-plist "$HOME/export_options.plist"
     artifacts:
       - mobile/build/ios/ipa/*.ipa
       - build/ios/ipa/*.ipa
