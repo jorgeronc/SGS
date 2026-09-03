@@ -1,0 +1,75 @@
+# Codemagic — build iOS de SGS Móvil (Expo) y subida a App Store Connect / TestFlight.
+# La app es Expo "managed" con un módulo nativo local (bodycamhd, solo Android):
+# en iOS NO se compila. El flujo hace `expo prebuild` (genera ios/), pods, firma
+# con tu key de App Store Connect (firma automática) y publica a TestFlight.
+#
+# Requisitos en Codemagic (una vez):
+#  1) Team settings → Integrations → App Store Connect: sube tu API key (.p8) con
+#     Issuer ID y Key ID. Nómbrala igual que `integrations.app_store_connect` (abajo).
+#  2) La app debe existir en App Store Connect con el bundle id com.sgs.movil
+#     (créala en ASC, o registra el bundle id). Sin eso, la subida a TestFlight falla.
+#  3) Environment group `sgs_ios` (Team/App settings → Environment variables) con:
+#       EXPO_PUBLIC_TURN_URL, EXPO_PUBLIC_TURN_USERNAME, EXPO_PUBLIC_TURN_CREDENTIAL
+#       EXPO_PUBLIC_TOMTOM_API_KEY
+#       (opcionales, ya tienen fallback en el código: EXPO_PUBLIC_SUPABASE_URL / _ANON_KEY)
+#     Estas EXPO_PUBLIC_* se inyectan en el bundle al compilar.
+
+workflows:
+  ios-testflight:
+    name: SGS Móvil — iOS (TestFlight)
+    max_build_duration: 90
+    instance_type: mac_mini_m2
+    working_directory: mobile
+    integrations:
+      app_store_connect: SGS ASC Key   # <-- nombre EXACTO de tu integración en Codemagic
+    environment:
+      groups:
+        - sgs_ios
+      vars:
+        BUNDLE_ID: "com.sgs.movil"
+      node: 20
+      xcode: latest
+      cocoapods: default
+    cache:
+      cache_paths:
+        - $CM_BUILD_DIR/mobile/node_modules
+        - $HOME/Library/Caches/CocoaPods
+    scripts:
+      - name: Instalar dependencias (npm)
+        script: npm ci
+
+      - name: Expo prebuild (iOS)
+        script: npx expo prebuild --platform ios --clean
+
+      - name: CocoaPods
+        script: cd ios && pod install
+
+      - name: Firma automática (App Store Connect API key)
+        script: |
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --create
+          keychain initialize
+          keychain add-certificates
+          xcode-project use-profiles
+
+      - name: Número de build (CFBundleVersion = build de Codemagic)
+        script: |
+          cd ios && agvtool new-version -all "$BUILD_NUMBER"
+
+      - name: Compilar IPA
+        script: |
+          WORKSPACE=$(ls -d ios/*.xcworkspace | head -1)
+          SCHEME=$(xcodebuild -list -workspace "$WORKSPACE" -json \
+            | /usr/bin/python3 -c "import sys,json;print(json.load(sys.stdin)['workspace']['schemes'][0])")
+          echo "Workspace: $WORKSPACE · Scheme: $SCHEME"
+          xcode-project build-ipa --workspace "$WORKSPACE" --scheme "$SCHEME"
+    artifacts:
+      - mobile/build/ios/ipa/*.ipa
+      - build/ios/ipa/*.ipa
+      - "**/*.ipa"
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
