@@ -5,8 +5,9 @@ import { supabase } from "./supabase";
 import { getMiOficialValido } from "./oficial";
 
 // Project ID de EAS (app.json → extra.eas.projectId). Necesario para obtener
-// el token de Expo Push en builds de desarrollo/producción.
-const PROJECT_ID = "beff23c4-a822-44ea-a08b-e21e75059658";
+// el token de Expo Push en builds de desarrollo/producción. Debe coincidir con
+// el de app.json (sgs-movil).
+const PROJECT_ID = "d6052d9c-0653-476f-999a-198b706ee552";
 
 // Muestra las notificaciones aunque la app esté en primer plano.
 Notifications.setNotificationHandler({

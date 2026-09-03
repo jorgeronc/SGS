@@ -13,6 +13,11 @@ try {
 } catch {
   /* sin id: la bitácora igual guarda usuario e IP */
 }
+// iOS: el identificador (idForVendor) es asíncrono; se resuelve en segundo plano
+// y se inyecta en cada petición vía el fetch personalizado (abajo).
+if (Platform.OS === "ios") {
+  Application.getIosIdForVendorAsync().then((id) => { if (id) deviceId = id; }).catch(() => { /* sin id */ });
+}
 
 // Mismo backend que la web. La sesión (token JWT de Supabase Auth) se guarda
 // en el dispositivo con AsyncStorage y se auto-refresca; así el acceso a la
@@ -36,7 +41,15 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     detectSessionInUrl: false,
   },
-  global: { headers: deviceId ? { "x-device-id": deviceId } : {} },
+  global: {
+    // Inyecta x-device-id en cada petición (Android: inmediato; iOS: en cuanto se
+    // resuelve el idForVendor). Así la bitácora atribuye la acción al aparato.
+    fetch: (input: any, init?: any) => {
+      const headers = new Headers(init?.headers ?? {});
+      if (deviceId && !headers.has("x-device-id")) headers.set("x-device-id", deviceId);
+      return fetch(input, { ...init, headers });
+    },
+  },
 });
 
 export const BUCKET_FOTOS = "fotos";

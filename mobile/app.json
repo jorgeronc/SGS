@@ -15,6 +15,7 @@
       "**/*"
     ],
     "ios": {
+      "bundleIdentifier": "com.sgs.movil",
       "supportsTablet": true,
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Se usa tu ubicación para mostrar el mapa y la ruta hasta el lugar del incidente.",
@@ -22,6 +23,8 @@
         "NSCameraUsageDescription": "Se usa la cámara para tomar fotos y video de evidencia.",
         "NSPhotoLibraryUsageDescription": "Se usa la galería para adjuntar fotos y video.",
         "NSMicrophoneUsageDescription": "Se usa el micrófono para grabar audio de evidencia.",
+        "NFCReaderUsageDescription": "Se usa NFC para leer las etiquetas de los puntos de control en los rondines.",
+        "ITSAppUsesNonExemptEncryption": false,
         "UIBackgroundModes": [
           "location"
         ]
