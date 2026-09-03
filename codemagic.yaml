@@ -46,10 +46,13 @@ workflows:
 
       - name: Firma automática (App Store Connect API key)
         script: |
+          keychain initialize
+          # Usa una llave privada propia (CERTIFICATE_PRIVATE_KEY) para crear/gestionar
+          # el certificado de distribución; así Codemagic siempre tiene la llave.
           app-store-connect fetch-signing-files "$BUNDLE_ID" \
             --type IOS_APP_STORE \
+            --certificate-key @env:CERTIFICATE_PRIVATE_KEY \
             --create
-          keychain initialize
           keychain add-certificates
           xcode-project use-profiles
 
