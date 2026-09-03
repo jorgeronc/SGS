@@ -54,7 +54,8 @@ workflows:
             --certificate-key @env:CERTIFICATE_PRIVATE_KEY \
             --create
           keychain add-certificates
-          xcode-project use-profiles
+          # Solo el proyecto de la app (no los .xcodeproj de node_modules/pods).
+          xcode-project use-profiles --project "ios/*.xcodeproj"
 
       - name: Número de build (CFBundleVersion = build de Codemagic)
         script: |
