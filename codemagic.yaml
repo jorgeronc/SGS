@@ -41,6 +41,25 @@ workflows:
       - name: Expo prebuild (iOS)
         script: npx expo prebuild --platform ios --clean
 
+      - name: Ajustar entitlement NFC (Apple rechaza NDEF con el SDK nuevo — ITMS-90778)
+        script: |
+          set -e
+          # El plugin de react-native-nfc-manager agrega el formato 'NDEF', que Apple
+          # rechaza (SDK 26.x). Los rondines leen el UID de la etiqueta => basta 'TAG'.
+          # Dejamos el entitlement solo con TAG (arregla el upload, conserva NFC en iOS).
+          ENT=$(ls ios/*/*.entitlements 2>/dev/null | head -1)
+          echo "Entitlements: $ENT"
+          KEY="com.apple.developer.nfc.readersession.formats"
+          if [ -n "$ENT" ] && /usr/libexec/PlistBuddy -c "Print :$KEY" "$ENT" >/dev/null 2>&1; then
+            /usr/libexec/PlistBuddy -c "Delete :$KEY" "$ENT"
+            /usr/libexec/PlistBuddy -c "Add :$KEY array" "$ENT"
+            /usr/libexec/PlistBuddy -c "Add :$KEY:0 string TAG" "$ENT"
+            echo "NFC entitlement -> [TAG]"
+          else
+            echo "No hay entitlement NFC que ajustar."
+          fi
+          [ -n "$ENT" ] && /usr/libexec/PlistBuddy -c "Print" "$ENT" || true
+
       - name: CocoaPods
         script: cd ios && pod install
 
