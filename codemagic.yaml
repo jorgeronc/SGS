@@ -3,16 +3,18 @@
 # en iOS NO se compila. El flujo hace `expo prebuild` (genera ios/), pods, firma
 # con tu key de App Store Connect (firma automática) y publica a TestFlight.
 #
-# Requisitos en Codemagic (una vez):
-#  1) Team settings → Integrations → App Store Connect: sube tu API key (.p8) con
-#     Issuer ID y Key ID. Nómbrala igual que `integrations.app_store_connect` (abajo).
-#  2) La app debe existir en App Store Connect con el bundle id com.sgs.movil
-#     (créala en ASC, o registra el bundle id). Sin eso, la subida a TestFlight falla.
-#  3) Environment group `sgs_ios` (Team/App settings → Environment variables) con:
+# Requisitos en Codemagic (una vez) — sirve para cuenta PERSONAL (sin integración
+# con nombre): la API key de App Store Connect se pasa por VARIABLES.
+#  1) La app debe existir en App Store Connect con el bundle id com.sgs.movil.
+#  2) Environment group `sgs_ios` (App settings → Environment variables) con:
+#       # App Store Connect API key (firma + subida a TestFlight):
+#       APP_STORE_CONNECT_ISSUER_ID      = Issuer ID
+#       APP_STORE_CONNECT_KEY_IDENTIFIER = Key ID
+#       APP_STORE_CONNECT_PRIVATE_KEY    = contenido COMPLETO del .p8 (Secure)
+#       # Runtime de la app (se inyectan en el bundle al compilar):
 #       EXPO_PUBLIC_TURN_URL, EXPO_PUBLIC_TURN_USERNAME, EXPO_PUBLIC_TURN_CREDENTIAL
-#       EXPO_PUBLIC_TOMTOM_API_KEY
-#       (opcionales, ya tienen fallback en el código: EXPO_PUBLIC_SUPABASE_URL / _ANON_KEY)
-#     Estas EXPO_PUBLIC_* se inyectan en el bundle al compilar.
+#       EXPO_PUBLIC_TOMTOM_API_KEY (opcional)
+#     (Supabase URL/anon tienen fallback en el código.)
 
 workflows:
   ios-testflight:
@@ -20,8 +22,6 @@ workflows:
     max_build_duration: 90
     instance_type: mac_mini_m2
     working_directory: mobile
-    integrations:
-      app_store_connect: SGS ASC Key   # <-- nombre EXACTO de tu integración en Codemagic
     environment:
       groups:
         - sgs_ios
@@ -71,5 +71,7 @@ workflows:
       - /tmp/xcodebuild_logs/*.log
     publishing:
       app_store_connect:
-        auth: integration
+        api_key: $APP_STORE_CONNECT_PRIVATE_KEY
+        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
+        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
         submit_to_testflight: true
