@@ -15,8 +15,16 @@ try {
   Native = null;
 }
 
-export const bodycamDisponible = !!Native;
+// Disponible en Android (módulo nativo, graba en segundo plano) y en iOS
+// (grabación en PRIMER PLANO con expo-camera, vía la pantalla Bodycam).
+export const bodycamDisponible = !!Native || Platform.OS === "ios";
+
+// Estado de grabación en iOS (lo maneja la pantalla Bodycam mientras está montada).
+let grabandoIOS = false;
+export function setGrabandoIOS(v: boolean) { grabandoIOS = v; }
+
 export function bodycamGrabando(): boolean {
+  if (Platform.OS === "ios") return grabandoIOS;
   try { return Native?.isRecording?.() ?? false; } catch { return false; }
 }
 
@@ -107,6 +115,23 @@ export async function asociarBodycamActual(origen: BodycamOrigen): Promise<void>
     }
   }
   if (cambio) await guardarCola(cola);
+}
+
+// Encola un segmento grabado en iOS (primer plano) con la MISMA estructura que
+// los de Android, para que "Descargar bodycam" (Perfil) los suba igual.
+export async function encolarSegmentoLocal(uri: string, durationMs: number, origen?: BodycamOrigen | null): Promise<void> {
+  try {
+    const [oficial, unidad, bodycam] = await Promise.all([getMiOficialValido(), getMiUnidad(), getMiBodycam()]);
+    const cola = await leerCola();
+    cola.push({
+      uri, fecha: new Date().toISOString(), durSeg: Math.round((durationMs || 0) / 1000),
+      elemento: oficial?.etiqueta ?? "sin identificar", unidad: unidad?.etiqueta ?? null,
+      personalId: oficial?.personalId ?? null, bodycamFolio: bodycam?.folio ?? null, bodycamId: bodycam?.bodycamId ?? null,
+      sesion: `ios_${Date.now()}`,
+      origenTipo: origen?.tipo ?? null, origenId: origen?.id ?? null, origenFolio: origen?.folio ?? null,
+    });
+    await guardarCola(cola);
+  } catch { /* ignore */ }
 }
 
 async function encolar(uri: string, durationMs: number) {

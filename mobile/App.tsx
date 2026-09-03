@@ -33,6 +33,7 @@ import MisIncidentesScreen from "./src/screens/MisIncidentesScreen";
 import IncidenteDetalleScreen from "./src/screens/IncidenteDetalleScreen";
 import AccesoCasetaScreen from "./src/screens/AccesoCasetaScreen";
 import InspeccionScreen from "./src/screens/InspeccionScreen";
+import BodycamScreen from "./src/screens/BodycamScreen";
 import TransmisionScreen from "./src/screens/TransmisionScreen";
 import TareasScreen from "./src/screens/TareasScreen";
 import SupervisionScreen from "./src/screens/SupervisionScreen";
@@ -216,6 +217,7 @@ export default function App() {
             <Stack.Screen name="Incidente" component={IncidenteScreen} options={{ title: "Levantar incidente" }} />
             <Stack.Screen name="AccesoCaseta" component={AccesoCasetaScreen} options={{ title: "Control de acceso" }} />
             <Stack.Screen name="Inspeccion" component={InspeccionScreen} options={{ title: "Inspección" }} />
+            <Stack.Screen name="Bodycam" component={BodycamScreen} options={{ headerShown: false, presentation: "fullScreenModal", animation: "fade" }} />
             <Stack.Screen name="MisIncidentes" component={MisIncidentesScreen} options={{ title: "Incidentes" }} />
             <Stack.Screen name="IncidenteDetalle" component={IncidenteDetalleScreen} options={{ title: "Incidente" }} />
             <Stack.Screen name="Transmision" component={TransmisionScreen} options={{ headerShown: false, presentation: "fullScreenModal", animation: "fade" }} />

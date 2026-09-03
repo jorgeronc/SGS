@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Image, Alert } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Image, Alert, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
@@ -43,6 +43,8 @@ export default function InicioSgsScreen() {
 
   // Bodycam HD (activar/detener) como acceso rápido. Solo en build de Android.
   async function toggleBodycam() {
+    // iOS: grabación en primer plano (pantalla dedicada con la cámara).
+    if (Platform.OS === "ios") { nav.navigate("Bodycam", { origen: null }); return; }
     if (grabando || bodycamGrabando()) {
       await detenerBodycam();
       setGrabando(false);

@@ -30,6 +30,8 @@ export type RootStackParamList = {
   AccesoCaseta: undefined;
   // Inspección de seguridad logística (checklist + sello + foto + GPS).
   Inspeccion: { movimientoId?: string; movimientoFolio?: string } | undefined;
+  // Grabación de bodycam en primer plano (iOS).
+  Bodycam: { origen?: { tipo: string; id: string; folio: string | null } | null } | undefined;
   // Incidentes propios (guardia) o de mis guardias (supervisor).
   MisIncidentes: undefined;
   // Detalle de un incidente con novedades.

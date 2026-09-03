@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { TouchableOpacity, Text, StyleSheet, Alert, View } from "react-native";
+import { TouchableOpacity, Text, StyleSheet, Alert, View, Platform } from "react-native";
+import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import {
   bodycamDisponible,
@@ -26,6 +27,7 @@ export default function BodycamBoton({
   style?: any;
 }) {
   const [grabando, setGrabando] = useState(false);
+  const nav = useNavigation<any>();
 
   useEffect(() => {
     setGrabando(bodycamGrabando());
@@ -36,6 +38,8 @@ export default function BodycamBoton({
   if (!bodycamDisponible) return null;
 
   async function toggle() {
+    // iOS: la grabación es en primer plano (pantalla dedicada con la cámara).
+    if (Platform.OS === "ios") { nav.navigate("Bodycam", { origen: origen ?? null }); return; }
     if (grabando || bodycamGrabando()) {
       await detenerBodycam();
       setGrabando(false);
