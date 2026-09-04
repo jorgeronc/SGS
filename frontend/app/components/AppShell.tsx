@@ -33,6 +33,7 @@ const GRUPOS: { grupo: string; items: { href: string; label: string; ico: string
       { href: "/supervision", label: "Supervisión rondín", ico: "🛰" },
       { href: "/tareas", label: "Tareas", ico: "✔" },
       { href: "/chat", label: "Chat", ico: "💬" },
+      { href: "/alertas", label: "Alerta general", ico: "🚨" },
     ],
   },
   {
