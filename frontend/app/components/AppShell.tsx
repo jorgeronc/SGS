@@ -86,8 +86,7 @@ const GRUPOS: { grupo: string; items: { href: string; label: string; ico: string
       { href: "/directorio", label: "Directorio de autoridades", ico: "📇" },
       { href: "/kardex", label: "Kardex", ico: "▤" },
       { href: "/bitacora", label: "Bitácora", ico: "▥" },
-      { href: "/admin", label: "Administración", ico: "⚙" },
-      { href: "/configuracion", label: "Parámetros del sistema", ico: "❖" },
+      { href: "/configuracion", label: "Configuración", ico: "⚙" },
     ],
   },
 ];

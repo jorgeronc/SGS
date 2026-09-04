@@ -17,11 +17,13 @@ const PESTANAS = [
 
 // Módulo de Administración con pestañas horizontales (mismo estilo que el
 // detalle de un informe de incidente). Cada pestaña monta su propio panel.
-export default function AdminTabs({ initial = "usuarios" }: { initial?: string }) {
+// `embedded`: se usa dentro de la pantalla Configuración (sin <main>/título
+// propios, porque los aporta el contenedor de Configuración).
+export default function AdminTabs({ initial = "usuarios", embedded = false }: { initial?: string; embedded?: boolean }) {
   const [tab, setTab] = useState(initial);
-  return (
-    <main className="contenedor">
-      <h2>Administración</h2>
+  const cuerpo = (
+    <>
+      {!embedded && <h2>Administración</h2>}
       <div className="sc-tabs">
         {PESTANAS.map((p) => (
           <button key={p.k} className={`sc-tab${tab === p.k ? " on" : ""}`} onClick={() => setTab(p.k)}>
@@ -36,6 +38,8 @@ export default function AdminTabs({ initial = "usuarios" }: { initial?: string }
         {tab === "tipos_turno" && <TiposTurnoPanel />}
         {tab === "catalogos" && <CatalogosPanel />}
       </div>
-    </main>
+    </>
   );
+  if (embedded) return cuerpo;
+  return <main className="contenedor">{cuerpo}</main>;
 }
