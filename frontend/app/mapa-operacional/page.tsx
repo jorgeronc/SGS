@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import MapaBase from "@/app/components/MapaBase";
+import { ESTILOS_MAPA, estiloMapaPorId, type EstiloMapaId } from "@/lib/mapStyle";
+import { temaMapa } from "@/lib/geo";
 import CamarasCercanas from "@/app/components/CamarasCercanas";
 import CameraDetailDrawer from "@/app/components/CameraDetailDrawer";
 import ChatIncidente from "@/app/components/ChatIncidente";
@@ -25,6 +27,27 @@ function circulo(lng: number, lat: number, radioM: number, n = 48): number[][] {
   const ring: number[][] = [];
   for (let i = 0; i <= n; i++) { const a = (i / n) * 2 * Math.PI; ring.push([lng + dLng * Math.cos(a), lat + dLat * Math.sin(a)]); }
   return ring;
+}
+
+const FOCO_RADIO_M = 1500; // 1.5 km a la redonda
+const NARANJA = "#f4820a";
+
+// Dibuja (o actualiza) la geocerca naranja de enfoque de 1.5 km alrededor de un
+// incidente y devuelve su anillo (para encuadrar). Idempotente.
+function dibujarFoco(map: any, lng: number, lat: number): number[][] {
+  const ring = circulo(lng, lat, FOCO_RADIO_M);
+  const fc = { type: "FeatureCollection", features: [{ type: "Feature", properties: {}, geometry: { type: "Polygon", coordinates: [ring] } }] };
+  if (!map.getSource("foco-radio")) {
+    map.addSource("foco-radio", { type: "geojson", data: fc as any });
+    map.addLayer({ id: "foco-f", type: "fill", source: "foco-radio", paint: { "fill-color": NARANJA, "fill-opacity": 0.12 } });
+    map.addLayer({ id: "foco-l", type: "line", source: "foco-radio", paint: { "line-color": NARANJA, "line-width": 2.5 } });
+  } else { map.getSource("foco-radio").setData(fc as any); }
+  return ring;
+}
+
+// Oculta la geocerca de enfoque (al cerrar la ventana del incidente).
+function limpiarFoco(map: any) {
+  if (map?.getSource?.("foco-radio")) map.getSource("foco-radio").setData({ type: "FeatureCollection", features: [] } as any);
 }
 
 // Elemento HTML de un marcador (pin o punto), estilo del diseño.
@@ -65,6 +88,7 @@ export default function MapaOperacionalPage() {
     if (data) setSelChat({ canalId: data as string, folio: inc.folio ?? "incidente" });
   }
   const [capas, setCapas] = useState({ guardias: true, incidentes: true, camaras: true, geofences: true });
+  const [estiloId, setEstiloId] = useState<EstiloMapaId>("auto");
 
   const mlRef = useRef<any>(null);
   const mapRef = useRef<any>(null);
@@ -79,11 +103,12 @@ export default function MapaOperacionalPage() {
   const [txViva, setTxViva] = useState(false);
   const [txPos, setTxPos] = useState<{ x: number; y: number } | null>(null);
   const [mapListo, setMapListo] = useState(false);
+  const [mlListo, setMlListo] = useState(false);
   const incLoc = useRef<{ lng: number; lat: number } | null>(null);
   const datos = useRef({ guardias, incidentes, camaras, capas });
   datos.current = { guardias, incidentes, camaras, capas };
 
-  useEffect(() => { import("maplibre-gl").then((m) => { mlRef.current = (m as any).default ?? m; }); }, []);
+  useEffect(() => { import("maplibre-gl").then((m) => { mlRef.current = (m as any).default ?? m; setMlListo(true); }); }, []);
 
   // Lee el filtro de la URL una vez (evita useSearchParams para no requerir Suspense).
   useEffect(() => {
@@ -202,6 +227,18 @@ export default function MapaOperacionalPage() {
     ["geoc-f", "geoc-l"].forEach((l) => map.getLayer(l) && map.setLayoutProperty(l, "visibility", v));
   }
 
+  // Al hacer clic en un incidente: lo selecciona, dibuja la geocerca naranja de
+  // 1.5 km y encuadra el mapa para que se vea centrado con ese radio a la redonda.
+  const enfocarIncidente = useCallback((it: any) => {
+    setSelInc(it);
+    const map = mapRef.current, ml = mlRef.current;
+    if (!map || !ml || it.latitud == null) return;
+    const lng = Number(it.longitud), lat = Number(it.latitud);
+    const ring = dibujarFoco(map, lng, lat);
+    const b = ring.reduce((bb: any, c: number[]) => bb.extend(c as [number, number]), new ml.LngLatBounds(ring[0] as [number, number], ring[0] as [number, number]));
+    map.fitBounds(b, { padding: 60, maxZoom: 16, duration: 800 });
+  }, []);
+
   // Redibuja los marcadores (guardias, incidentes, cámaras) según datos + capas.
   const pintar = useCallback(() => {
     const map = mapRef.current, maplibre = mlRef.current; if (!map || !maplibre) return;
@@ -210,8 +247,8 @@ export default function MapaOperacionalPage() {
     const add = (lng: number, lat: number, el: HTMLElement) => marks.current.push(new maplibre.Marker({ element: el, anchor: "bottom" }).setLngLat([lng, lat]).addTo(map));
     if (capas.guardias) guardias.forEach((g: any) => { if (g.latitud != null) add(Number(g.longitud), Number(g.latitud), pinEl(g.estatus_servicio === "en_pausa" ? COL.pausa : COL.guardia, "👮", guardiaNombre(g), false, false)); });
     if (capas.camaras) camaras.forEach((c: any) => add(Number(c.longitud), Number(c.latitud), pinEl(colorCamara(c.estado_operativo), "📷", c.nombre ?? "Cámara", true, false, () => setSelCam(c), { hoverOnly: true, sub: c.estado_operativo ?? "" })));
-    if (capas.incidentes) incidentes.forEach((it: any) => add(Number(it.longitud), Number(it.latitud), pinEl(COL.incidente, "⚠", it.folio ?? it.tipo ?? "Incidente", false, it.prioridad === "alta", () => setSelInc(it))));
-  }, []);
+    if (capas.incidentes) incidentes.forEach((it: any) => add(Number(it.longitud), Number(it.latitud), pinEl(COL.incidente, "⚠", it.folio ?? it.tipo ?? "Incidente", false, it.prioridad === "alta", () => enfocarIncidente(it))));
+  }, [enfocarIncidente]);
 
   // Desde CAD: con ?incidente=<id> centra y abre ese incidente; con ?fit=1
   // (ver en mapa según filtros) encuadra todos los incidentes visibles. Una sola vez.
@@ -220,9 +257,8 @@ export default function MapaOperacionalPage() {
     const map = mapRef.current, ml = mlRef.current;
     if (f.incidente) {
       const it = datos.current.incidentes.find((i: any) => i.id === f.incidente);
-      if (!it || it.latitud == null) return;
-      setSelInc(it);
-      if (map) { focoHecho.current = true; map.flyTo({ center: [Number(it.longitud), Number(it.latitud)], zoom: 16, duration: 800 }); }
+      if (!it || it.latitud == null || !map) return;
+      focoHecho.current = true; enfocarIncidente(it);
       return;
     }
     if (f.fit) {
@@ -232,16 +268,23 @@ export default function MapaOperacionalPage() {
       const b = coords.reduce((bb: any, c: [number, number]) => bb.extend(c), new ml.LngLatBounds(coords[0], coords[0]));
       map.fitBounds(b, { padding: 80, maxZoom: 15, duration: 800 });
     }
-  }, []);
+  }, [enfocarIncidente]);
 
   function onReady(map: any) { mapRef.current = map; setMapListo(true); ensureGeocercas(map); pintar(); centrarFoco(); }
 
   // Redibuja al cambiar datos/capas (sin reencuadrar).
-  useEffect(() => { if (mapRef.current) { pintar(); ensureGeocercas(mapRef.current); } }, [guardias, incidentes, camaras, sitios, capas, pintar]);
+  useEffect(() => { if (mapRef.current) { pintar(); ensureGeocercas(mapRef.current); } }, [guardias, incidentes, camaras, sitios, capas, mlListo, pintar]);
   useEffect(() => { centrarFoco(); }, [incidentes, centrarFoco]);
 
   const panel = "background:var(--sc-content);border:1px solid var(--sc-card-line);border-radius:12px;color:var(--sc-text)";
   const toggle = (k: keyof typeof capas) => setCapas((p) => ({ ...p, [k]: !p[k] }));
+  // Cambia el tipo de mapa base (estilos del proveedor). onReady (styledata) re-agrega
+  // capas/marcadores de forma idempotente tras el cambio de estilo.
+  const cambiarEstilo = (id: EstiloMapaId) => {
+    setEstiloId(id);
+    const map = mapRef.current;
+    if (map) map.setStyle(estiloMapaPorId(id, temaMapa() === "dark"), { diff: false });
+  };
 
   return (
     <div style={{ position: "relative", height: "calc(100vh - 56px)", margin: -22, overflow: "hidden" }}>
@@ -258,6 +301,13 @@ export default function MapaOperacionalPage() {
           </label>
         ))}
         <span style={{ width: 1, alignSelf: "stretch", background: "var(--sc-card-line)", margin: "0 4px" }} />
+        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5 }}>
+          <span style={{ color: "var(--sc-text-faint)" }}>🗺 Mapa</span>
+          <select value={estiloId} onChange={(e) => cambiarEstilo(e.target.value as EstiloMapaId)} style={{ background: "var(--sc-content)", color: "var(--sc-text)", border: "1px solid var(--sc-card-line)", borderRadius: 6, padding: "3px 6px", fontSize: 12.5, cursor: "pointer" }}>
+            {ESTILOS_MAPA.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+          </select>
+        </label>
+        <span style={{ width: 1, alignSelf: "stretch", background: "var(--sc-card-line)", margin: "0 4px" }} />
         <span style={{ fontSize: 10, color: "var(--sc-text-faint)", whiteSpace: "nowrap" }}>Actualizado {ultima ? ultima.toLocaleTimeString() : "—"}</span>
         <button onClick={() => cargar()} title="Actualizar ahora" style={{ background: "transparent", border: "1px solid var(--sc-card-line)", color: "var(--sc-text-soft)", borderRadius: 6, padding: "2px 8px", fontSize: 11, cursor: "pointer" }}>⟳</button>
       </div>
@@ -268,7 +318,7 @@ export default function MapaOperacionalPage() {
           <div style={{ padding: "13px 15px", borderBottom: "1px solid var(--sc-card-line)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <b style={{ color: COL.incidente }}>🚨 {selInc.folio ?? "Incidente"}</b>
-              <span onClick={() => setSelInc(null)} style={{ cursor: "pointer", color: "var(--sc-text-faint)" }}>✕</span>
+              <span onClick={() => { setSelInc(null); limpiarFoco(mapRef.current); }} style={{ cursor: "pointer", color: "var(--sc-text-faint)" }}>✕</span>
             </div>
             <h3 style={{ margin: "8px 0 2px" }}>{selInc.tipo ?? "Incidencia"}</h3>
             <div style={{ color: "var(--sc-text-soft)", fontSize: 12.5 }}>{selInc.direccion ?? "—"} · prioridad {PRIO_LBL[selInc.prioridad] ?? selInc.prioridad}</div>

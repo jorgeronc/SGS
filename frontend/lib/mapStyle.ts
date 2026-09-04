@@ -66,3 +66,29 @@ export function estiloMapa(dark: boolean): any {
 export function aplicarEstilo(map: MapLibreMap, dark: boolean): void {
   map.setStyle(estiloMapa(dark), { diff: false });
 }
+
+// --- Tipos de mapa adicionales del proveedor (OpenFreeMap) ---
+// "auto" = el estilo según el tema (el comportamiento por defecto). Los demás son
+// estilos del proveedor que el usuario puede elegir manualmente en el mapa.
+export type EstiloMapaId = "auto" | "liberty" | "bright" | "positron" | "dark";
+
+export const ESTILOS_MAPA: { id: EstiloMapaId; label: string }[] = [
+  { id: "auto", label: "Automático (según tema)" },
+  { id: "liberty", label: "Calles (Liberty)" },
+  { id: "bright", label: "Brillante" },
+  { id: "positron", label: "Claro (Positron)" },
+  { id: "dark", label: "Oscuro" },
+];
+
+const OFM = (s: string) => `https://tiles.openfreemap.org/styles/${s}`;
+
+// Estilo MapLibre por id elegido. "auto" respeta el tema (usa `estiloMapa`).
+export function estiloMapaPorId(id: EstiloMapaId, dark: boolean): any {
+  switch (id) {
+    case "liberty": return OFM("liberty");
+    case "bright": return OFM("bright");
+    case "positron": return OFM("positron");
+    case "dark": return OFM("dark");
+    default: return estiloMapa(dark);
+  }
+}

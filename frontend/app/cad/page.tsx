@@ -43,8 +43,10 @@ function serieHoraria(lista: LlamadaCad[], pred: (l: LlamadaCad) => boolean): nu
 }
 
 // --- Sparkline SVG (sin librerías) ---
-function Sparkline({ data, color, w = 120, h = 34 }: { data: number[]; color: string; w?: number; h?: number }) {
-  if (!data.length || data.every((v) => v === 0)) return <svg width={w} height={h} />;
+function Sparkline({ data, color, w = 120, h = 34, full = false }: { data: number[]; color: string; w?: number; h?: number; full?: boolean }) {
+  const svgW = full ? "100%" : w;
+  const pa = full ? "none" : undefined;
+  if (!data.length || data.every((v) => v === 0)) return <svg width={svgW} height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio={pa} style={{ display: "block" }} />;
   const max = Math.max(...data, 1), min = Math.min(...data, 0), rng = max - min || 1;
   const step = w / Math.max(data.length - 1, 1);
   const pts = data.map((v, i) => [i * step, h - ((v - min) / rng) * (h - 6) - 3] as [number, number]);
@@ -52,7 +54,7 @@ function Sparkline({ data, color, w = 120, h = 34 }: { data: number[]; color: st
   const area = `${linea} L ${w} ${h} L 0 ${h} Z`;
   const ult = pts[pts.length - 1];
   return (
-    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} style={{ display: "block" }}>
+    <svg width={svgW} height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio={pa} style={{ display: "block" }}>
       <path d={area} fill={color} opacity={0.12} />
       <path d={linea} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
       <circle cx={ult[0]} cy={ult[1]} r={2.6} fill={color} />
@@ -73,25 +75,16 @@ function AccionRapida({ href, icon, label, onClick }: { href?: string; icon: str
     : <div onClick={onClick} role="button">{cuerpo}</div>;
 }
 
-// Grupo de píldoras-filtro (estatus / prioridad / despacho).
-function GrupoFiltro({ label, valor, opciones, onSel }: { label: string; valor: string; opciones: { k: string; t: string; cls?: string }[]; onSel: (k: string) => void }) {
+// Botón-píldora de filtro. `color` define el relleno cuando está activo.
+function Pastilla({ activo, onClick, children, color }: { activo: boolean; onClick: () => void; children: React.ReactNode; color?: string }) {
+  const c = color ?? "var(--sc-btn,#f4a03f)";
   return (
-    <div>
-      <div style={{ fontSize: 12, color: "var(--sc-text-soft)", marginBottom: 6 }}>{label}</div>
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-        {opciones.map((o) => (
-          <button key={o.k} type="button" onClick={() => onSel(o.k)}
-            className={o.cls ? `cad-pill ${o.cls}` : undefined}
-            style={{ padding: "5px 12px", borderRadius: 8, fontSize: 12.5, fontWeight: 600, cursor: "pointer",
-              border: valor === o.k ? "1.5px solid var(--sc-btn,#f4a03f)" : "1px solid var(--sc-card-line)",
-              background: !o.cls ? (valor === o.k ? "var(--sc-btn,#f4a03f)" : "transparent") : undefined,
-              color: !o.cls ? (valor === o.k ? "#fff" : "var(--sc-text)") : undefined,
-              opacity: valor === o.k ? 1 : 0.85 }}>
-            {o.t}
-          </button>
-        ))}
-      </div>
-    </div>
+    <button type="button" onClick={onClick} style={{
+      padding: "8px 15px", borderRadius: 10, fontSize: 13.5, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap",
+      border: activo ? `1.5px solid ${c}` : "1px solid var(--sc-card-line)",
+      background: activo ? c : "transparent",
+      color: activo ? "#fff" : "var(--sc-text)",
+    }}>{children}</button>
   );
 }
 
@@ -105,14 +98,18 @@ export default function CentralDespachoPage() {
   const [unidades, setUnidades] = useState<Record<string, UnidadDespacho>>({});
   const [ahora, setAhora] = useState<Date | null>(null); // reloj vivo (null en SSR -> sin mismatch)
 
-  // Filtros
-  const [fEstatus, setFEstatus] = useState("");
+  // Filtros. Filtro inicial (hasta pulsar "Limpiar filtros"): incidentes de HOY
+  // (día calendario local) con estatus Activo.
+  const [fEstatus, setFEstatus] = useState("activo");
   const [fPrioridad, setFPrioridad] = useState("");
   const [fDespacho, setFDespacho] = useState("");
   const [fDesde, setFDesde] = useState("");
   const [fHasta, setFHasta] = useState("");
-  const [busca, setBusca] = useState("");
-  const [filtrosAbiertos, setFiltrosAbiertos] = useState(false); // contraído al cargar/refrescar
+  const [preset, setPreset] = useState<"hoy" | "7" | "30" | "">("");
+  const [fUbicacion, setFUbicacion] = useState("");
+  const [fGuardia, setFGuardia] = useState("");
+  const [filtrosAbiertos, setFiltrosAbiertos] = useState(true);
+  const [masFiltros, setMasFiltros] = useState(false);
 
   // Formulario de registro rápido
   const [tipo, setTipo] = useState("");
@@ -130,6 +127,8 @@ export default function CentralDespachoPage() {
   const formRef = useRef<HTMLFormElement | null>(null);
 
   useEffect(() => { const t = setInterval(() => setAhora(new Date()), 1000); setAhora(new Date()); return () => clearInterval(t); }, []);
+  // Filtro inicial "Hoy": se fija en cliente (evita desajuste de zona horaria en SSR).
+  useEffect(() => { aplicarPreset("hoy"); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
   useEffect(() => {
     supabase.from("sitios").select("id, nombre, latitud, longitud, cliente:clientes(razon_social)")
@@ -173,7 +172,8 @@ export default function CentralDespachoPage() {
   }, []);
 
   const filtradas = useMemo(() => {
-    const q = busca.trim().toLowerCase();
+    const ub = fUbicacion.trim().toLowerCase();
+    const gu = fGuardia.trim().toLowerCase();
     const hasta = fHasta ? new Date(fHasta + "T23:59:59").toISOString() : null;
     const desde = fDesde ? new Date(fDesde + "T00:00:00").toISOString() : null;
     return llamadas.filter((l) =>
@@ -182,9 +182,10 @@ export default function CentralDespachoPage() {
       (!fDespacho || l.estado_despacho === fDespacho) &&
       (!desde || l.fecha_recepcion >= desde) &&
       (!hasta || l.fecha_recepcion <= hasta) &&
-      (!q || `${l.folio ?? ""} ${l.tipo ?? ""} ${l.direccion ?? ""} ${l.reportante ?? ""} ${unidades[l.id]?.numero ?? ""} ${unidades[l.id]?.oficial ?? ""}`.toLowerCase().includes(q))
+      (!ub || `${l.folio ?? ""} ${l.direccion ?? ""}`.toLowerCase().includes(ub)) &&
+      (!gu || `${unidades[l.id]?.numero ?? ""} ${unidades[l.id]?.oficial ?? ""}`.toLowerCase().includes(gu))
     );
-  }, [llamadas, fEstatus, fPrioridad, fDespacho, fDesde, fHasta, busca, unidades]);
+  }, [llamadas, fEstatus, fPrioridad, fDespacho, fDesde, fHasta, fUbicacion, fGuardia, unidades]);
   const visibles = useMemo(() => filtradas.slice(0, limite), [filtradas, limite]);
 
   // KPIs
@@ -218,10 +219,19 @@ export default function CentralDespachoPage() {
     if (fDespacho) p.set("despacho", fDespacho);
     if (fDesde) p.set("desde", fDesde);
     if (fHasta) p.set("hasta", fHasta);
-    if (busca.trim()) p.set("q", busca.trim());
+    if (fUbicacion.trim()) p.set("q", fUbicacion.trim());
     return `/mapa-operacional?${p.toString()}`;
   }
-  function limpiarFiltros() { setFEstatus(""); setFPrioridad(""); setFDespacho(""); setFDesde(""); setFHasta(""); setBusca(""); }
+  // "Limpiar filtros": quita TODO (incluye el filtro inicial Hoy + Activo).
+  function limpiarFiltros() { setFEstatus(""); setFPrioridad(""); setFDespacho(""); setFDesde(""); setFHasta(""); setPreset(""); setFUbicacion(""); setFGuardia(""); }
+  function fechaLocal(d: Date) { const p = (n: number) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; }
+  function aplicarPreset(p: "hoy" | "7" | "30") {
+    const hoy = new Date();
+    const desdeD = new Date(hoy);
+    if (p === "7") desdeD.setDate(hoy.getDate() - 6);
+    else if (p === "30") desdeD.setDate(hoy.getDate() - 29);
+    setFDesde(fechaLocal(desdeD)); setFHasta(fechaLocal(hoy)); setPreset(p);
+  }
 
   async function agregarLlamada(e: React.FormEvent) {
     e.preventDefault();
@@ -247,6 +257,7 @@ export default function CentralDespachoPage() {
   const card: React.CSSProperties = { background: "var(--sc-content)", border: "1px solid var(--sc-card-line)", borderRadius: 14, boxShadow: "0 1px 3px #0000000d" };
   const lbl: React.CSSProperties = { fontSize: 12.5, fontWeight: 600, color: "var(--sc-text-soft)", display: "block", marginBottom: 5 };
   const inp: React.CSSProperties = { width: "100%", padding: "9px 11px", borderRadius: 9, border: "1px solid var(--sc-card-line)", background: "var(--sc-content)", color: "var(--sc-text)", fontSize: 14 };
+  const eLbl: React.CSSProperties = { fontSize: 11, fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase", color: "var(--sc-text-soft)", marginBottom: 8, display: "block" };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -332,57 +343,81 @@ export default function CentralDespachoPage() {
         </div>
       </div>
 
-      {/* Indicadores (arriba de los filtros) */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14 }}>
-        {[
-          { t: "Incidentes hoy", v: String(kpis.hoy), s: "Total registrados", c: "#e23b53", d: kpis.hoySerie },
-          { t: "En atención", v: String(kpis.enAtencion), s: `${kpis.pctAt}% del total`, c: "#d98a2b", d: kpis.enAtSerie },
-          { t: "Resueltos hoy", v: String(kpis.resueltos), s: `${kpis.pctRes}% de hoy`, c: "#1f9d5c", d: kpis.resSerie },
-          { t: "Tiempo prom. de atención", v: kpis.prom != null ? minSeg(kpis.prom) : "—", s: "min · objetivo 05:00", c: "#2f6bff", d: kpis.promSerie },
-          { t: "Incidentes críticos activos", v: String(kpis.criticos), s: "Requieren atención inmediata", c: "#e23b53", d: kpis.critSerie },
-        ].map((k, i) => (
-          <div key={i} style={{ ...card, padding: 14 }}>
-            <div style={{ fontSize: 12.5, color: "var(--sc-text-soft)" }}>{k.t}</div>
-            <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 8, marginTop: 8 }}>
-              <div>
-                <div style={{ fontSize: 30, fontWeight: 800, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{k.v}</div>
-                <div style={{ fontSize: 11, color: "var(--sc-text-faint)", marginTop: 5 }}>{k.s}</div>
-              </div>
-              <Sparkline data={k.d} color={k.c} />
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Filtros de búsqueda (contraíble; contraído al cargar/refrescar) */}
+      {/* Filtros de búsqueda */}
       <div style={{ ...card, padding: 16 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <button type="button" onClick={() => setFiltrosAbiertos((v) => !v)} style={{ display: "flex", alignItems: "center", gap: 8, background: "transparent", border: "none", cursor: "pointer", color: "var(--sc-text)", padding: 0, fontSize: 15 }}>
-            <span style={{ color: "var(--sc-text-soft)", width: 12, display: "inline-block" }}>{filtrosAbiertos ? "▾" : "▸"}</span><b>Filtros de búsqueda</b>
+            <span style={{ color: "#e23b53", width: 12, display: "inline-block" }}>{filtrosAbiertos ? "▾" : "▸"}</span><b>Filtros de búsqueda</b>
           </button>
           <button type="button" onClick={limpiarFiltros} style={{ marginLeft: "auto", padding: "8px 14px", borderRadius: 9, border: "1px solid var(--sc-card-line)", background: "transparent", color: "var(--sc-text-soft)", cursor: "pointer", fontSize: 13 }}>🗑 Limpiar filtros</button>
         </div>
         {filtrosAbiertos && (
-          <div style={{ display: "flex", gap: 22, flexWrap: "wrap", alignItems: "flex-start", marginTop: 14 }}>
-            <div>
-              <div style={{ fontSize: 12, color: "var(--sc-text-soft)", marginBottom: 6 }}>Búsqueda</div>
-              <div style={{ position: "relative" }}>
-                <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Folio, ubicación, reportante, unidad…" style={{ ...inp, width: 280, paddingLeft: 30 }} />
-                <span style={{ position: "absolute", left: 10, top: 9, color: "var(--sc-text-faint)" }}>🔍</span>
+          <>
+            <div style={{ display: "flex", gap: 26, flexWrap: "wrap", alignItems: "flex-start", marginTop: 14 }}>
+              <div>
+                <span style={eLbl}>Fechas</span>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <Pastilla activo={preset === "hoy"} onClick={() => aplicarPreset("hoy")}>Hoy</Pastilla>
+                  <Pastilla activo={preset === "7"} onClick={() => aplicarPreset("7")}>7 días</Pastilla>
+                  <Pastilla activo={preset === "30"} onClick={() => aplicarPreset("30")}>30 días</Pastilla>
+                </div>
+              </div>
+              <div>
+                <span style={eLbl}>Rango</span>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <input type="date" value={fDesde} onChange={(e) => { setFDesde(e.target.value); setPreset(""); }} style={{ ...inp, width: 150 }} />
+                  <span style={{ color: "var(--sc-text-faint)" }}>—</span>
+                  <input type="date" value={fHasta} onChange={(e) => { setFHasta(e.target.value); setPreset(""); }} style={{ ...inp, width: 150 }} />
+                </div>
+              </div>
+              <div>
+                <span style={eLbl}>Estatus</span>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <Pastilla activo={fEstatus === "activo"} color="#1f9d5c" onClick={() => setFEstatus(fEstatus === "activo" ? "" : "activo")}>Activo</Pastilla>
+                  <Pastilla activo={fEstatus === "cerrado"} color="#607d8b" onClick={() => setFEstatus(fEstatus === "cerrado" ? "" : "cerrado")}>Cerrado</Pastilla>
+                  <Pastilla activo={fEstatus === "cancelado"} color="#b00020" onClick={() => setFEstatus(fEstatus === "cancelado" ? "" : "cancelado")}>Cancelado</Pastilla>
+                </div>
               </div>
             </div>
-            <div>
-              <div style={{ fontSize: 12, color: "var(--sc-text-soft)", marginBottom: 6 }}>Fechas</div>
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <input type="date" value={fDesde} onChange={(e) => setFDesde(e.target.value)} style={{ ...inp, width: 150 }} />
-                <span style={{ color: "var(--sc-text-faint)" }}>—</span>
-                <input type="date" value={fHasta} onChange={(e) => setFHasta(e.target.value)} style={{ ...inp, width: 150 }} />
+
+            <div style={{ height: 1, background: "var(--sc-card-line)", margin: "16px 0" }} />
+
+            <button type="button" onClick={() => setMasFiltros((v) => !v)} style={{ display: "flex", alignItems: "center", gap: 6, background: "transparent", border: "none", cursor: "pointer", color: "var(--sc-text-soft)", padding: 0, fontSize: 13.5, fontWeight: 600 }}>
+              <span>{masFiltros ? "▾" : "▸"}</span> Más filtros
+            </button>
+
+            {masFiltros && (
+              <div style={{ display: "flex", gap: 26, flexWrap: "wrap", alignItems: "flex-start", marginTop: 14 }}>
+                <div>
+                  <span style={eLbl}>Despacho</span>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <Pastilla activo={fDespacho === ""} color="#2f6bff" onClick={() => setFDespacho("")}>Todos</Pastilla>
+                    <Pastilla activo={fDespacho === "recibida"} onClick={() => setFDespacho("recibida")}>Recibida</Pastilla>
+                    <Pastilla activo={fDespacho === "despachada"} onClick={() => setFDespacho("despachada")}>Despachado</Pastilla>
+                    <Pastilla activo={fDespacho === "en_atencion"} onClick={() => setFDespacho("en_atencion")}>En atención</Pastilla>
+                    <Pastilla activo={fDespacho === "resuelta"} onClick={() => setFDespacho("resuelta")}>Resuelta</Pastilla>
+                  </div>
+                </div>
+                <div>
+                  <span style={eLbl}>Prioridad</span>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <Pastilla activo={fPrioridad === ""} color="#2f6bff" onClick={() => setFPrioridad("")}>Todas</Pastilla>
+                    <Pastilla activo={fPrioridad === "alta"} color="#e23b53" onClick={() => setFPrioridad("alta")}>Alta</Pastilla>
+                    <Pastilla activo={fPrioridad === "media"} color="#d98a2b" onClick={() => setFPrioridad("media")}>Media</Pastilla>
+                    <Pastilla activo={fPrioridad === "baja"} color="#1f9d5c" onClick={() => setFPrioridad("baja")}>Baja</Pastilla>
+                  </div>
+                </div>
+                <div>
+                  <span style={eLbl}>Ubicación</span>
+                  <input value={fUbicacion} onChange={(e) => setFUbicacion(e.target.value)} placeholder="Ubicación…" style={{ ...inp, width: 200 }} />
+                </div>
+                <div>
+                  <span style={eLbl}>Guardia</span>
+                  <input value={fGuardia} onChange={(e) => setFGuardia(e.target.value)} placeholder="Nombre o # de unidad…" style={{ ...inp, width: 200 }} />
+                </div>
               </div>
-            </div>
-            <GrupoFiltro label="Estatus" valor={fEstatus} onSel={setFEstatus} opciones={[{ k: "", t: "Todos" }, { k: "activo", t: "Activo", cls: "est-activo" }, { k: "cerrado", t: "Cerrado", cls: "est-cerrado" }, { k: "cancelado", t: "Cancelado", cls: "est-cancelado" }]} />
-            <GrupoFiltro label="Prioridad" valor={fPrioridad} onSel={setFPrioridad} opciones={[{ k: "", t: "Todas" }, { k: "alta", t: "Alta", cls: "prio-alta" }, { k: "media", t: "Media", cls: "prio-media" }, { k: "baja", t: "Baja", cls: "prio-baja" }]} />
-            <GrupoFiltro label="Despacho" valor={fDespacho} onSel={setFDespacho} opciones={[{ k: "", t: "Todos" }, { k: "recibida", t: "Recibida", cls: "desp-recibida" }, { k: "despachada", t: "Despachado", cls: "desp-despachada" }, { k: "en_atencion", t: "En atención", cls: "desp-en_atencion" }, { k: "resuelta", t: "Resuelta", cls: "desp-resuelta" }]} />
-          </div>
+            )}
+          </>
         )}
       </div>
 
@@ -455,6 +490,24 @@ export default function CentralDespachoPage() {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Indicadores (al final de la página) */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14 }}>
+        {[
+          { t: "Incidentes hoy", v: String(kpis.hoy), s: "Total registrados", c: "#e23b53", d: kpis.hoySerie },
+          { t: "En atención", v: String(kpis.enAtencion), s: `${kpis.pctAt}% del total`, c: "#d98a2b", d: kpis.enAtSerie },
+          { t: "Resueltos hoy", v: String(kpis.resueltos), s: `${kpis.pctRes}% de hoy`, c: "#1f9d5c", d: kpis.resSerie },
+          { t: "Tiempo prom. de atención", v: kpis.prom != null ? minSeg(kpis.prom) : "—", s: "objetivo 05:00 min", c: "#2f6bff", d: kpis.promSerie },
+          { t: "Incidentes críticos activos", v: String(kpis.criticos), s: "Requieren atención inmediata", c: "#e23b53", d: kpis.critSerie },
+        ].map((k, i) => (
+          <div key={i} style={{ ...card, padding: 16, display: "flex", flexDirection: "column" }}>
+            <div style={{ fontSize: 12.5, color: "var(--sc-text-soft)" }}>{k.t}</div>
+            <div style={{ fontSize: 30, fontWeight: 800, lineHeight: 1.1, fontVariantNumeric: "tabular-nums", marginTop: 6 }}>{k.v}</div>
+            <div style={{ fontSize: 11.5, color: "var(--sc-text-faint)", marginTop: 4 }}>{k.s}</div>
+            <div style={{ marginTop: 10 }}><Sparkline data={k.d} color={k.c} full h={30} /></div>
+          </div>
+        ))}
       </div>
 
     </div>
