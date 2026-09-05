@@ -60,9 +60,14 @@ export default function CameraDetailDrawer({ camaraId, onClose, verMapaHref }: {
   async function guardarSnapshot() {
     if (!vista?.imagen_url) { setMsg({ txt: "No hay imagen disponible para guardar.", ok: false }); return; }
     setBusy(true); setMsg(null);
-    const { data, error } = await supabase.rpc("rpc_camara_snapshot_evidencia", { p_camara: camaraId, p_imagen_url: vista.imagen_url, p_nota: null });
+    // La edge function descarga el snapshot del proveedor, lo SUBE al bucket y crea
+    // la evidencia con la ruta de Storage (evita el 404 por URL externa caducada).
+    const { data, error } = await supabase.functions.invoke("camara_vista", {
+      body: { accion: "snapshot", camara_id: camaraId, imagen_url: vista.imagen_url, nota: null },
+    });
     setBusy(false);
-    if (error) { setMsg({ txt: error.message, ok: false }); return; }
+    const err = (data as any)?.error ?? error?.message;
+    if (err) { setMsg({ txt: err, ok: false }); return; }
     setMsg({ txt: `Evidencia ${(data as any)?.folio ?? ""} creada.`, href: "/evidencias", ok: true });
   }
 

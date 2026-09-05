@@ -56,6 +56,9 @@ export default function FotosPanel({ tabla, id }: { tabla: TablaConFotos; id: st
   }, [tabla, id]);
 
   function urlPublica(ruta: string): string {
+    // Si ya es una URL absoluta (p. ej. snapshots antiguos), úsala tal cual: pasarla
+    // por getPublicUrl la prefijaría y daría 404 (NoSuchKey).
+    if (/^https?:\/\//i.test(ruta)) return ruta;
     return supabase.storage.from(BUCKET).getPublicUrl(ruta).data.publicUrl;
   }
 

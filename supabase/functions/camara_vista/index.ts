@@ -151,6 +151,50 @@ Deno.serve(async (req) => {
       return json({ error: `Proveedor no soportado: ${cam.proveedor}.` }, 501);
     }
 
+    // ---- SNAPSHOT -> EVIDENCIA: descarga la imagen del proveedor (server-side,
+    //      sin CORS), la SUBE al bucket 'fotos' y crea la evidencia con la RUTA
+    //      de Storage (no la URL externa, que caducaba y daba 404 NoSuchKey). ----
+    if (accion === "snapshot") {
+      const camaraId = body?.camara_id;
+      const nota = body?.nota ?? null;
+      if (!camaraId) return json({ error: "Falta camara_id." }, 400);
+      const { data: cam } = await supabase
+        .from("camaras").select("id, nombre, proveedor, proveedor_ref, estado_operativo, estatus")
+        .eq("id", camaraId).maybeSingle();
+      if (!cam) return json({ error: "Cámara no encontrada." }, 404);
+      if (cam.estatus !== "activo" || cam.estado_operativo !== "activa")
+        return json({ error: `La cámara está ${cam.estado_operativo}.` }, 409);
+
+      // Resolver una imagen FRESCA del proveedor (hoy solo Windy entrega snapshot).
+      let imagenUrl: string | null = null;
+      if (cam.proveedor === "windy") {
+        if (!cam.proveedor_ref) return json({ error: "La cámara no tiene proveedor_ref." }, 409);
+        imagenUrl = (await windyVista(cam.proveedor_ref)).imagen_url;
+      } else if (typeof body?.imagen_url === "string" && body.imagen_url) {
+        imagenUrl = body.imagen_url; // fallback: URL provista por el cliente
+      }
+      if (!imagenUrl) return json({ error: "El proveedor no entrega snapshot para esta cámara." }, 409);
+
+      // Descargar la imagen (server-side) y subirla al bucket.
+      let resp: Response;
+      try { resp = await fetch(imagenUrl); }
+      catch { return json({ error: "No se pudo descargar el snapshot del proveedor." }, 502); }
+      if (!resp.ok) return json({ error: `El proveedor devolvió HTTP ${resp.status} al pedir el snapshot.` }, 502);
+      const ct = resp.headers.get("content-type") ?? "image/jpeg";
+      const ext = ct.includes("png") ? "png" : ct.includes("webp") ? "webp" : "jpg";
+      const buf = new Uint8Array(await resp.arrayBuffer());
+      const path = `evidencias/snapshot/${camaraId}/${Date.now()}.${ext}`;
+      const up = await supabase.storage.from("fotos").upload(path, buf, { contentType: ct, upsert: true });
+      if (up.error) return json({ error: `No se pudo guardar el snapshot: ${up.error.message}` }, 500);
+
+      // Crear la evidencia con la RUTA de Storage (corre como el usuario -> auth.uid()).
+      const { data: ev, error: evErr } = await supabase.rpc("rpc_camara_snapshot_evidencia", {
+        p_camara: camaraId, p_imagen_url: path, p_nota: nota,
+      });
+      if (evErr) return json({ error: evErr.message }, 500);
+      return json({ ...(ev as any), path });
+    }
+
     // ---- IMPORTAR: alta masiva desde el proveedor (dedup por proveedor_ref) --
     if (accion === "importar") {
       const sitioId = body?.sitio_id;

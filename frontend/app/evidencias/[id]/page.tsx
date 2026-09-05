@@ -140,7 +140,9 @@ export default function EvidenciaDetallePage() {
           yaTienePoster={Array.isArray(evidencia.fotografias) && !!evidencia.fotografias[0]}
           poster={
             Array.isArray(evidencia.fotografias) && evidencia.fotografias[0]
-              ? supabase.storage.from("fotos").getPublicUrl(evidencia.fotografias[0] as string).data.publicUrl
+              ? (/^https?:\/\//i.test(evidencia.fotografias[0] as string)
+                  ? (evidencia.fotografias[0] as string)
+                  : supabase.storage.from("fotos").getPublicUrl(evidencia.fotografias[0] as string).data.publicUrl)
               : null
           }
         />

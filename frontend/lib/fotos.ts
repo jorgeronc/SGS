@@ -5,6 +5,8 @@ const BUCKET = "fotos";
 // Resuelve la URL pública de una ruta del bucket de fotos.
 export function urlFoto(path?: string | null): string | null {
   if (!path) return null;
+  // URL absoluta (p. ej. snapshots antiguos guardados como URL externa): tal cual.
+  if (/^https?:\/\//i.test(path)) return path;
   return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
 }
 
