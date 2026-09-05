@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
@@ -16,6 +16,23 @@ import GrabacionesTransmision from "@/app/components/GrabacionesTransmision";
 import CamarasCercanas from "@/app/components/CamarasCercanas";
 import HistorialCad from "@/app/components/HistorialCad";
 import PersonasVehiculosIncidente from "@/app/components/PersonasVehiculosIncidente";
+
+// Textarea que ajusta su alto al contenido (tamaño fijo, sin manija de resize).
+function AutoTextarea({ value, onChange, disabled, placeholder, minH = 60 }: { value: string; onChange: (v: string) => void; disabled?: boolean; placeholder?: string; minH?: number }) {
+  const ref = useRef<HTMLTextAreaElement | null>(null);
+  const ajustar = () => { const el = ref.current; if (el) { el.style.height = "auto"; el.style.height = `${Math.max(minH, el.scrollHeight)}px`; } };
+  useEffect(() => { ajustar(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [value]);
+  return (
+    <textarea
+      ref={ref}
+      value={value}
+      disabled={disabled}
+      placeholder={placeholder}
+      onChange={(e) => { onChange(e.target.value); ajustar(); }}
+      style={{ display: "block", width: "100%", resize: "none", overflow: "hidden", minHeight: minH, padding: "9px 11px" }}
+    />
+  );
+}
 
 const ESTADOS: EstadoDespachoLlamada[] = ["recibida", "despachada", "en_atencion", "resuelta"];
 const DESP_REPORTE: Record<string, string> = { recibida: "Recibida", despachada: "Despachado", en_atencion: "En atención", resuelta: "Resuelta" };
@@ -34,6 +51,7 @@ export default function IncidenciaDetallePage() {
   const [guardando, setGuardando] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [descripcion, setDescripcion] = useState("");
+  const [narrativa, setNarrativa] = useState("");
   const [editando, setEditando] = useState(false);
   const [ed, setEd] = useState({ tipo: "", prioridad: "media", reportante: "", telefono: "", direccion: "", lat: "", lng: "", estado_despacho: "recibida" });
   const [txActiva, setTxActiva] = useState<string | null>(null);
@@ -87,7 +105,7 @@ export default function IncidenciaDetallePage() {
       telefono: ed.telefono || null, direccion: ed.direccion || null,
       latitud: ed.lat ? Number(ed.lat) : null, longitud: ed.lng ? Number(ed.lng) : null,
       estado_despacho: ed.estado_despacho, fecha_cierre: cierre,
-      descripcion: descripcion.trim() || null, actualizado_en: new Date().toISOString(),
+      descripcion: descripcion.trim() || null, narrativa: narrativa.trim() || null, actualizado_en: new Date().toISOString(),
     }).eq("id", llamada.id);
     setGuardando(false);
     if (error) { setError(error.message); return; }
@@ -99,6 +117,7 @@ export default function IncidenciaDetallePage() {
     if (error) { setError(error.message); return; }
     setLlamada(data as LlamadaCad);
     setDescripcion((data as LlamadaCad)?.descripcion ?? "");
+    setNarrativa((data as any)?.narrativa ?? "");
     const l = data as any;
     setEd({ tipo: l.tipo ?? "", prioridad: l.prioridad ?? "media", reportante: l.reportante ?? "", telefono: l.telefono ?? "", direccion: l.direccion ?? "", lat: l.latitud != null ? String(l.latitud) : "", lng: l.longitud != null ? String(l.longitud) : "", estado_despacho: l.estado_despacho ?? "recibida" });
     supabase.rpc("rpc_registrar_bitacora", { p_tipo_accion: "CONSULTAR", p_entidad_tipo: "llamadas_cad", p_entidad_id: params.id, p_modulo: "cad" }).then(() => undefined);
@@ -276,13 +295,19 @@ export default function IncidenciaDetallePage() {
                   </div>
                   <label className="dash-sub" style={{ display: "block", marginTop: 8 }}>Ubicación del Incidente</label>
                   <DireccionGeocode direccion={ed.direccion} lat={ed.lat} lng={ed.lng} onDireccion={(v) => setEd({ ...ed, direccion: v })} onCoords={(la, lo) => setEd({ ...ed, lat: la, lng: lo })} disabled={!puedeEditar} size={100} sinBoton sinCoords />
-                  {llamada.latitud != null && <div style={{ marginTop: 10 }}><a href={`/mapa-operacional?incidente=${llamada.id}`} target="_blank" rel="noopener noreferrer" style={{ ...btnP, textDecoration: "none" }}>🗺️ Abrir en Mapa Operacional</a></div>}
+                  {/* El botón para abrir el mapa solo mientras el incidente está abierto (o en edición). */}
+                  {llamada.latitud != null && puedeEditar && <div style={{ marginTop: 10 }}><a href={`/mapa-operacional?incidente=${llamada.id}`} target="_blank" rel="noopener noreferrer" style={{ ...btnP, textDecoration: "none" }}>🗺️ Abrir en Mapa Operacional</a></div>}
                 </div>
 
                 <div>
-                  <h3 style={h3}>Descripción y narrativas</h3>
-                  <textarea style={{ display: "block", width: "100%", height: 200, resize: "vertical" }} placeholder="Descripción y narrativa cronológica de la incidencia…" value={descripcion} disabled={!puedeEditar} onChange={(e) => setDescripcion(e.target.value)} />
-                  <div className="dash-sub" style={{ fontSize: 12, marginTop: 4 }}>Un solo campo cronológico (descripción + narrativas).</div>
+                  <h3 style={h3}>Descripción</h3>
+                  <AutoTextarea value={descripcion} disabled={!puedeEditar} placeholder="Planteamiento inicial de la incidencia…" onChange={setDescripcion} minH={70} />
+                </div>
+
+                <div>
+                  <h3 style={h3}>Narrativas</h3>
+                  <AutoTextarea value={narrativa} disabled={!puedeEditar} placeholder="Narrativa cronológica y seguimiento de la incidencia…" onChange={setNarrativa} minH={90} />
+                  <div className="dash-sub" style={{ fontSize: 12, marginTop: 4 }}>Seguimiento cronológico del incidente.</div>
                 </div>
 
                 <div><DespachoRecursos llamadaId={params.id} sitioId={(llamada as any).sitio_id ?? null} editable={editable} onDespacho={() => { setLlamada((l) => (l ? ({ ...l, estado_despacho: l.estado_despacho === "recibida" ? "despachada" : l.estado_despacho } as LlamadaCad) : l)); setEd((e) => ({ ...e, estado_despacho: e.estado_despacho === "recibida" ? "despachada" : e.estado_despacho })); }} /></div>
@@ -306,13 +331,18 @@ export default function IncidenciaDetallePage() {
                       <MapaPicker lat={ed.lat === "" ? null : Number(ed.lat)} lng={ed.lng === "" ? null : Number(ed.lng)} onPick={(la, lo) => setEd({ ...ed, lat: String(la), lng: String(lo) })} />
                       <div style={{ fontSize: 13, marginTop: 6 }}>
                         {ed.lat !== "" && ed.lng !== ""
-                          ? <>📍 Lat {Number(ed.lat).toFixed(6)}, Lng {Number(ed.lng).toFixed(6)}</>
+                          ? <>📍 Coordenadas: <b>{Number(ed.lat).toFixed(6)}, {Number(ed.lng).toFixed(6)}</b></>
                           : <span style={{ color: "var(--sc-text-soft)" }}>📍 Sin coordenadas — haz clic en el mapa para fijarlas.</span>}
                       </div>
                       <div className="dash-sub" style={{ fontSize: 12, marginTop: 2 }}>Haz clic en el mapa o arrastra el marcador para señalar el punto; también puedes buscar por dirección arriba.</div>
                     </>
                   ) : (
-                    <MapaUbicacion latitud={llamada.latitud} longitud={llamada.longitud} sinEnlace />
+                    <>
+                      <MapaUbicacion latitud={llamada.latitud} longitud={llamada.longitud} sinEnlace sinCoords />
+                      {llamada.latitud != null && llamada.longitud != null && (
+                        <div style={{ fontSize: 13, marginTop: 6 }}>📍 Coordenadas: <b>{Number(llamada.latitud).toFixed(6)}, {Number(llamada.longitud).toFixed(6)}</b></div>
+                      )}
+                    </>
                   )}
                 </div>
                 <GrabacionesTransmision llamadaId={params.id} />
