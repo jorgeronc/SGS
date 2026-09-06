@@ -36,6 +36,8 @@ export default function PerfilScreen() {
   // Mi elemento (identidad del oficial) — AUTO-resuelto desde la cuenta (no se elige).
   const [miOficialId, setMiOficialId] = useState<string | null>(null);
   const [miOficialEtq, setMiOficialEtq] = useState<string>("");
+  const [nombreGuardia, setNombreGuardia] = useState<string>("");   // nombre completo
+  const [numGuardia, setNumGuardia] = useState<string | null>(null); // número/placa del guardia
   const [fotoPath, setFotoPath] = useState<string | null>(null);
   const [subiendo, setSubiendo] = useState(false);
   const [miBodycam, setMiBodycamState] = useState<string | null>(null);   // folio
@@ -74,6 +76,17 @@ export default function PerfilScreen() {
     setFotoPath(primeraFoto(fotos));
   }
 
+  // Nombre completo + número del guardia (para la ficha de identidad en la foto).
+  async function cargarDatosGuardia(pid: string) {
+    const { data } = await supabase.from("personal")
+      .select("numero_placa, persona:personas(nombre, apellido_paterno, apellido_materno)")
+      .eq("id", pid).maybeSingle();
+    const p = data as any;
+    const nom = p?.persona ? `${p.persona.nombre ?? ""} ${p.persona.apellido_paterno ?? ""} ${p.persona.apellido_materno ?? ""}`.trim() : "";
+    setNombreGuardia(nom);
+    setNumGuardia(p?.numero_placa ?? null);
+  }
+
   async function cargarUnidadYTurno(pid: string) {
     setSitio(await getUnidadDelSistema(pid));
     setUnidadNum(await getMiCrp());
@@ -85,7 +98,7 @@ export default function PerfilScreen() {
     const e = await sincronizarMiElemento();
     if (e) {
       setMiOficialId(e.personalId); setMiOficialEtq(e.etiqueta);
-      cargarMiFoto(e.personalId); cargarUnidadYTurno(e.personalId);
+      cargarMiFoto(e.personalId); cargarDatosGuardia(e.personalId); cargarUnidadYTurno(e.personalId);
       actualizarPersonalPush(e.personalId);
       validarBodycam(e.personalId).then((r) => { if (r.ok) setMiBodycamState(r.folio ?? null); });
       iniciarRastreo(); iniciarGeocercas();
@@ -229,33 +242,22 @@ export default function PerfilScreen() {
               : <Ionicons name="person" size={44} color={T.accent} />}
             <View style={styles.avatarCam}><Ionicons name="camera" size={14} color={T.white} /></View>
           </TouchableOpacity>
-          <Text style={styles.nombre} numberOfLines={1}>{miOficialEtq || correo || "Elemento en campo"}</Text>
+          <Text style={styles.nombre} numberOfLines={1}>{nombreGuardia || miOficialEtq || correo || "Elemento en campo"}</Text>
           <Text style={styles.rol}>Toca la foto para cambiarla (mantén para galería)</Text>
-        </View>
 
-        {/* Mi elemento — auto-resuelto por la relación cuenta ↔ guardia (no se elige) */}
-        <Text style={styles.seccion}>Mi elemento (identidad)</Text>
-        <View style={styles.card}>
-          <View style={styles.rowSel}>
-            <Ionicons name="id-card-outline" size={20} color={T.accent} style={{ width: 28 }} />
-            <Text style={[styles.l, { flex: 1, color: T.text }]} numberOfLines={1}>{miOficialEtq || "Sin elemento (tu cuenta no está ligada a un guardia)"}</Text>
-          </View>
+          {/* Mi elemento (identidad), dentro de la sección de la fotografía. */}
+          {miOficialId ? (
+            <View style={styles.idBox}>
+              <View style={styles.idRow}><Ionicons name="id-card-outline" size={16} color={T.accent} style={styles.idIco} /><Text style={styles.idLbl}>Nombre</Text><Text style={styles.idVal} numberOfLines={1}>{nombreGuardia || miOficialEtq || "—"}</Text></View>
+              <View style={styles.idRow}><Ionicons name="pricetag-outline" size={16} color={T.accent} style={styles.idIco} /><Text style={styles.idLbl}># Guardia</Text><Text style={styles.idVal} numberOfLines={1}>{numGuardia || "—"}</Text></View>
+              <View style={styles.idRow}><Ionicons name="business-outline" size={16} color={T.accent} style={styles.idIco} /><Text style={styles.idLbl}>Sitio</Text><Text style={styles.idVal} numberOfLines={1}>{sitio || "sin sitio"}</Text></View>
+              <View style={styles.idRow}><Ionicons name="car-outline" size={16} color={T.accent} style={styles.idIco} /><Text style={styles.idLbl}>Unidad</Text><Text style={styles.idVal} numberOfLines={1}>{unidadNum || "Sin unidad"}</Text></View>
+              <View style={styles.idRow}><Ionicons name="videocam-outline" size={16} color={T.accent} style={styles.idIco} /><Text style={styles.idLbl}>Bodycam</Text><Text style={styles.idVal} numberOfLines={1}>{miBodycam || "sin bodycam"}</Text></View>
+            </View>
+          ) : (
+            <Text style={styles.avisoHero}>Sin elemento: tu cuenta no está ligada a un guardia. Pide al administrador que asigne tu elemento.</Text>
+          )}
         </View>
-        {miOficialId && miBodycam && (
-          <Text style={styles.bodycamLbl}>
-            <Ionicons name="videocam" size={13} color={T.accent} /> Bodycam: <Text style={{ color: T.text, fontWeight: "800" }}>{miBodycam}</Text>
-          </Text>
-        )}
-        {miOficialId && (
-          <Text style={styles.bodycamLbl}>
-            <Ionicons name="business-outline" size={13} color={T.accent} /> Sitio: <Text style={{ color: T.text, fontWeight: "800" }}>{sitio || "sin sitio"}</Text>
-          </Text>
-        )}
-        {miOficialId && (
-          <Text style={styles.bodycamLbl}>
-            <Ionicons name="car-outline" size={13} color={T.accent} /> Unidad: <Text style={{ color: T.text, fontWeight: "800" }}>{unidadNum || "Sin unidad"}</Text>
-          </Text>
-        )}
 
         {/* Recordatorios del turno (expiran al finalizar el turno) */}
         <Text style={styles.seccion}>Recordatorios del turno</Text>
@@ -374,6 +376,12 @@ const styles = StyleSheet.create({
   avatarCam: { position: "absolute", right: 2, bottom: 2, width: 30, height: 30, borderRadius: 15, backgroundColor: T.accent, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: T.surface },
   nombre: { color: T.text, fontSize: 19, fontWeight: "800", marginTop: 14, maxWidth: "100%", letterSpacing: -0.2 },
   rol: { color: T.textMute, fontSize: 12, marginTop: 3, textAlign: "center" },
+  idBox: { alignSelf: "stretch", marginTop: 16, borderTopWidth: 1, borderTopColor: T.border, paddingTop: 10, gap: 8 },
+  idRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  idIco: { width: 22 },
+  idLbl: { color: T.textMute, fontSize: 13, width: 82 },
+  idVal: { color: T.text, fontSize: 14, fontWeight: "800", flex: 1, textAlign: "right" },
+  avisoHero: { color: T.accent, fontSize: 12.5, textAlign: "center", marginTop: 14 },
   card: { alignSelf: "stretch", backgroundColor: T.surface, borderRadius: UI.radius, borderWidth: 1, borderColor: T.border, paddingHorizontal: 14, marginTop: 10 },
   row: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 52 },
   rowCol: { paddingVertical: 4 },

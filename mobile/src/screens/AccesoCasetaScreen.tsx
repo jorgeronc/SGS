@@ -1,11 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, Alert, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useIsFocused, useNavigation } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { CameraView, useCameraPermissions } from "expo-camera";
-import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import * as FileSystem from "expo-file-system/legacy";
 import { decode } from "base64-arraybuffer";
@@ -37,7 +36,11 @@ export default function AccesoCasetaScreen() {
   const [sitioNombre, setSitioNombre] = useState<string | null>(null);
   const [puntoId, setPuntoId] = useState<string | null>(null);
   const [personalId, setPersonalId] = useState<string | null>(null);
-  const [escaneando, setEscaneando] = useState(false);
+  // Cámara full-screen (misma forma que Rondín): "qr" para leer credencial, "foto"
+  // para tomar la identificación. El ImagePicker anterior no abría la cámara.
+  const [camModo, setCamModo] = useState<"" | "qr" | "foto">("");
+  const camRef = useRef<CameraView | null>(null);
+  const yaScan = useRef(false);
   const [enviando, setEnviando] = useState(false);
   // Modo vehículo (Fase 2): placa + cita + andén.
   const [modo, setModo] = useState<"persona" | "vehiculo">("persona");
@@ -120,10 +123,30 @@ export default function AccesoCasetaScreen() {
     setCred(data);
   }, []);
 
+  // Abre la cámara full-screen en el modo indicado (pide permiso si hace falta).
+  async function abrirCamara(modo: "qr" | "foto") {
+    if (!permiso?.granted) { const r = await pedirPermiso(); if (!r.granted) { Alert.alert("Cámara", "Se necesita la cámara."); return; } }
+    yaScan.current = false;
+    setCamModo(modo);
+  }
+
   function alEscanearQR(data: string) {
-    if (!escaneando) return;
-    setEscaneando(false);
+    if (yaScan.current) return;
+    yaScan.current = true;
+    setCamModo("");
     resolverCredencial(data);
+  }
+
+  // Toma la foto de la identificación con la misma cámara (expo-camera).
+  async function capturarFoto() {
+    try {
+      const shot = await camRef.current?.takePictureAsync({ quality: 0.6 });
+      if (shot?.uri) setFoto({ uri: shot.uri, mime: "image/jpeg" });
+    } catch (e: any) {
+      Alert.alert("Cámara", e?.message ?? "No se pudo tomar la foto.");
+    } finally {
+      setCamModo("");
+    }
   }
 
   async function escanearNfc() {
@@ -131,15 +154,6 @@ export default function AccesoCasetaScreen() {
     const r = await leerNfc();
     if (r.ok && r.codigo) resolverCredencial(r.codigo);
     else if (r.error) Alert.alert("NFC", r.error);
-  }
-
-  async function tomarFoto() {
-    const perm = await ImagePicker.requestCameraPermissionsAsync();
-    if (!perm.granted) return Alert.alert("Permiso", "Se requiere la cámara.");
-    const res = await ImagePicker.launchCameraAsync({ quality: 0.6 });
-    if (res.canceled) return;
-    const a = res.assets[0];
-    setFoto({ uri: a.uri, mime: a.mimeType ?? "image/jpeg" });
   }
 
   async function gps() {
@@ -369,24 +383,17 @@ export default function AccesoCasetaScreen() {
                 </View>
               </>
             )}
-            <Text style={styles.label}>Operador</Text>
+            <Text style={styles.label}>Operador<Text style={styles.req}> *</Text></Text>
             <TextInput style={styles.input} placeholder="Nombre del operador" placeholderTextColor={T.textMute} value={visitante} onChangeText={setVisitante} />
           </>
         )}
 
         {modo === "persona" && (<>
         <Text style={styles.label}>Credencial</Text>
-        {escaneando && enfocada && permiso?.granted ? (
-          <View style={styles.cam}>
-            <CameraView style={{ flex: 1 }} facing="back" barcodeScannerSettings={{ barcodeTypes: ["qr", "code128", "code39", "ean13"] }} onBarcodeScanned={({ data }) => alEscanearQR(data)} />
-            <TouchableOpacity style={styles.camCancel} onPress={() => setEscaneando(false)}><Text style={styles.camCancelTxt}>Cancelar</Text></TouchableOpacity>
-          </View>
-        ) : (
-          <View style={styles.grid}>
-            <TouchableOpacity style={styles.cap} onPress={async () => { if (!permiso?.granted) { const r = await pedirPermiso(); if (!r.granted) return; } setEscaneando(true); }}><Ionicons name="qr-code" size={22} color={T.accent} /><Text style={styles.capTxt}>Escanear QR</Text></TouchableOpacity>
-            <TouchableOpacity style={styles.cap} onPress={escanearNfc}><Ionicons name="radio" size={22} color={T.accent} /><Text style={styles.capTxt}>Leer NFC</Text></TouchableOpacity>
-          </View>
-        )}
+        <View style={styles.grid}>
+          <TouchableOpacity style={styles.cap} onPress={() => abrirCamara("qr")}><Ionicons name="qr-code" size={22} color={T.accent} /><Text style={styles.capTxt}>Escanear QR</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.cap} onPress={escanearNfc}><Ionicons name="radio" size={22} color={T.accent} /><Text style={styles.capTxt}>Leer NFC</Text></TouchableOpacity>
+        </View>
         <TextInput style={styles.input} placeholder="…o teclea el código" placeholderTextColor={T.textMute} value={codigo} onChangeText={setCodigo} onEndEditing={() => resolverCredencial(codigo)} autoCapitalize="characters" />
         {cred && <Text style={styles.ok}>✓ {cred.persona ? `${cred.persona.nombre ?? ""} ${cred.persona.apellido_paterno ?? ""}`.trim() : (cred.descripcion ?? "Credencial válida")}</Text>}
 
@@ -406,7 +413,7 @@ export default function AccesoCasetaScreen() {
 
         <Text style={styles.label}>Foto (identificación / persona)</Text>
         <View style={styles.grid}>
-          <TouchableOpacity style={styles.cap} onPress={tomarFoto}><Ionicons name="camera" size={22} color={T.accent} /><Text style={styles.capTxt}>Tomar foto</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.cap} onPress={() => abrirCamara("foto")}><Ionicons name="camera" size={22} color={T.accent} /><Text style={styles.capTxt}>Tomar foto</Text></TouchableOpacity>
           {foto && <Image source={{ uri: foto.uri }} style={styles.thumb} />}
         </View>
 
@@ -426,6 +433,30 @@ export default function AccesoCasetaScreen() {
           <Ionicons name="help-buoy" size={18} color={T.accent} /><Text style={styles.btnSecTxt}>Pedir autorización al supervisor</Text>
         </TouchableOpacity>
       </KeyboardAwareScrollView>
+
+      {/* Cámara full-screen (QR o foto), misma forma que Rondín. */}
+      {camModo !== "" && enfocada && permiso?.granted && (
+        <View style={styles.camOverlay}>
+          <CameraView
+            ref={camRef}
+            style={{ flex: 1 }}
+            facing="back"
+            barcodeScannerSettings={camModo === "qr" ? { barcodeTypes: ["qr", "code128", "code39", "ean13"] } : undefined}
+            onBarcodeScanned={camModo === "qr" ? ({ data }) => alEscanearQR(data) : undefined}
+          />
+          <View style={styles.camControls}>
+            {camModo === "qr" && <Text style={styles.camHint}>Apunta al código QR de la credencial</Text>}
+            {camModo === "foto" && (
+              <TouchableOpacity style={styles.shutter} onPress={capturarFoto}>
+                <Ionicons name="camera" size={30} color={T.white} />
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity style={styles.camCancel} onPress={() => setCamModo("")}>
+              <Text style={styles.camCancelTxt}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -446,8 +477,13 @@ const styles = StyleSheet.create({
   capTxt: { color: T.text, fontWeight: "700", fontSize: 14 },
   thumb: { width: 60, height: 60, borderRadius: 8, backgroundColor: T.surfaceHi },
   cam: { height: 260, borderRadius: UI.radiusSm, overflow: "hidden", marginTop: 8, position: "relative" },
-  camCancel: { position: "absolute", bottom: 10, alignSelf: "center", backgroundColor: "rgba(0,0,0,.6)", paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 },
+  camOverlay: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "#000", zIndex: 20, elevation: 20 },
+  camControls: { position: "absolute", left: 0, right: 0, bottom: 40, alignItems: "center", gap: 14 },
+  camHint: { color: "#fff", fontWeight: "700", backgroundColor: "rgba(0,0,0,.5)", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 },
+  shutter: { width: 68, height: 68, borderRadius: 34, backgroundColor: T.accent, alignItems: "center", justifyContent: "center", borderWidth: 4, borderColor: "#ffffff88" },
+  camCancel: { alignSelf: "center", backgroundColor: "rgba(0,0,0,.6)", paddingHorizontal: 18, paddingVertical: 10, borderRadius: 20 },
   camCancelTxt: { color: "#fff", fontWeight: "700" },
+  req: { color: T.danger, fontWeight: "800" },
   seg: { flexDirection: "row", gap: 8, marginTop: 8 },
   segBtn: { flex: 1, alignItems: "center", paddingVertical: 12, borderRadius: UI.radiusSm, backgroundColor: T.surface, borderWidth: 1, borderColor: T.border },
   segOn: { backgroundColor: T.accent, borderColor: T.accent },

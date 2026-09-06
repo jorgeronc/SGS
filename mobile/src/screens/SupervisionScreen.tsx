@@ -12,7 +12,16 @@ function nombre(p: any) {
   return x ? `${x.nombre ?? ""} ${x.apellido_paterno ?? ""} ${x.apellido_materno ?? ""}`.trim() : "—";
 }
 const conNovedad = (n: string | null) => !!n && n.trim() !== "" && n.trim().toLowerCase() !== "sin novedad";
-const fmtFecha = (d: Date) => d.toISOString().slice(0, 10);
+// Fecha en HORA LOCAL (no UTC): con toISOString los turnos de hoy no aparecían de
+// noche (el UTC ya era el día siguiente) y por eso "por sitio" salía vacío.
+const fmtFecha = (d: Date) => { const p = (n: number) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; };
+// "En línea" = reportó GPS hace poco. No basta el flag en_linea guardado: una
+// posición vieja (o de demo) se quedaba fija aunque el GPS estuviera apagado.
+const VENTANA_GPS_MS = 5 * 60 * 1000;
+function enLinea(g: { en_linea: boolean; latitud: number | null; longitud: number | null; actualizado_en: string | null } | null | undefined): boolean {
+  if (!g || !g.en_linea || g.latitud == null || g.longitud == null || !g.actualizado_en) return false;
+  return Date.now() - new Date(g.actualizado_en).getTime() < VENTANA_GPS_MS;
+}
 
 const EST_LABEL: Record<string, string> = { en_servicio: "En posición", en_rondin: "En rondín", en_pausa: "En pausa" };
 const EST_COLOR: Record<string, string> = { en_servicio: "#22c55e", en_rondin: "#2f6bff", en_pausa: "#b06a00" };
@@ -150,25 +159,26 @@ export default function SupervisionScreen() {
 
   // Datos para el mapa según el modo.
   const hayGps = modo === "guardia"
-    ? !!gps && gps.latitud != null && gps.longitud != null && gps.en_linea
-    : guardiasSitio.some((g) => g.gps?.en_linea && g.gps.latitud != null);
-  const estKey = gps?.estatus_servicio ?? null;
-  const estLabel = estKey ? (EST_LABEL[estKey] ?? estKey) : "Sin datos del sistema";
-  const estColor = estKey ? (EST_COLOR[estKey] ?? T.textMute) : T.textMute;
+    ? enLinea(gps)
+    : guardiasSitio.some((g) => enLinea(g.gps));
+  const gpsOnline = enLinea(gps);
+  const estKey = gpsOnline ? (gps?.estatus_servicio ?? null) : null;
+  const estLabel = gpsOnline ? (estKey ? (EST_LABEL[estKey] ?? estKey) : "En línea") : "GPS sin señal";
+  const estColor = gpsOnline ? (estKey ? (EST_COLOR[estKey] ?? T.textMute) : T.textMute) : T.textMute;
 
   const html = useMemo(() => {
     if (modo === "guardia") {
-      const g = gps && gps.latitud != null && gps.longitud != null && gps.en_linea ? [{ lat: gps.latitud, lng: gps.longitud, label: "Guardia" }] : [];
+      const g = enLinea(gps) ? [{ lat: gps!.latitud as number, lng: gps!.longitud as number, label: "Guardia" }] : [];
       return mapaHTML(g, sitio);
     }
     const pts = guardiasSitio
-      .filter((g) => g.gps?.en_linea && g.gps.latitud != null && g.gps.longitud != null)
+      .filter((g) => enLinea(g.gps))
       .map((g) => ({ lat: g.gps!.latitud as number, lng: g.gps!.longitud as number, label: g.nombre }));
     return mapaHTML(pts, sitioSel);
   }, [modo, gps, sitio, guardiasSitio, sitioSel]);
 
   const novedades = pasos.filter((p) => conNovedad(p.novedad)).length;
-  const enLineaSitio = guardiasSitio.filter((g) => g.gps?.en_linea).length;
+  const enLineaSitio = guardiasSitio.filter((g) => enLinea(g.gps)).length;
   const seleccionado = modo === "guardia" ? !!guardiaId : !!sitioSelId;
 
   return (
@@ -191,7 +201,7 @@ export default function SupervisionScreen() {
           guardias.length ? guardias.map((g) => {
             const on = guardiaId === g.id;
             const est = estadoPorGuardia[g.id];
-            const dot = est?.en_linea ? (EST_COLOR[est.estatus_servicio ?? "en_servicio"] ?? "#22c55e") : T.textMute;
+            const dot = enLinea(est) ? (EST_COLOR[est.estatus_servicio ?? "en_servicio"] ?? "#22c55e") : T.textMute;
             return (
               <TouchableOpacity key={g.id} style={[styles.gCard, on && styles.gCardOn]} onPress={() => setGuardiaId(g.id)}>
                 <View style={styles.gTop}><View style={[styles.gDot, { backgroundColor: dot }]} /><Ionicons name="person" size={14} color={on ? T.white : T.textDim} /></View>
@@ -281,15 +291,16 @@ export default function SupervisionScreen() {
                 ListEmptyComponent={<Text style={styles.sub}>Este sitio no tiene guardias asignados hoy.</Text>}
                 renderItem={({ item }) => {
                   const est = item.gps?.estatus_servicio ?? null;
-                  const color = item.gps?.en_linea ? (EST_COLOR[est ?? "en_servicio"] ?? "#22c55e") : T.textMute;
+                  const enLin = enLinea(item.gps);
+                  const color = enLin ? (EST_COLOR[est ?? "en_servicio"] ?? "#22c55e") : T.textMute;
                   return (
                     <TouchableOpacity style={styles.tlItem} onPress={() => { setModo("guardia"); setGuardiaId(item.personalId); }}>
                       <View style={[styles.dot, { backgroundColor: color }]} />
                       <View style={styles.tlBody}>
                         <Text style={styles.tlPunto}>{item.nombre}</Text>
                         <Text style={styles.tlMeta}>
-                          {item.gps?.en_linea ? (EST_LABEL[est ?? "en_servicio"] ?? "En línea") : "GPS sin señal"}
-                          {est === "en_pausa" && item.gps?.motivo_pausa ? ` · ${item.gps.motivo_pausa}` : ""}
+                          {enLin ? (EST_LABEL[est ?? "en_servicio"] ?? "En línea") : "GPS sin señal"}
+                          {enLin && est === "en_pausa" && item.gps?.motivo_pausa ? ` · ${item.gps.motivo_pausa}` : ""}
                         </Text>
                       </View>
                       <Ionicons name="chevron-forward" size={18} color={T.textMute} />
