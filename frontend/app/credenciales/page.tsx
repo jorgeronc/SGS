@@ -5,6 +5,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { supabase } from "@/lib/supabaseClient";
 import { urlFoto } from "@/lib/fotos";
 import ListaMaestra from "@/app/components/ListaMaestra";
+import CamaraFoto from "@/app/components/CamaraFoto";
 
 const CATEGORIAS = ["Empleado", "Guardia", "Visitante", "Servicio"];
 const tipoLabel = (t: string) => (t === "qr" ? "QR" : t === "nfc" ? "NFC" : "Código temporal");
@@ -84,6 +85,7 @@ function NuevaCredencial({ onCreado }: { onCreado: () => void }) {
   const [personas, setPersonas] = useState<any[]>([]);
   const [f, setF] = useState({ categoria: "Empleado", persona_id: "", nombre: "", apellido_paterno: "", apellido_materno: "", referencia: "", tipo: "qr", codigo: "", fecha_emision: localDT(new Date()), vigencia_fin: "" });
   const [dias, setDias] = useState(1); // días de vigencia para Visitante
+  const [foto, setFoto] = useState<Blob | null>(null); // foto en vivo del visitante
   const [error, setError] = useState<string | null>(null);
   const [creando, setCreando] = useState(false);
   const set = (k: string, v: string) => setF((p) => ({ ...p, [k]: v }));
@@ -133,6 +135,16 @@ function NuevaCredencial({ onCreado }: { onCreado: () => void }) {
       if (perr) { setCreando(false); setError(perr.message); return; }
       personaId = (pdata as any).id;
     }
+    // Foto en vivo (visitante): se sube y queda como foto de la persona.
+    if (foto && personaId) {
+      const path = `personas/${personaId}/${Date.now()}.jpg`;
+      const up = await supabase.storage.from("fotos").upload(path, foto, { contentType: "image/jpeg", upsert: true });
+      if (!up.error) {
+        const { data: cur } = await supabase.from("personas").select("fotografias").eq("id", personaId).maybeSingle();
+        const previas = Array.isArray((cur as any)?.fotografias) ? (cur as any).fotografias : [];
+        await supabase.from("personas").update({ fotografias: [path, ...previas], actualizado_en: new Date().toISOString() }).eq("id", personaId);
+      }
+    }
     const { error } = await supabase.from("credenciales").insert({
       categoria: f.categoria,
       persona_id: personaId || null,
@@ -174,6 +186,13 @@ function NuevaCredencial({ onCreado }: { onCreado: () => void }) {
           <label className="dash-sub" style={{ display: "flex", flexDirection: "column", flex: 1 }}>Apellido materno
             <input value={f.apellido_materno} onChange={(e) => set("apellido_materno", e.target.value)} />
           </label>
+        </div>
+      )}
+      {f.categoria === "Visitante" && (
+        <div style={{ marginTop: 8 }}>
+          <div className="dash-sub" style={{ marginBottom: 6, fontWeight: 700 }}>Foto del visitante (cámara del dispositivo o conectada)</div>
+          <CamaraFoto onCapture={(b) => setFoto(b)} alto={220} />
+          {foto && <p style={{ color: "#0a7c2f", fontSize: 13, marginTop: 4 }}>✓ Foto lista</p>}
         </div>
       )}
       <div className="form-fila">
@@ -266,10 +285,6 @@ export default function CredencialesPage() {
                 <div style={{ fontSize: 12, color: "#666", marginTop: 6 }}>Escanéalo en la caseta</div>
               </div>
             )}
-            <a href={`/credenciales/${r.id}`}
-               style={{ display: "block", textAlign: "center", marginTop: 12, background: "var(--sc-btn,#f4a03f)", color: "#fff", borderRadius: 9, padding: "10px 14px", fontWeight: 700, textDecoration: "none" }}>
-              Abrir credencial (ver / imprimir)
-            </a>
           </>
         )}
         editar={[
