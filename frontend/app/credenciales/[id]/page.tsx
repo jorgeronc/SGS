@@ -81,18 +81,18 @@ export default function VerCredencialPage() {
     .cv-org-sub{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:${p.accent};font-weight:700}
     .cv-type{margin-left:auto;font-family:'Saira Condensed',Arial;font-weight:800;font-size:19px;letter-spacing:.08em;text-transform:uppercase;
       background:${p.bw ? "#fff" : p.accent};color:${p.bw ? "#000" : "#16202c"};border:${p.bw ? "1.5px solid #000" : "0"};padding:2px 12px;border-radius:6px}
-    .cv-body{display:grid;grid-template-columns:150px minmax(0,1fr);gap:15px;padding:14px 15px;min-height:0}
-    .cv-photo{width:150px;height:100%;border-radius:9px;overflow:hidden;border:2px solid ${p.bw ? "#000" : p.accent};background:#dfe6ee;position:relative}
+    .cv-body{display:grid;grid-template-columns:150px minmax(0,1fr);gap:15px;padding:14px 15px;min-height:0;align-items:start}
+    .cv-photo{width:150px;aspect-ratio:3/4;border-radius:9px;overflow:hidden;border:2px solid ${p.bw ? "#000" : p.accent};background:#dfe6ee;position:relative;align-self:start}
     .cv-photo img{width:100%;height:100%;object-fit:cover}
     .cv-photo .ph{position:absolute;inset:0;display:grid;place-items:end center}
     .cv-photo .ph svg{width:82%;opacity:.5}
-    .cv-right{min-width:0;display:flex;flex-direction:column;gap:7px}
-    .cv-name{font-family:'Saira Condensed',Arial;font-weight:800;font-size:25px;line-height:1;color:${p.ink}}
-    .cv-role{font-size:12.5px;font-weight:600;color:${p.accent};text-transform:uppercase;letter-spacing:.03em;margin-top:3px}
-    .cv-fields{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;margin-top:6px;flex:1;align-content:start}
+    .cv-right{min-width:0;display:flex;flex-direction:column;gap:6px}
+    .cv-name{font-family:'Saira Condensed',Arial;font-weight:800;font-size:23px;line-height:1;color:${p.ink}}
+    .cv-role{font-size:12.5px;font-weight:600;color:${p.accent};text-transform:uppercase;letter-spacing:.03em;margin-top:2px}
+    .cv-fields{display:grid;grid-template-columns:1fr 1fr;gap:7px 14px;margin-top:6px;align-content:start}
     .cv-fields dt{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:${p.sub};font-weight:700;margin:0}
     .cv-fields dd{margin:1px 0 0;font-size:13.5px;font-weight:600;color:${p.ink};white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .cv-bottom{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;border-top:1px solid ${p.bw ? "#000" : "rgba(0,0,0,.12)"};padding-top:8px}
+    .cv-bottom{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;border-top:1px solid ${p.bw ? "#000" : "rgba(0,0,0,.12)"};margin-top:12px;padding-top:8px}
     .cv-meta{display:flex;flex-direction:column;gap:2px;min-width:0}
     .cv-cardno{font-family:'Saira Condensed',Arial;font-weight:700;font-size:15px;color:${p.bw ? "#000" : p.band}}
     .cv-foot{font-size:9.5px;color:${p.sub}}
@@ -144,7 +144,7 @@ export default function VerCredencialPage() {
               </dl>
               <div className="cv-bottom">
                 <div className="cv-meta"><div className="cv-cardno">{cred.codigo}</div><div className="cv-foot">{cat === "Visitante" ? "Devolver al salir · SGS" : "Válida con ID oficial · SGS"}</div></div>
-                {cred.tipo !== "nfc" && cred.codigo && <div className="cv-qr"><QRCodeSVG value={cred.codigo} size={72} level="M" /></div>}
+                {cred.tipo !== "nfc" && cred.codigo && <div className="cv-qr"><QRCodeSVG value={cred.codigo} size={58} level="M" /></div>}
               </div>
             </div>
           </div>
