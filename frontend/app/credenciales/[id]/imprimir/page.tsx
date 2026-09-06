@@ -93,6 +93,7 @@ export default function ImprimirCredencialPage() {
     .name{font-family:'Saira Condensed',Arial;font-weight:800;font-size:5mm;line-height:1;letter-spacing:.01em;color:${p.ink}}
     .role{font-size:2.9mm;font-weight:600;color:${p.accent};text-transform:uppercase;letter-spacing:.03em}
     .fields{display:grid;grid-template-columns:1fr 1fr;gap:1.6mm 3mm;margin-top:1mm;flex:1;align-content:start}
+    .fields .col{display:flex;flex-direction:column;gap:1.6mm}
     .fields dt{font-size:2.1mm;letter-spacing:.08em;text-transform:uppercase;color:${p.sub};font-weight:700;margin:0}
     .fields dd{margin:.2mm 0 0;font-size:3mm;font-weight:600;color:${p.ink}}
     .bottom{display:flex;justify-content:space-between;align-items:flex-end;gap:2mm;border-top:.25mm solid ${p.bw ? "#000" : "rgba(0,0,0,.12)"};padding-top:1.6mm}
@@ -151,14 +152,18 @@ export default function ImprimirCredencialPage() {
               <div className="name">{nombre}</div>
               <div className="role">{role}</div>
             </div>
-            <dl className="fields">
-              <div><dt>{cat === "Visitante" ? "Folio" : "Número"}</dt><dd>{cat === "Visitante" ? (cred.folio ?? cred.codigo) : numeroMostrar}</dd></div>
-              {empresa && <div><dt>Empresa</dt><dd>{empresa}</dd></div>}
-              <div><dt>Emisión</dt><dd>{fFecha(cred.fecha_emision)}</dd></div>
-              <div><dt>{cat === "Visitante" ? "Vence" : "Vigencia"}</dt><dd>{cred.vigencia_fin ? fFecha(cred.vigencia_fin) : "Sin venc."}</dd></div>
-            </dl>
+            <div className="fields">
+              <div className="col">
+                <div><dt>Número</dt><dd>{numeroMostrar}</dd></div>
+                <div><dt>{cat === "Visitante" ? "Vence" : "Vigencia"}</dt><dd>{cred.vigencia_fin ? fFecha(cred.vigencia_fin) : "Sin venc."}</dd></div>
+              </div>
+              <div className="col">
+                <div><dt>Emisión</dt><dd>{fFecha(cred.fecha_emision)}</dd></div>
+                {empresa && <div><dt>Empresa</dt><dd>{empresa}</dd></div>}
+              </div>
+            </div>
             <div className="bottom">
-              <div className="meta"><div className="cardno">{cred.codigo}</div><div className="foot">{cat === "Visitante" ? "Devolver al salir · SGS" : "Válida con ID oficial · SGS"}</div></div>
+              <div className="meta"><div className="cardno">{cred.folio ?? cred.codigo}</div><div className="foot">{cat === "Visitante" ? "Devolver al salir · SGS" : "Válida con ID oficial · SGS"}</div></div>
               {cred.tipo !== "nfc" && cred.codigo && <div className="qr"><QRCodeSVG value={cred.codigo} size={46} level="M" /></div>}
             </div>
           </div>

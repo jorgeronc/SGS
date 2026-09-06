@@ -90,6 +90,7 @@ export default function VerCredencialPage() {
     .cv-name{font-family:'Saira Condensed',Arial;font-weight:800;font-size:23px;line-height:1;color:${p.ink}}
     .cv-role{font-size:12.5px;font-weight:600;color:${p.accent};text-transform:uppercase;letter-spacing:.03em;margin-top:2px}
     .cv-fields{display:grid;grid-template-columns:1fr 1fr;gap:7px 14px;margin-top:6px;align-content:start}
+    .cv-col{display:flex;flex-direction:column;gap:7px}
     .cv-fields dt{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:${p.sub};font-weight:700;margin:0}
     .cv-fields dd{margin:1px 0 0;font-size:13.5px;font-weight:600;color:${p.ink};white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .cv-bottom{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;border-top:1px solid ${p.bw ? "#000" : "rgba(0,0,0,.12)"};margin-top:12px;padding-top:8px}
@@ -136,14 +137,18 @@ export default function VerCredencialPage() {
             </div>
             <div className="cv-right">
               <div><div className="cv-name">{nombre}</div><div className="cv-role">{role}</div></div>
-              <dl className="cv-fields">
-                <div><dt>{cat === "Visitante" ? "Folio" : "Número"}</dt><dd>{cat === "Visitante" ? (cred.folio ?? cred.codigo) : numeroMostrar}</dd></div>
-                {empresa && <div><dt>Empresa</dt><dd>{empresa}</dd></div>}
-                <div><dt>Emisión</dt><dd>{fFecha(cred.fecha_emision)}</dd></div>
-                <div><dt>{cat === "Visitante" ? "Vence" : "Vigencia"}</dt><dd>{cred.vigencia_fin ? fFecha(cred.vigencia_fin) : "Sin venc."}</dd></div>
-              </dl>
+              <div className="cv-fields">
+                <div className="cv-col">
+                  <div><dt>Número</dt><dd>{numeroMostrar}</dd></div>
+                  <div><dt>{cat === "Visitante" ? "Vence" : "Vigencia"}</dt><dd>{cred.vigencia_fin ? fFecha(cred.vigencia_fin) : "Sin venc."}</dd></div>
+                </div>
+                <div className="cv-col">
+                  <div><dt>Emisión</dt><dd>{fFecha(cred.fecha_emision)}</dd></div>
+                  {empresa && <div><dt>Empresa</dt><dd>{empresa}</dd></div>}
+                </div>
+              </div>
               <div className="cv-bottom">
-                <div className="cv-meta"><div className="cv-cardno">{cred.codigo}</div><div className="cv-foot">{cat === "Visitante" ? "Devolver al salir · SGS" : "Válida con ID oficial · SGS"}</div></div>
+                <div className="cv-meta"><div className="cv-cardno">{cred.folio ?? cred.codigo}</div><div className="cv-foot">{cat === "Visitante" ? "Devolver al salir · SGS" : "Válida con ID oficial · SGS"}</div></div>
                 {cred.tipo !== "nfc" && cred.codigo && <div className="cv-qr"><QRCodeSVG value={cred.codigo} size={58} level="M" /></div>}
               </div>
             </div>
