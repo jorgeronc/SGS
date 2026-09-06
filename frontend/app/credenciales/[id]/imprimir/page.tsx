@@ -83,8 +83,10 @@ export default function ImprimirCredencialPage() {
     .org-sub{font-size:2.2mm;letter-spacing:.14em;text-transform:uppercase;color:${p.accent};font-weight:700}
     .type{margin-left:auto;font-family:'Saira Condensed',Arial;font-weight:800;font-size:4.2mm;letter-spacing:.08em;text-transform:uppercase;
           background:${p.bw ? "#fff" : p.accent};color:${p.bw ? "#000" : "#16202c"};border:${p.bw ? "0.35mm solid #000" : "0"};padding:.4mm 2.4mm;border-radius:1.4mm}
-    .body{display:grid;grid-template-columns:auto 1fr;gap:3mm;padding:2mm 3mm 2mm;min-height:0}
-    .photo{height:100%;aspect-ratio:3/4;width:auto;border-radius:2mm;overflow:hidden;border:.45mm solid ${p.bw ? "#000" : p.accent};background:#dfe6ee;position:relative}
+    /* Columna de foto de ancho FIJO (evita que la pista 'auto' se infle con el zoom
+       y deje un hueco). Los datos quedan pegados a la foto. */
+    .body{display:grid;grid-template-columns:31mm minmax(0,1fr);gap:2.6mm;padding:2mm 3mm 2mm;min-height:0}
+    .photo{width:31mm;height:100%;border-radius:2mm;overflow:hidden;border:.45mm solid ${p.bw ? "#000" : p.accent};background:#dfe6ee;position:relative}
     .photo img{width:100%;height:100%;object-fit:cover}
     .photo .ph{position:absolute;inset:0;display:grid;place-items:end center}
     .photo .ph svg{width:78%;opacity:.5}
