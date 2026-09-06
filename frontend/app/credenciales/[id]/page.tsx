@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
 import { supabase } from "@/lib/supabaseClient";
 import { urlFoto } from "@/lib/fotos";
+import CamaraFoto from "@/app/components/CamaraFoto";
 
 // Vista "Abrir credencial": muestra los DATOS + la credencial COMPLETA (a tamaño
 // cómodo, como se verá impresa) y permite descargarla como PNG. La impresión real
@@ -29,6 +30,8 @@ export default function VerCredencialPage() {
   const [plantilla, setPlantilla] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [bajando, setBajando] = useState(false);
+  const [capturar, setCapturar] = useState(false);
+  const [guardandoFoto, setGuardandoFoto] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -53,6 +56,24 @@ export default function VerCredencialPage() {
   const fotoUrl = useMemo(() => urlFoto(Array.isArray(persona?.fotografias) ? persona.fotografias[0] : null), [persona]);
   const bgUrl = plantilla ? urlFoto(plantilla) : null;
   const numeroMostrar = numero ?? cred?.codigo ?? "—";
+  const acceso = cred?.datos_adicionales?.acceso ?? {};
+
+  // Foto en la cita: toma y guarda la foto en el registro de Personas.
+  async function guardarFoto(blob: Blob) {
+    if (!cred?.persona_id) return;
+    setGuardandoFoto(true);
+    try {
+      const path = `personas/${cred.persona_id}/${Date.now()}.jpg`;
+      const up = await supabase.storage.from("fotos").upload(path, blob, { contentType: "image/jpeg", upsert: true });
+      if (up.error) throw up.error;
+      const { data: cur } = await supabase.from("personas").select("fotografias").eq("id", cred.persona_id).maybeSingle();
+      const previas = Array.isArray((cur as any)?.fotografias) ? (cur as any).fotografias : [];
+      await supabase.from("personas").update({ fotografias: [path, ...previas], actualizado_en: new Date().toISOString() }).eq("id", cred.persona_id);
+      setPersona((pp: any) => ({ ...(pp ?? {}), fotografias: [path, ...previas] }));
+      setCapturar(false);
+    } catch (e: any) { alert("No se pudo guardar la foto: " + (e?.message ?? e)); }
+    finally { setGuardandoFoto(false); }
+  }
   const vigente = cred ? (cred.estatus === "activo" && (!cred.vigencia_fin || new Date(cred.vigencia_fin).getTime() >= Date.now())) : false;
 
   async function descargarPng() {
@@ -172,6 +193,32 @@ export default function VerCredencialPage() {
             <dt>Vence</dt><dd>{cred.vigencia_fin ? new Date(cred.vigencia_fin).toLocaleString() : "sin vencimiento"}</dd>
             <dt>Estado</dt><dd style={{ color: vigente ? "#0a7c2f" : "#b00020", fontWeight: 700 }}>{vigente ? "Vigente" : "No vigente"}</dd>
           </dl>
+
+          {(acceso.sitios?.length || acceso.zonas?.length) ? (
+            <div style={{ marginTop: 6, marginBottom: 4 }}>
+              <div className="dash-sub" style={{ fontWeight: 700 }}>Acceso autorizado</div>
+              <div style={{ fontSize: 13 }}>Sitios: {acceso.sitios?.length ? acceso.sitios.map((s: any) => s.nombre).join(", ") : "—"}</div>
+              <div style={{ fontSize: 13 }}>Zonas: {acceso.zonas?.length ? acceso.zonas.map((z: any) => z.nombre).join(", ") : "—"}</div>
+            </div>
+          ) : null}
+
+          {cred.persona_id && (
+            <div style={{ marginTop: 10 }}>
+              {!capturar ? (
+                <button onClick={() => setCapturar(true)} style={{ background: "var(--sc-btn,#f4a03f)", color: "#fff", border: "none", borderRadius: 9, padding: "9px 16px", fontWeight: 700, cursor: "pointer" }}>
+                  📸 {fotoUrl ? "Actualizar foto" : "Tomar foto (en la cita)"}
+                </button>
+              ) : (
+                <div style={{ border: "1px solid var(--sc-card-line)", borderRadius: 10, padding: 10 }}>
+                  <div className="dash-sub" style={{ fontWeight: 700, marginBottom: 6 }}>Foto de la persona (cámara del dispositivo o conectada)</div>
+                  <CamaraFoto onCapture={(b) => guardarFoto(b)} alto={220} />
+                  {guardandoFoto && <p style={{ color: "var(--sc-text-soft)", fontSize: 13 }}>Guardando…</p>}
+                  <button onClick={() => setCapturar(false)} style={{ marginTop: 6, border: "1px solid var(--sc-card-line)", background: "transparent", color: "var(--sc-text)", borderRadius: 9, padding: "7px 14px", cursor: "pointer" }}>Cancelar</button>
+                </div>
+              )}
+            </div>
+          )}
+
           {cred.persona_id && <p style={{ marginTop: 10 }}><Link href={`/personas/${cred.persona_id}`} style={{ color: "var(--sc-btn,#f4a03f)", fontWeight: 700 }}>Ver persona (registro maestro) →</Link></p>}
         </div>
       </div>

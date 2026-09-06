@@ -21,7 +21,8 @@ export type EntidadTipo =
   | "movimiento"
   | "unidad_carga"
   | "sello"
-  | "inspeccion";
+  | "inspeccion"
+  | "credencial";
 
 interface VinculoConEtiqueta extends Vinculo {
   etiqueta_relacionada?: string;
@@ -35,6 +36,7 @@ const RUTA_POR_TIPO: Record<string, string> = {
   personal: "personal", orden: "ordenes", evidencia: "evidencias", cad: "cad",
   incidente: "incidentes", accidente: "accidentes", barandilla: "barandilla", abordamiento: "abordamientos",
   movimiento: "logistica/movimientos", unidad_carga: "logistica/unidades-carga", sello: "logistica/sellos", inspeccion: "logistica/inspecciones",
+  credencial: "credenciales",
 };
 
 interface OpcionEntidad {
@@ -93,6 +95,9 @@ function etiquetarFila(tipo: EntidadTipo, row: any): string {
   if (tipo === "inspeccion") {
     return `${row.folio ? `[${row.folio}] ` : ""}${row.tipo_inspeccion ?? "inspección"}${row.resultado ? ` — ${row.resultado}` : ""}`.trim();
   }
+  if (tipo === "credencial") {
+    return `${row.folio ? `[${row.folio}] ` : ""}${row.categoria ?? "credencial"}${row.codigo ? ` — ${row.codigo}` : ""}`.trim();
+  }
   return `${row.nombre ?? ""} ${row.apellido_paterno ?? ""}`.trim();
 }
 
@@ -113,6 +118,7 @@ const TABLA_POR_TIPO: Record<EntidadTipo, string> = {
   unidad_carga: "unidades_carga",
   sello: "sellos",
   inspeccion: "inspecciones",
+  credencial: "credenciales",
 };
 
 const COLUMNAS_POR_TIPO: Record<EntidadTipo, string> = {
@@ -132,6 +138,7 @@ const COLUMNAS_POR_TIPO: Record<EntidadTipo, string> = {
   unidad_carga: "id, folio, identificador, tipo_unidad",
   sello: "id, folio, codigo_sello, estado",
   inspeccion: "id, folio, tipo_inspeccion, resultado",
+  credencial: "id, folio, categoria, codigo",
 };
 
 // Resuelve una etiqueta legible para una entidad relacionada individual (por
