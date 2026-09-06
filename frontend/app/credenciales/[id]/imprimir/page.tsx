@@ -26,7 +26,6 @@ export default function ImprimirCredencialPage() {
   const [numero, setNumero] = useState<string | null>(null);
   const [plantilla, setPlantilla] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [ampliado, setAmpliado] = useState(true); // vista previa ampliada (solo pantalla)
 
   useEffect(() => {
     (async () => {
@@ -131,12 +130,12 @@ export default function ImprimirCredencialPage() {
 
       <div className="barra">
         <button onClick={() => window.print()}>🖨️ Imprimir</button>
-        <button onClick={() => setAmpliado((v) => !v)}>{ampliado ? "🔎 Tamaño real" : "🔍 Vista previa ampliada"}</button>
+        <a href={`/credenciales/${params.id}`}>Ver credencial</a>
         <a href="/credenciales">Volver</a>
       </div>
-      <p style={{ fontSize: 12, color: "#667", margin: 0 }}>La impresión siempre sale a 85.6 × 54 mm (CR80). La vista ampliada es solo para revisar/validar.</p>
+      <p style={{ fontSize: 12, color: "#667", margin: 0 }}>La impresión sale a 85.6 × 54 mm (CR80). Para revisar la credencial ampliada usa «Ver credencial».</p>
 
-      <div className={`card${bgUrl ? " bg" : ""}`} style={{ ...(bgUrl ? { backgroundImage: `url(${bgUrl})` } : {}), zoom: ampliado ? 2.6 : 1 }}>
+      <div className={`card${bgUrl ? " bg" : ""}`} style={bgUrl ? { backgroundImage: `url(${bgUrl})` } : undefined}>
         <div className="edge" />
         <div className="band">
           {emblema}

@@ -183,7 +183,7 @@ export default function CredencialesPage() {
           { header: "Vigente", celda: (r) => (vigente(r) ? <span style={{ color: "#0a7c2f", fontWeight: 700 }}>Sí</span> : <span style={{ color: "#b00020" }}>No</span>) },
         ]}
         textoBusqueda={(r) => `${r.codigo} ${r.categoria ?? ""} ${r.descripcion ?? ""} ${r.persona?.nombre ?? ""} ${r.persona?.apellido_paterno ?? ""} ${r.folio ?? ""}`}
-        detalleHref={(r) => (r.persona_id ? `/personas/${r.persona_id}` : "/credenciales")}
+        detalleHref={(r) => `/credenciales/${r.id}`}
         filtros={[
           { k: "todas", label: "Todas" },
           ...CATEGORIAS.map((c) => ({ k: c.toLowerCase(), label: c, test: (r: any) => r.categoria === c })),

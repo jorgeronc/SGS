@@ -11,6 +11,7 @@
   "dependencies": {
     "@protomaps/basemaps": "^5.7.2",
     "@supabase/supabase-js": "^2.45.4",
+    "html-to-image": "^1.11.13",
     "maplibre-gl": "^4.7.1",
     "next": "14.2.35",
     "pdfmake": "^0.3.11",
