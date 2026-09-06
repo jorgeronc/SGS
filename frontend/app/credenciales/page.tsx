@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { supabase } from "@/lib/supabaseClient";
+import { urlFoto } from "@/lib/fotos";
 import ListaMaestra from "@/app/components/ListaMaestra";
 
+const CATEGORIAS = ["Empleado", "Guardia", "Visitante", "Servicio"];
 const tipoLabel = (t: string) => (t === "qr" ? "QR" : t === "nfc" ? "NFC" : "Código temporal");
 const vigente = (r: any) => {
   const ahora = Date.now();
@@ -12,12 +14,72 @@ const vigente = (r: any) => {
   const fin = r.vigencia_fin ? new Date(r.vigencia_fin).getTime() : Infinity;
   return r.estatus === "activo" && ahora >= ini && ahora <= fin;
 };
+const localDT = (d: Date) => { const p = (n: number) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
 
-// Credenciales de acceso (QR / NFC / código temporal). El código es lo que el
-// guardia valida en la caseta al escanear/teclear. Ver migración 0063.
+// Panel admin: carga de PLANTILLA (imagen de fondo) por categoría de credencial.
+function PlantillasPanel() {
+  const [abierto, setAbierto] = useState(false);
+  const [plantillas, setPlantillas] = useState<Record<string, string>>({});
+  const [subiendo, setSubiendo] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  async function cargar() {
+    const { data } = await supabase.from("credencial_plantillas").select("categoria, imagen_ruta");
+    const m: Record<string, string> = {};
+    ((data as any[]) ?? []).forEach((r) => { if (r.imagen_ruta) m[r.categoria] = r.imagen_ruta; });
+    setPlantillas(m);
+  }
+  useEffect(() => { cargar(); }, []);
+
+  async function subir(categoria: string, file: File) {
+    setSubiendo(categoria); setMsg(null);
+    const ext = (file.name.split(".").pop() || "png").toLowerCase();
+    const path = `credenciales/plantillas/${categoria.toLowerCase()}-${Date.now()}.${ext}`;
+    const { error: e1 } = await supabase.storage.from("fotos").upload(path, file, { contentType: file.type || "image/png", upsert: true });
+    if (e1) { setSubiendo(null); setMsg(e1.message); return; }
+    const { error: e2 } = await supabase.from("credencial_plantillas")
+      .upsert({ categoria, imagen_ruta: path, actualizado_en: new Date().toISOString() }, { onConflict: "categoria" });
+    setSubiendo(null);
+    if (e2) { setMsg(e2.message); return; }
+    setMsg(`Plantilla de ${categoria} actualizada.`); cargar();
+  }
+
+  return (
+    <div style={{ border: "1px solid var(--sc-card-line)", borderRadius: 12, marginBottom: 14, background: "var(--sc-content)" }}>
+      <button type="button" onClick={() => setAbierto((v) => !v)} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", background: "transparent", border: "none", cursor: "pointer", color: "var(--sc-text)", padding: "12px 14px", fontSize: 14, fontWeight: 700 }}>
+        <span style={{ color: "var(--sc-text-soft)" }}>{abierto ? "▾" : "▸"}</span> 🖼️ Plantillas de impresión por tipo (solo administrador)
+      </button>
+      {abierto && (
+        <div style={{ padding: "0 14px 14px" }}>
+          <p style={{ fontSize: 12.5, color: "var(--sc-text-soft)", marginTop: 0 }}>
+            Sube un diseño tipo imagen (PNG/JPG, horizontal ~1010×638 px) por cada tipo. Al imprimir, los datos se sobreponen a esa imagen. Si no subes plantilla, se usa el diseño integrado.
+          </p>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px,1fr))", gap: 12 }}>
+            {CATEGORIAS.map((c) => (
+              <div key={c} style={{ border: "1px solid var(--sc-card-line)", borderRadius: 10, padding: 10 }}>
+                <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>{c}</div>
+                <div style={{ aspectRatio: "1.585", borderRadius: 8, border: "1px dashed var(--sc-card-line)", overflow: "hidden", background: "var(--sc-btn-soft,#f6ede1)", display: "grid", placeItems: "center", marginBottom: 8 }}>
+                  {plantillas[c] ? <img src={urlFoto(plantillas[c]) ?? ""} alt={`Plantilla ${c}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 12, color: "var(--sc-text-faint)" }}>Sin plantilla</span>}
+                </div>
+                <label style={{ fontSize: 12.5, color: "var(--sc-btn,#f4a03f)", fontWeight: 700, cursor: "pointer" }}>
+                  {subiendo === c ? "Subiendo…" : plantillas[c] ? "Reemplazar imagen" : "Subir imagen"}
+                  <input type="file" accept="image/*" style={{ display: "none" }} disabled={!!subiendo}
+                    onChange={(e) => { const f = e.target.files?.[0]; if (f) subir(c, f); e.currentTarget.value = ""; }} />
+                </label>
+              </div>
+            ))}
+          </div>
+          {msg && <p style={{ fontSize: 12.5, marginTop: 8, color: msg.includes("actualizada") ? "#0a7c2f" : "#b00020" }}>{msg}</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Alta de credencial: categoría (tipo), fecha de emisión, tecnología, código y vigencia.
 function NuevaCredencial({ onCreado }: { onCreado: () => void }) {
   const [personas, setPersonas] = useState<any[]>([]);
-  const [f, setF] = useState({ persona_id: "", descripcion: "", tipo: "qr", codigo: "", vigencia_fin: "" });
+  const [f, setF] = useState({ categoria: "Empleado", persona_id: "", descripcion: "", tipo: "qr", codigo: "", fecha_emision: localDT(new Date()), vigencia_fin: "" });
   const [error, setError] = useState<string | null>(null);
   const [creando, setCreando] = useState(false);
   const set = (k: string, v: string) => setF((p) => ({ ...p, [k]: v }));
@@ -29,6 +91,15 @@ function NuevaCredencial({ onCreado }: { onCreado: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Para Empleado/Guardia, prellena el código con el número del elemento (lo que
+  // el guardia validará contra la lista de personal al escanear el QR).
+  useEffect(() => {
+    if (!f.persona_id || !(f.categoria === "Empleado" || f.categoria === "Guardia")) return;
+    supabase.from("personal").select("numero_placa").eq("persona_id", f.persona_id).eq("estatus", "activo").maybeSingle()
+      .then(({ data }) => { const n = (data as any)?.numero_placa; if (n) set("codigo", String(n)); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [f.persona_id, f.categoria]);
+
   async function crear(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -36,10 +107,12 @@ function NuevaCredencial({ onCreado }: { onCreado: () => void }) {
     if (!f.persona_id && !f.descripcion.trim()) { setError("Elige una persona o describe la credencial (ej. Visitante Juan Pérez)."); return; }
     setCreando(true);
     const { error } = await supabase.from("credenciales").insert({
+      categoria: f.categoria,
       persona_id: f.persona_id || null,
       descripcion: f.descripcion.trim() || null,
       tipo: f.tipo,
       codigo: f.codigo.trim(),
+      fecha_emision: f.fecha_emision ? new Date(f.fecha_emision).toISOString() : new Date().toISOString(),
       vigencia_inicio: new Date().toISOString(),
       vigencia_fin: f.vigencia_fin ? new Date(f.vigencia_fin).toISOString() : null,
     });
@@ -51,6 +124,9 @@ function NuevaCredencial({ onCreado }: { onCreado: () => void }) {
   return (
     <form onSubmit={crear}>
       <div className="form-fila">
+        <label className="dash-sub" style={{ display: "flex", flexDirection: "column" }}>Tipo de credencial <span style={{ color: "#e11d48" }}>*</span>
+          <select value={f.categoria} onChange={(e) => set("categoria", e.target.value)}>{CATEGORIAS.map((c) => <option key={c}>{c}</option>)}</select>
+        </label>
         <select value={f.persona_id} onChange={(e) => set("persona_id", e.target.value)} style={{ flex: 2 }}>
           <option value="">— Persona (registro maestro, opcional) —</option>
           {personas.map((p) => <option key={p.id} value={p.id}>{`${p.nombre ?? ""} ${p.apellido_paterno ?? ""} ${p.apellido_materno ?? ""}`.trim()}</option>)}
@@ -58,7 +134,7 @@ function NuevaCredencial({ onCreado }: { onCreado: () => void }) {
         <input placeholder="Descripción (ej. Visitante Juan Pérez)" value={f.descripcion} onChange={(e) => set("descripcion", e.target.value)} style={{ flex: 2 }} />
       </div>
       <div className="form-fila">
-        <label className="dash-sub" style={{ display: "flex", flexDirection: "column" }}>Tipo
+        <label className="dash-sub" style={{ display: "flex", flexDirection: "column" }}>Tecnología
           <select value={f.tipo} onChange={(e) => set("tipo", e.target.value)}>
             <option value="qr">QR</option>
             <option value="nfc">NFC</option>
@@ -66,6 +142,9 @@ function NuevaCredencial({ onCreado }: { onCreado: () => void }) {
           </select>
         </label>
         <input placeholder="Código" value={f.codigo} onChange={(e) => set("codigo", e.target.value)} required />
+        <label className="dash-sub" style={{ display: "flex", flexDirection: "column" }}>Emisión
+          <input type="datetime-local" value={f.fecha_emision} onChange={(e) => set("fecha_emision", e.target.value)} />
+        </label>
         <label className="dash-sub" style={{ display: "flex", flexDirection: "column" }}>Vence
           <input type="datetime-local" value={f.vigencia_fin} onChange={(e) => set("vigencia_fin", e.target.value)} />
         </label>
@@ -73,9 +152,9 @@ function NuevaCredencial({ onCreado }: { onCreado: () => void }) {
       </div>
       <div style={{ marginTop: 6, background: "var(--sc-surface-2, #f3f6f9)", border: "1px solid var(--sc-card-line, #e2e6ec)", borderRadius: 8, padding: 8 }}>
         <div className="dash-sub" style={{ fontSize: 12.5, color: "#0b3d66", fontWeight: 700 }}>
-          Contenido ({tipoLabel(f.tipo)}): <code>{f.codigo || "—"}</code>
+          {f.categoria} · Contenido ({tipoLabel(f.tipo)}): <code>{f.codigo || "—"}</code>
         </div>
-        <div className="dash-sub" style={{ fontSize: 12 }}>Es el valor que valida el sistema en la caseta.</div>
+        <div className="dash-sub" style={{ fontSize: 12 }}>Es el valor que valida el sistema en la caseta. En Empleado/Guardia conviene que sea su número de elemento.</div>
       </div>
       {error && <p style={{ color: "#b00020" }}>{error}</p>}
     </form>
@@ -84,54 +163,64 @@ function NuevaCredencial({ onCreado }: { onCreado: () => void }) {
 
 export default function CredencialesPage() {
   return (
-    <ListaMaestra
-      titulo="Credenciales"
-      subtitulo="Credenciales de acceso (QR / NFC / código temporal) que se validan en la caseta"
-      tabla="credenciales"
-      modulo="credenciales"
-      orderBy="creado_en"
-      select="id, folio, persona_id, descripcion, tipo, codigo, vigencia_inicio, vigencia_fin, estatus, creado_en, persona:personas(nombre, apellido_paterno, apellido_materno)"
-      placeholderBuscar="Buscar código, persona, descripción…"
-      columnas={[
-        { header: "Folio", celda: (r) => r.folio ?? "—" },
-        { header: "Titular", celda: (r) => (r.persona ? `${r.persona.nombre ?? ""} ${r.persona.apellido_paterno ?? ""}`.trim() : r.descripcion ?? "—") },
-        { header: "Tipo", celda: (r) => tipoLabel(r.tipo) },
-        { header: "Código", celda: (r) => <code>{r.codigo}</code> },
-        { header: "Vence", celda: (r) => (r.vigencia_fin ? new Date(r.vigencia_fin).toLocaleString() : "—") },
-        { header: "Vigente", celda: (r) => (vigente(r) ? <span style={{ color: "#0a7c2f", fontWeight: 700 }}>Sí</span> : <span style={{ color: "#b00020" }}>No</span>) },
-      ]}
-      textoBusqueda={(r) => `${r.codigo} ${r.descripcion ?? ""} ${r.persona?.nombre ?? ""} ${r.persona?.apellido_paterno ?? ""} ${r.folio ?? ""}`}
-      detalleHref={(r) => (r.persona_id ? `/personas/${r.persona_id}` : "/credenciales")}
-      filtros={[
-        { k: "todas", label: "Todas" },
-        { k: "vigentes", label: "Vigentes", test: (r) => vigente(r) },
-        { k: "temporales", label: "Temporales", test: (r) => r.tipo === "temporal" },
-      ]}
-      quickView={(r) => (
-        <>
-          <h3 style={{ margin: "0 0 8px" }}>{r.persona ? `${r.persona.nombre ?? ""} ${r.persona.apellido_paterno ?? ""}`.trim() : r.descripcion ?? "Credencial"}</h3>
-          <dl className="sc-kv">
-            <dt>Folio</dt><dd>{r.folio ?? "—"}</dd>
-            <dt>Tipo</dt><dd>{tipoLabel(r.tipo)}</dd>
-            <dt>Código</dt><dd><code>{r.codigo}</code></dd>
-            <dt>Desde</dt><dd>{r.vigencia_inicio ? new Date(r.vigencia_inicio).toLocaleString() : "—"}</dd>
-            <dt>Vence</dt><dd>{r.vigencia_fin ? new Date(r.vigencia_fin).toLocaleString() : "sin vencimiento"}</dd>
-            <dt>Vigente</dt><dd>{vigente(r) ? "Sí" : "No"}</dd>
-          </dl>
-          {r.estatus === "activo" && r.tipo !== "nfc" && r.codigo && (
-            <div style={{ marginTop: 12, textAlign: "center", padding: 12, border: "1px solid var(--sc-card-line)", borderRadius: 8 }}>
-              <QRCodeSVG value={r.codigo} size={160} includeMargin level="M" />
-              <div style={{ fontSize: 12, color: "#666", marginTop: 6 }}>Escanéalo en la caseta</div>
-            </div>
-          )}
-        </>
-      )}
-      editar={[
-        { campo: "descripcion", label: "Descripción" },
-        { campo: "tipo", label: "Tipo", tipo: "select", opciones: ["qr", "nfc", "temporal"] },
-        { campo: "vigencia_fin", label: "Vence", tipo: "date" },
-      ]}
-      nuevo={(onCreado) => <NuevaCredencial onCreado={onCreado} />}
-    />
+    <div>
+      <PlantillasPanel />
+      <ListaMaestra
+        titulo="Credenciales"
+        subtitulo="Credenciales por tipo (Empleado, Guardia, Visitante, Servicio) con QR/NFC; se validan en la caseta y se imprimen con su plantilla."
+        tabla="credenciales"
+        modulo="credenciales"
+        orderBy="creado_en"
+        select="id, folio, categoria, persona_id, descripcion, tipo, codigo, fecha_emision, vigencia_inicio, vigencia_fin, estatus, creado_en, persona:personas(nombre, apellido_paterno, apellido_materno)"
+        placeholderBuscar="Buscar código, persona, tipo, descripción…"
+        columnas={[
+          { header: "Folio", celda: (r) => r.folio ?? "—" },
+          { header: "Tipo", celda: (r) => r.categoria ?? "—" },
+          { header: "Titular", celda: (r) => (r.persona ? `${r.persona.nombre ?? ""} ${r.persona.apellido_paterno ?? ""}`.trim() : r.descripcion ?? "—") },
+          { header: "Tecnología", celda: (r) => tipoLabel(r.tipo) },
+          { header: "Código", celda: (r) => <code>{r.codigo}</code> },
+          { header: "Emisión", celda: (r) => (r.fecha_emision ? new Date(r.fecha_emision).toLocaleDateString() : "—") },
+          { header: "Vigente", celda: (r) => (vigente(r) ? <span style={{ color: "#0a7c2f", fontWeight: 700 }}>Sí</span> : <span style={{ color: "#b00020" }}>No</span>) },
+        ]}
+        textoBusqueda={(r) => `${r.codigo} ${r.categoria ?? ""} ${r.descripcion ?? ""} ${r.persona?.nombre ?? ""} ${r.persona?.apellido_paterno ?? ""} ${r.folio ?? ""}`}
+        detalleHref={(r) => (r.persona_id ? `/personas/${r.persona_id}` : "/credenciales")}
+        filtros={[
+          { k: "todas", label: "Todas" },
+          ...CATEGORIAS.map((c) => ({ k: c.toLowerCase(), label: c, test: (r: any) => r.categoria === c })),
+          { k: "vigentes", label: "Vigentes", test: (r: any) => vigente(r) },
+        ]}
+        quickView={(r) => (
+          <>
+            <h3 style={{ margin: "0 0 8px" }}>{r.persona ? `${r.persona.nombre ?? ""} ${r.persona.apellido_paterno ?? ""}`.trim() : r.descripcion ?? "Credencial"}</h3>
+            <dl className="sc-kv">
+              <dt>Tipo</dt><dd>{r.categoria ?? "—"}</dd>
+              <dt>Folio</dt><dd>{r.folio ?? "—"}</dd>
+              <dt>Tecnología</dt><dd>{tipoLabel(r.tipo)}</dd>
+              <dt>Código</dt><dd><code>{r.codigo}</code></dd>
+              <dt>Emisión</dt><dd>{r.fecha_emision ? new Date(r.fecha_emision).toLocaleString() : "—"}</dd>
+              <dt>Vence</dt><dd>{r.vigencia_fin ? new Date(r.vigencia_fin).toLocaleString() : "sin vencimiento"}</dd>
+              <dt>Vigente</dt><dd>{vigente(r) ? "Sí" : "No"}</dd>
+            </dl>
+            {r.estatus === "activo" && r.tipo !== "nfc" && r.codigo && (
+              <div style={{ marginTop: 12, textAlign: "center", padding: 12, border: "1px solid var(--sc-card-line)", borderRadius: 8 }}>
+                <QRCodeSVG value={r.codigo} size={150} includeMargin level="M" />
+                <div style={{ fontSize: 12, color: "#666", marginTop: 6 }}>Escanéalo en la caseta</div>
+              </div>
+            )}
+            <a href={`/credenciales/${r.id}/imprimir`} target="_blank" rel="noopener noreferrer"
+               style={{ display: "block", textAlign: "center", marginTop: 12, background: "var(--sc-btn,#f4a03f)", color: "#fff", borderRadius: 9, padding: "10px 14px", fontWeight: 700, textDecoration: "none" }}>
+              🖨️ Imprimir credencial
+            </a>
+          </>
+        )}
+        editar={[
+          { campo: "categoria", label: "Tipo de credencial", tipo: "select", opciones: CATEGORIAS },
+          { campo: "descripcion", label: "Descripción" },
+          { campo: "tipo", label: "Tecnología", tipo: "select", opciones: ["qr", "nfc", "temporal"] },
+          { campo: "vigencia_fin", label: "Vence", tipo: "date" },
+        ]}
+        nuevo={(onCreado) => <NuevaCredencial onCreado={onCreado} />}
+      />
+    </div>
   );
 }
