@@ -295,8 +295,7 @@ export default function IncidenciaDetallePage() {
                   </div>
                   <label className="dash-sub" style={{ display: "block", marginTop: 8 }}>Ubicación del Incidente</label>
                   <DireccionGeocode direccion={ed.direccion} lat={ed.lat} lng={ed.lng} onDireccion={(v) => setEd({ ...ed, direccion: v })} onCoords={(la, lo) => setEd({ ...ed, lat: la, lng: lo })} disabled={!puedeEditar} size={100} sinBoton sinCoords />
-                  {/* El botón para abrir el mapa solo mientras el incidente está abierto (o en edición). */}
-                  {llamada.latitud != null && puedeEditar && <div style={{ marginTop: 10 }}><a href={`/mapa-operacional?incidente=${llamada.id}`} target="_blank" rel="noopener noreferrer" style={{ ...btnP, textDecoration: "none" }}>🗺️ Abrir en Mapa Operacional</a></div>}
+                  {llamada.latitud != null && <div style={{ marginTop: 10 }}><a href={`/mapa-operacional?incidente=${llamada.id}`} target="_blank" rel="noopener noreferrer" style={{ ...btnP, textDecoration: "none" }}>🗺️ Abrir en Mapa Operacional</a></div>}
                 </div>
 
                 <div>

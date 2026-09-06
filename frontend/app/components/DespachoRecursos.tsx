@@ -31,6 +31,17 @@ export default function DespachoRecursos({ llamadaId, sitioId, editable, onDespa
   }, [llamadaId]);
   useEffect(() => { cargarDesp(); }, [cargarDesp]);
 
+  // Auto-refresco: cualquier cambio en los despachos de este incidente (p. ej. un
+  // guardia que pasa a En ruta / En el lugar desde el móvil, u otro operador que
+  // despacha) actualiza la lista sin recargar la página.
+  useEffect(() => {
+    const canal = supabase
+      .channel(`desp-recursos:${llamadaId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "despachos", filter: `llamada_id=eq.${llamadaId}` }, cargarDesp)
+      .subscribe();
+    return () => { supabase.removeChannel(canal); };
+  }, [llamadaId, cargarDesp]);
+
   useEffect(() => {
     const hoy = new Date().toISOString().slice(0, 10);
     supabase.from("cat_opciones").select("valor").eq("categoria", "recurso_propio").eq("activo", true).order("orden")
