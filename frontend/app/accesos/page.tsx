@@ -6,11 +6,19 @@ import Link from "next/link";
 import ListaMaestra from "@/app/components/ListaMaestra";
 import { CatalogoSelect } from "@/app/components/CatalogoSelect";
 import CamarasCercanas from "@/app/components/CamarasCercanas";
+import { urlFoto } from "@/lib/fotos";
 
 const hoyISO = () => new Date().toISOString().slice(0, 10);
 const personaNombre = (r: any) => (r.persona
   ? `${r.persona.nombre ?? ""} ${r.persona.apellido_paterno ?? ""} ${r.persona.apellido_materno ?? ""}`.trim()
   : (r.visitante_nombre ?? "—"));
+// Foto del acceso: se prioriza la del registro maestro (Personas); si no hay, la
+// que se tomó en la caseta. Devuelve la URL pública o null.
+const fotoDe = (r: any) => {
+  const pth = (Array.isArray(r.persona?.fotografias) && r.persona.fotografias[0])
+    || (Array.isArray(r.fotografias) && r.fotografias[0]) || null;
+  return urlFoto(pth);
+};
 const RES: Record<string, { t: string; c: string }> = {
   autorizado: { t: "Autorizado", c: "#0a7c2f" },
   rechazado: { t: "Rechazado", c: "#b00020" },
@@ -159,9 +167,14 @@ export default function AccesosPage() {
       tabla="accesos"
       modulo="accesos"
       orderBy="fecha_evento"
-      select="id, folio, tipo, sitio_id, persona_id, visitante_nombre, tipo_persona, motivo, resultado, placa, anden, latitud, longitud, fecha_evento, estatus, creado_en, sitio:sitios(nombre, latitud, longitud), punto:puntos_control(nombre), persona:personas(nombre, apellido_paterno, apellido_materno), vehiculo:vehiculos(placas)"
+      select="id, folio, tipo, sitio_id, persona_id, visitante_nombre, tipo_persona, motivo, resultado, placa, anden, latitud, longitud, fotografias, fecha_evento, estatus, creado_en, sitio:sitios(nombre, latitud, longitud), punto:puntos_control(nombre), persona:personas(nombre, apellido_paterno, apellido_materno, fotografias), vehiculo:vehiculos(placas)"
       placeholderBuscar="Buscar persona, visitante, motivo…"
       columnas={[
+        { header: "Foto", celda: (r) => { const u = fotoDe(r); return u ? (
+          <a href={u} target="_blank" rel="noopener noreferrer" title="Ver foto completa">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={u} alt="Foto" style={{ width: 34, height: 34, borderRadius: 6, objectFit: "cover", border: "1px solid var(--sc-card-line)", display: "block" }} />
+          </a>) : <span style={{ color: "var(--sc-text-faint)" }}>—</span>; } },
         { header: "Folio", celda: (r) => r.folio ?? "—" },
         { header: "Fecha / hora", celda: (r) => (r.fecha_evento ? new Date(r.fecha_evento).toLocaleString() : "—") },
         { header: "Mov.", celda: (r) => (r.tipo === "salida" ? "Salida" : "Entrada") },
@@ -182,6 +195,13 @@ export default function AccesosPage() {
       quickView={(r) => (
         <>
           <h3 style={{ margin: "0 0 8px" }}>{personaNombre(r)}</h3>
+          {fotoDe(r) && (
+            <a href={fotoDe(r) as string} target="_blank" rel="noopener noreferrer" title="Ver foto completa" style={{ display: "inline-block", marginBottom: 10 }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={fotoDe(r) as string} alt="Foto de la persona" style={{ width: 150, borderRadius: 10, border: "1px solid var(--sc-card-line)", objectFit: "cover", display: "block" }} />
+              <span style={{ fontSize: 12, color: "var(--sc-btn,#f4a03f)", fontWeight: 700 }}>Ver foto completa ↗</span>
+            </a>
+          )}
           <dl className="sc-kv">
             <dt>Folio</dt><dd>{r.folio ?? "—"}</dd>
             <dt>Movimiento</dt><dd>{r.tipo === "salida" ? "Salida" : "Entrada"}</dd>
@@ -193,6 +213,11 @@ export default function AccesosPage() {
             <dt>Resultado</dt><dd>{(RES[r.resultado] ?? { t: r.resultado }).t}</dd>
           </dl>
           <CamarasCercanas latitud={r.latitud ?? r.sitio?.latitud ?? null} longitud={r.longitud ?? r.sitio?.longitud ?? null} radioM={500} />
+          {!(r.placa || r.vehiculo?.placas) && (
+            <p style={{ marginTop: 10 }}>
+              <Link href={`/credenciales/visitante?acceso=${r.id}`} target="_blank" rel="noopener noreferrer" className="qbtn2 primary">🪪 Generar credencial de visitante ↗</Link>
+            </p>
+          )}
           <p style={{ marginTop: 10 }}>
             <Link href={`/accesos/imprimir?${r.sitio_id ? `sitio=${r.sitio_id}&` : ""}desde=${String(r.fecha_evento ?? "").slice(0, 10) || hoyISO()}`} target="_blank" rel="noopener noreferrer" className="qbtn2">🖨️ Imprimir bitácora (este sitio / día) ↗</Link>
           </p>

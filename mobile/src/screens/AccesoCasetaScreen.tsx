@@ -11,6 +11,7 @@ import { decode } from "base64-arraybuffer";
 import { supabase, BUCKET_FOTOS } from "../lib/supabase";
 import { getMiOficialValido } from "../lib/oficial";
 import { leerNfc, nfcDisponible } from "../lib/nfc";
+import { urlFoto } from "../lib/fotos";
 import { T, UI } from "../theme";
 
 // App de caseta (Control de Accesos, Fase 1): el guardia registra la entrada/
@@ -108,19 +109,54 @@ export default function AccesoCasetaScreen() {
     }
   }
 
-  // Resuelve la credencial por su código (de QR/NFC/manual) → persona.
+  // Resuelve el código (QR/NFC/manual): primero como CREDENCIAL; si no existe, lo
+  // valida como NÚMERO de empleado/guardia contra la lista de PERSONAL. Enriquece
+  // con foto, categoría y vigencia para mostrarlos y validar en pantalla.
   const resolverCredencial = useCallback(async (code: string) => {
     const t = code.trim();
     if (!t) return;
     setCodigo(t);
-    const { data } = await supabase.from("credenciales")
-      .select("id, tipo, vigencia_fin, persona_id, descripcion, persona:personas(nombre, apellido_paterno)")
+    const nombreDe = (per: any) => per ? `${per.nombre ?? ""} ${per.apellido_paterno ?? ""} ${per.apellido_materno ?? ""}`.trim() : "";
+    const fotoDe = (per: any) => (Array.isArray(per?.fotografias) ? per.fotografias[0] : null);
+
+    const { data: c } = await supabase.from("credenciales")
+      .select("id, categoria, tipo, vigencia_fin, persona_id, descripcion, datos_adicionales, persona:personas(nombre, apellido_paterno, apellido_materno, fotografias)")
       .eq("codigo", t).eq("estatus", "activo").maybeSingle();
-    if (!data) { setCred(null); Alert.alert("Credencial", "No se encontró una credencial activa con ese código. Puedes registrar al visitante manualmente."); return; }
-    if ((data as any).vigencia_fin && new Date((data as any).vigencia_fin).getTime() < Date.now()) {
-      Alert.alert("Credencial vencida", "La credencial existe pero está vencida.");
+
+    let enr: any = null;
+    if (c) {
+      let personalActivo: boolean | null = null;
+      if ((c as any).persona_id) {
+        const { data: pe } = await supabase.from("personal").select("estado_laboral, estatus").eq("persona_id", (c as any).persona_id).maybeSingle();
+        if (pe) personalActivo = (pe as any).estatus === "activo" && (pe as any).estado_laboral === "activo";
+      }
+      const per = (c as any).persona; const vf = (c as any).vigencia_fin; const dd = (c as any).datos_adicionales ?? {};
+      enr = {
+        id: (c as any).id, categoria: (c as any).categoria ?? "Credencial", persona_id: (c as any).persona_id, descripcion: (c as any).descripcion,
+        nombre: nombreDe(per) || (c as any).descripcion || "Credencial", fotoPath: fotoDe(per),
+        vigenciaFin: vf, vigente: !vf || new Date(vf).getTime() >= Date.now(),
+        empresa: dd.empresa ?? null, motivo: dd.motivo ?? null, anfitrion: dd.anfitrion ?? null, personalActivo,
+      };
+    } else {
+      // No hay credencial: validar contra PERSONAL por número (empleado/guardia).
+      const { data: pe } = await supabase.from("personal")
+        .select("id, persona_id, numero_placa, estado_laboral, estatus, persona:personas(nombre, apellido_paterno, apellido_materno, fotografias)")
+        .eq("numero_placa", t).eq("estatus", "activo").maybeSingle();
+      if (pe) {
+        const per = (pe as any).persona;
+        enr = {
+          id: null, categoria: "Empleado/Guardia", persona_id: (pe as any).persona_id, descripcion: null,
+          nombre: nombreDe(per) || "Elemento", fotoPath: fotoDe(per),
+          vigenciaFin: null, vigente: true, empresa: null, motivo: null, anfitrion: null,
+          personalActivo: (pe as any).estado_laboral === "activo",
+        };
+      }
     }
-    setCred(data);
+
+    if (!enr) { setCred(null); Alert.alert("Sin coincidencia", "No se encontró credencial ni un elemento con ese código/número. Puedes registrar al visitante manualmente."); return; }
+    if (enr.personalActivo === false) Alert.alert("Elemento inactivo", "El elemento existe pero no está activo.");
+    else if (!enr.vigente) Alert.alert("Credencial vencida", "La credencial existe pero está vencida.");
+    setCred(enr);
   }, []);
 
   // Abre la cámara full-screen en el modo indicado (pide permiso si hace falta).
@@ -280,7 +316,7 @@ export default function AccesoCasetaScreen() {
   // Crea una incidencia (reusa el chat automático) ligada al acceso.
   async function crearIncidenteLigado(accesoId: string, titulo: string): Promise<string | null> {
     const g = await getMiOficialValido();
-    const quien = cred?.persona ? `${cred.persona.nombre ?? ""} ${cred.persona.apellido_paterno ?? ""}`.trim() : (visitante.trim() || "visitante");
+    const quien = cred?.nombre || visitante.trim() || "visitante";
     const { data: ll, error } = await supabase.from("llamadas_cad").insert({
       tipo: titulo, prioridad: "media", reportante: g?.etiqueta ?? null, sitio_id: sitioId,
       direccion: sitioNombre ?? "Caseta", estado_despacho: "recibida",
@@ -394,8 +430,27 @@ export default function AccesoCasetaScreen() {
           <TouchableOpacity style={styles.cap} onPress={() => abrirCamara("qr")}><Ionicons name="qr-code" size={22} color={T.accent} /><Text style={styles.capTxt}>Escanear QR</Text></TouchableOpacity>
           <TouchableOpacity style={styles.cap} onPress={escanearNfc}><Ionicons name="radio" size={22} color={T.accent} /><Text style={styles.capTxt}>Leer NFC</Text></TouchableOpacity>
         </View>
-        <TextInput style={styles.input} placeholder="…o teclea el código" placeholderTextColor={T.textMute} value={codigo} onChangeText={setCodigo} onEndEditing={() => resolverCredencial(codigo)} autoCapitalize="characters" />
-        {cred && <Text style={styles.ok}>✓ {cred.persona ? `${cred.persona.nombre ?? ""} ${cred.persona.apellido_paterno ?? ""}`.trim() : (cred.descripcion ?? "Credencial válida")}</Text>}
+        <TextInput style={styles.input} placeholder="…o teclea el código / número" placeholderTextColor={T.textMute} value={codigo} onChangeText={setCodigo} onEndEditing={() => resolverCredencial(codigo)} autoCapitalize="characters" />
+        {cred && (() => {
+          const valido = cred.vigente && cred.personalActivo !== false;
+          const fu = urlFoto(cred.fotoPath);
+          return (
+            <View style={styles.resCard}>
+              {fu ? <Image source={{ uri: fu }} style={styles.resFoto} /> : <View style={[styles.resFoto, styles.resFotoPh]}><Ionicons name="person" size={30} color={T.textMute} /></View>}
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={styles.resNombre} numberOfLines={1}>{cred.nombre}</Text>
+                <Text style={styles.resSub} numberOfLines={1}>{cred.categoria}{cred.empresa ? ` · ${cred.empresa}` : ""}</Text>
+                {cred.motivo ? <Text style={styles.resMeta} numberOfLines={1}>Motivo: {cred.motivo}</Text> : null}
+                {cred.vigenciaFin ? <Text style={styles.resMeta}>Vence: {new Date(cred.vigenciaFin).toLocaleString()}</Text> : null}
+                <View style={[styles.badge, { backgroundColor: valido ? "#e6f6ec" : "#fde7e7" }]}>
+                  <Text style={{ color: valido ? "#0a7c2f" : "#b00020", fontWeight: "800", fontSize: 12 }}>
+                    {valido ? "✓ Vigente / válido" : (cred.personalActivo === false ? "Elemento inactivo" : "Credencial vencida")}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          );
+        })()}
 
         {!cred && (
           <>
@@ -467,6 +522,13 @@ const styles = StyleSheet.create({
   label: { color: T.textDim, fontSize: 13, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.4, marginTop: 20, marginBottom: 8 },
   input: { backgroundColor: T.surface, borderWidth: 1, borderColor: T.border, borderRadius: UI.radiusSm, paddingHorizontal: 14, minHeight: 50, color: T.text, fontSize: 16, marginTop: 8 },
   ok: { color: "#0a7c2f", fontWeight: "700", marginTop: 8 },
+  resCard: { flexDirection: "row", gap: 12, alignItems: "center", marginTop: 10, padding: 10, borderWidth: 1, borderColor: T.border, borderRadius: UI.radiusSm, backgroundColor: T.surface },
+  resFoto: { width: 64, height: 80, borderRadius: 8, backgroundColor: T.surfaceHi },
+  resFotoPh: { alignItems: "center", justifyContent: "center" },
+  resNombre: { color: T.text, fontSize: 16, fontWeight: "800" },
+  resSub: { color: T.textDim, fontSize: 13, fontWeight: "600", marginTop: 1 },
+  resMeta: { color: T.textMute, fontSize: 12, marginTop: 1 },
+  badge: { alignSelf: "flex-start", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, marginTop: 6 },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: { borderWidth: 1, borderColor: T.border, borderRadius: 20, paddingVertical: 8, paddingHorizontal: 14, backgroundColor: T.surface },
   chipOn: { backgroundColor: T.accent, borderColor: T.accent },
