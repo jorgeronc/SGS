@@ -63,6 +63,8 @@ export default function ImprimirCredencialPage() {
 
   const css = `
     :root{color-scheme:light}
+    /* La página de impresión ES del tamaño de la credencial (CR80). */
+    @page{size:85.6mm 54mm;margin:0}
     *{box-sizing:border-box}
     body{background:#e9ecf0}
     .sheet{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;font-family:'Barlow',system-ui,Arial,sans-serif}
@@ -72,7 +74,7 @@ export default function ImprimirCredencialPage() {
     .card{width:85.6mm;height:54mm;border-radius:3mm;overflow:hidden;position:relative;background:#fff;color:${p.ink};
           box-shadow:0 6px 20px rgba(20,30,48,.22);display:grid;grid-template-rows:auto 1fr;border:${p.bw ? "0.4mm solid #000" : "0.2mm solid rgba(0,0,0,.15)"}}
     .card.bg{background-size:cover;background-position:center}
-    .band{background:${p.band};color:${p.bandInk};display:flex;align-items:center;gap:2.4mm;padding:2mm 3.4mm;${p.bw ? "border-bottom:0.4mm solid #000" : ""}}
+    .band{background:${p.band};color:${p.bandInk};display:flex;align-items:center;gap:2.2mm;padding:1.5mm 3mm;${p.bw ? "border-bottom:0.4mm solid #000" : ""}}
     .card.bg .band{background:rgba(0,0,0,0);color:transparent}
     .emblem{width:6mm;height:6.8mm;flex:0 0 auto}
     .org{display:flex;flex-direction:column;line-height:1.05}
@@ -80,13 +82,13 @@ export default function ImprimirCredencialPage() {
     .org-sub{font-size:2.2mm;letter-spacing:.14em;text-transform:uppercase;color:${p.accent};font-weight:700}
     .type{margin-left:auto;font-family:'Saira Condensed',Arial;font-weight:800;font-size:4.2mm;letter-spacing:.08em;text-transform:uppercase;
           background:${p.bw ? "#fff" : p.accent};color:${p.bw ? "#000" : "#16202c"};border:${p.bw ? "0.35mm solid #000" : "0"};padding:.4mm 2.4mm;border-radius:1.4mm}
-    .body{display:grid;grid-template-columns:auto 1fr;gap:3.4mm;padding:2.6mm 3.4mm 3mm;min-height:0}
+    .body{display:grid;grid-template-columns:auto 1fr;gap:3mm;padding:2mm 3mm 2mm;min-height:0}
     .photo{height:100%;aspect-ratio:3/4;width:auto;border-radius:2mm;overflow:hidden;border:.45mm solid ${p.bw ? "#000" : p.accent};background:#dfe6ee;position:relative}
     .photo img{width:100%;height:100%;object-fit:cover}
     .photo .ph{position:absolute;inset:0;display:grid;place-items:end center}
     .photo .ph svg{width:78%;opacity:.5}
     .right{min-width:0;display:flex;flex-direction:column;gap:1.4mm}
-    .name{font-family:'Saira Condensed',Arial;font-weight:800;font-size:5.6mm;line-height:1;letter-spacing:.01em;color:${p.ink}}
+    .name{font-family:'Saira Condensed',Arial;font-weight:800;font-size:5mm;line-height:1;letter-spacing:.01em;color:${p.ink}}
     .role{font-size:2.9mm;font-weight:600;color:${p.accent};text-transform:uppercase;letter-spacing:.03em}
     .fields{display:grid;grid-template-columns:1fr 1fr;gap:1.6mm 3mm;margin-top:1mm;flex:1;align-content:start}
     .fields dt{font-size:2.1mm;letter-spacing:.08em;text-transform:uppercase;color:${p.sub};font-weight:700;margin:0}
@@ -99,10 +101,11 @@ export default function ImprimirCredencialPage() {
     .edge{position:absolute;top:0;bottom:0;left:0;width:1.6mm;background:${p.accent}}
     .card.bg .edge{display:none}
     @media print{
-      body{background:#fff}
+      html,body{background:#fff;margin:0;padding:0}
       .barra{display:none}
-      .sheet{padding:0;min-height:auto;display:block}
-      .card{box-shadow:none;margin:6mm auto}
+      .sheet{padding:0;margin:0;min-height:0;display:block}
+      /* La tarjeta llena EXACTAMENTE la página (sin márgenes ni escala). */
+      .card{box-shadow:none;margin:0;border-radius:0;width:85.6mm;height:54mm;page-break-inside:avoid}
     }
   `;
 
@@ -151,7 +154,7 @@ export default function ImprimirCredencialPage() {
             </dl>
             <div className="bottom">
               <div className="meta"><div className="cardno">{cred.codigo}</div><div className="foot">{cat === "Visitante" ? "Devolver al salir · SGS" : "Válida con ID oficial · SGS"}</div></div>
-              {cred.tipo !== "nfc" && cred.codigo && <div className="qr"><QRCodeSVG value={cred.codigo} size={64} level="M" /></div>}
+              {cred.tipo !== "nfc" && cred.codigo && <div className="qr"><QRCodeSVG value={cred.codigo} size={46} level="M" /></div>}
             </div>
           </div>
         </div>
