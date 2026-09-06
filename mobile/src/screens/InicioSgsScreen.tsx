@@ -14,12 +14,6 @@ import { getEstatusServicio, setEstatusServicio, type EstatusServicio } from "..
 import { bodycamDisponible, bodycamGrabando, iniciarBodycam, detenerBodycam, pedirPermisosBodycam } from "../lib/bodycamHd";
 import { useConectividad } from "../lib/conectividad";
 
-// Turno actual según la hora (diurno 06:00–18:00, nocturno 18:00–06:00).
-function turnoActual(): string {
-  const h = new Date().getHours();
-  return h >= 6 && h < 18 ? "Diurno" : "Nocturno";
-}
-
 // Inicio del guardia (SGS): encabezado con logo + estado, y accesos rápidos.
 export default function InicioSgsScreen() {
   const nav = useNavigation<any>();
@@ -131,28 +125,21 @@ export default function InicioSgsScreen() {
         <Image source={require("../../assets/escudo.png")} style={styles.logo} resizeMode="contain" />
         <Text style={styles.marca}>SGS Móvil</Text>
         <View style={styles.headerRight}>
-          <View style={styles.pill}>
-            <Ionicons name="time-outline" size={13} color={T.textDim} />
-            <Text style={styles.pillTxt}>{turnoActual()}</Text>
-          </View>
+          {/* Izquierda: estatus en línea */}
           <View style={[styles.pill, enLinea ? styles.pillOn : styles.pillOff]}>
             <View style={[styles.dot, { backgroundColor: enLinea ? "#22c55e" : T.textMute }]} />
-            <Text style={[styles.pillTxt, enLinea && { color: "#22c55e" }]}>
-              {enLinea ? "En línea" : "Sin elemento"}
-            </Text>
+            <Text style={[styles.pillTxt, enLinea && { color: "#22c55e" }]}>{enLinea ? "En línea" : "Sin elemento"}</Text>
+          </View>
+          {/* Derecha: estatus de conexión */}
+          <View style={[styles.pill, red.conectado ? styles.netOn : styles.netOff]}>
+            <Ionicons name={red.conectado ? (red.wifi ? "wifi" : "cellular") : "cloud-offline-outline"} size={13} color={red.conectado ? "#16a34a" : "#b91c1c"} />
+            <Text style={[styles.pillTxt, { color: red.conectado ? "#16a34a" : "#b91c1c" }]}>{red.conectado ? (red.wifi ? "WiFi" : "Conectado") : "Sin conexión"}</Text>
           </View>
         </View>
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 16 }}>
-        <View style={[styles.netChip, red.conectado ? styles.netOn : styles.netOff]}>
-          <Ionicons name={red.conectado ? (red.wifi ? "wifi" : "cellular") : "cloud-offline-outline"} size={14} color={red.conectado ? "#16a34a" : "#b91c1c"} />
-          <Text style={[styles.netTxt, { color: red.conectado ? "#16a34a" : "#b91c1c" }]}>
-            {red.conectado ? (red.wifi ? "Conectado por WiFi" : "Conectado") : "Sin conexión"}
-          </Text>
-        </View>
-        <Text style={styles.hola}>{mio?.etiqueta || "Sistema de Gestión de Seguridad"}</Text>
-        {!mio?.etiqueta && (
+        {!enLinea && (
           <Text style={styles.sub}>Selecciona tu elemento en Perfil para operar como guardia.</Text>
         )}
 

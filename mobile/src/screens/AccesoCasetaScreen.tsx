@@ -14,6 +14,16 @@ import { leerNfc, nfcDisponible } from "../lib/nfc";
 import { urlFoto } from "../lib/fotos";
 import { T, UI } from "../theme";
 
+// Colores por tipo para la mini-credencial que se muestra al escanear.
+const CATCOL: Record<string, { band: string; accent: string }> = {
+  Empleado: { band: "#0f5b78", accent: "#2aa7c9" },
+  Guardia: { band: "#0b2540", accent: "#f4a03f" },
+  Servicio: { band: "#14663f", accent: "#37b06e" },
+  Visitante: { band: "#4b4b4b", accent: "#111111" },
+  "Empleado/Guardia": { band: "#0b2540", accent: "#f4a03f" },
+  Credencial: { band: "#0b2540", accent: "#f4a03f" },
+};
+
 // App de caseta (Control de Accesos, Fase 1): el guardia registra la entrada/
 // salida de una persona. Identifica por credencial (QR/NFC/código) o captura un
 // visitante; toma foto; autoriza o rechaza; y puede pedir autorización al
@@ -434,18 +444,28 @@ export default function AccesoCasetaScreen() {
         {cred && (() => {
           const valido = cred.vigente && cred.personalActivo !== false;
           const fu = urlFoto(cred.fotoPath);
+          const col = CATCOL[cred.categoria as string] ?? CATCOL.Guardia;
+          const esVisitante = cred.categoria === "Visitante";
+          const ref = cred.empresa || cred.descripcion || null;
           return (
-            <View style={styles.resCard}>
-              {fu ? <Image source={{ uri: fu }} style={styles.resFoto} /> : <View style={[styles.resFoto, styles.resFotoPh]}><Ionicons name="person" size={30} color={T.textMute} /></View>}
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={styles.resNombre} numberOfLines={1}>{cred.nombre}</Text>
-                <Text style={styles.resSub} numberOfLines={1}>{cred.categoria}{cred.empresa ? ` · ${cred.empresa}` : ""}</Text>
-                {cred.motivo ? <Text style={styles.resMeta} numberOfLines={1}>Motivo: {cred.motivo}</Text> : null}
-                {cred.vigenciaFin ? <Text style={styles.resMeta}>Vence: {new Date(cred.vigenciaFin).toLocaleString()}</Text> : null}
-                <View style={[styles.badge, { backgroundColor: valido ? "#e6f6ec" : "#fde7e7" }]}>
-                  <Text style={{ color: valido ? "#0a7c2f" : "#b00020", fontWeight: "800", fontSize: 12 }}>
-                    {valido ? "✓ Vigente / válido" : (cred.personalActivo === false ? "Elemento inactivo" : "Credencial vencida")}
-                  </Text>
+            <View style={styles.credCard}>
+              <View style={[styles.credBand, { backgroundColor: col.band }]}>
+                <Text style={styles.credOrg}>CONSULTECH SEGURIDAD</Text>
+                <Text style={[styles.credTipo, { backgroundColor: col.accent }]}>{String(cred.categoria).toUpperCase()}</Text>
+              </View>
+              <View style={styles.credBody}>
+                {fu ? <Image source={{ uri: fu }} style={[styles.credFoto, { borderColor: col.accent }]} />
+                    : <View style={[styles.credFoto, styles.credFotoPh, { borderColor: col.accent }]}><Ionicons name="person" size={34} color={T.textMute} /></View>}
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={styles.credNombre} numberOfLines={2}>{cred.nombre}</Text>
+                  {ref ? <Text style={[styles.credRef, { color: col.accent }]} numberOfLines={1}>{ref}</Text> : null}
+                  <Text style={styles.credMeta}>{esVisitante ? "Folio" : "Número"}: <Text style={styles.credMetaV}>{codigo}</Text></Text>
+                  {cred.vigenciaFin ? <Text style={styles.credMeta}>Vence: <Text style={styles.credMetaV}>{new Date(cred.vigenciaFin).toLocaleDateString()}</Text></Text> : null}
+                  <View style={[styles.badge, { backgroundColor: valido ? "#e6f6ec" : "#fde7e7", marginTop: 6 }]}>
+                    <Text style={{ color: valido ? "#0a7c2f" : "#b00020", fontWeight: "800", fontSize: 12 }}>
+                      {valido ? "✓ Vigente / válido" : (cred.personalActivo === false ? "Elemento inactivo" : "Credencial vencida")}
+                    </Text>
+                  </View>
                 </View>
               </View>
             </View>
@@ -529,6 +549,17 @@ const styles = StyleSheet.create({
   resSub: { color: T.textDim, fontSize: 13, fontWeight: "600", marginTop: 1 },
   resMeta: { color: T.textMute, fontSize: 12, marginTop: 1 },
   badge: { alignSelf: "flex-start", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, marginTop: 6 },
+  credCard: { marginTop: 10, borderWidth: 1, borderColor: T.border, borderRadius: 12, overflow: "hidden", backgroundColor: "#fff" },
+  credBand: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 8 },
+  credOrg: { color: "#fff", fontSize: 12, fontWeight: "800", letterSpacing: 0.4, flex: 1 },
+  credTipo: { color: "#16202c", fontSize: 12, fontWeight: "900", letterSpacing: 0.6, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 5, overflow: "hidden" },
+  credBody: { flexDirection: "row", gap: 12, padding: 12, alignItems: "flex-start" },
+  credFoto: { width: 78, height: 100, borderRadius: 8, borderWidth: 2, backgroundColor: "#e6ebf1" },
+  credFotoPh: { alignItems: "center", justifyContent: "center" },
+  credNombre: { color: "#141d28", fontSize: 17, fontWeight: "900" },
+  credRef: { fontSize: 13, fontWeight: "700", marginTop: 1 },
+  credMeta: { color: "#5a6a7a", fontSize: 12.5, marginTop: 3 },
+  credMetaV: { color: "#141d28", fontWeight: "800" },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: { borderWidth: 1, borderColor: T.border, borderRadius: 20, paddingVertical: 8, paddingHorizontal: 14, backgroundColor: T.surface },
   chipOn: { backgroundColor: T.accent, borderColor: T.accent },

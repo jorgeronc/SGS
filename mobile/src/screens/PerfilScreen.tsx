@@ -32,7 +32,6 @@ export default function PerfilScreen() {
   const route = useRoute<any>();
   const [correo, setCorreo] = useState("");
 
-  const [usuarioNombre, setUsuarioNombre] = useState("");
   // Mi elemento (identidad del oficial) — AUTO-resuelto desde la cuenta (no se elige).
   const [miOficialId, setMiOficialId] = useState<string | null>(null);
   const [miOficialEtq, setMiOficialEtq] = useState<string>("");
@@ -64,10 +63,6 @@ export default function PerfilScreen() {
   async function cargarCuenta() {
     const { data: u } = await supabase.auth.getUser();
     setCorreo(u.user?.email ?? "");
-    if (u.user?.id) {
-      const { data } = await supabase.from("usuarios_perfil").select("nombre").eq("id", u.user.id).maybeSingle();
-      setUsuarioNombre((data as any)?.nombre ?? "");
-    }
   }
 
   async function cargarMiFoto(pid: string) {
@@ -253,6 +248,7 @@ export default function PerfilScreen() {
               <View style={styles.idRow}><Ionicons name="business-outline" size={16} color={T.accent} style={styles.idIco} /><Text style={styles.idLbl}>Sitio</Text><Text style={styles.idVal} numberOfLines={1}>{sitio || "sin sitio"}</Text></View>
               <View style={styles.idRow}><Ionicons name="car-outline" size={16} color={T.accent} style={styles.idIco} /><Text style={styles.idLbl}>Unidad</Text><Text style={styles.idVal} numberOfLines={1}>{unidadNum || "Sin unidad"}</Text></View>
               <View style={styles.idRow}><Ionicons name="videocam-outline" size={16} color={T.accent} style={styles.idIco} /><Text style={styles.idLbl}>Bodycam</Text><Text style={styles.idVal} numberOfLines={1}>{miBodycam || "sin bodycam"}</Text></View>
+              <View style={styles.idRow}><Ionicons name="time-outline" size={16} color={T.accent} style={styles.idIco} /><Text style={styles.idLbl}>Turno</Text><Text style={styles.idVal} numberOfLines={1}>{turno ? `${turno.fecha} · ${hhmm(turno.horaInicio)}–${hhmm(turno.horaFin)}` : "Sin turno activo"}</Text></View>
             </View>
           ) : (
             <Text style={styles.avisoHero}>Sin elemento: tu cuenta no está ligada a un guardia. Pide al administrador que asigne tu elemento.</Text>
@@ -305,26 +301,6 @@ export default function PerfilScreen() {
             </View>
           </View>
         )}
-
-        {/* Cuenta: usuario + turno con su horario */}
-        <Text style={styles.seccion}>Cuenta</Text>
-        <View style={styles.card}>
-          <View style={[styles.row, styles.rowBorder]}>
-            <Ionicons name="person-circle-outline" size={20} color={T.accent} style={{ width: 28 }} />
-            <Text style={styles.l}>Usuario</Text>
-            <Text style={styles.v} numberOfLines={1}>{usuarioNombre || miOficialEtq || correo || "—"}</Text>
-          </View>
-          <View style={styles.rowCol}>
-            <View style={styles.row}>
-              <Ionicons name="time-outline" size={20} color={T.accent} style={{ width: 28 }} />
-              <Text style={styles.l}>Turno</Text>
-              <Text style={styles.v}>{turnoActual()}</Text>
-            </View>
-            <Text style={styles.turnoHorario}>
-              {turno ? `${turno.fecha} · ${hhmm(turno.horaInicio)}–${hhmm(turno.horaFin)}` : "Sin turno activo en el sistema"}
-            </Text>
-          </View>
-        </View>
 
         {aviso && <Text style={styles.aviso}>{aviso}</Text>}
 
