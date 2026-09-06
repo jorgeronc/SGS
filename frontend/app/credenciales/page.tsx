@@ -188,6 +188,11 @@ function NuevaCredencial({ onCreado }: { onCreado: () => void }) {
           </label>
         </div>
       )}
+      <div className="form-fila">
+        <label className="dash-sub" style={{ display: "flex", flexDirection: "column", flex: 1 }}>Referencia (empresa, contrato, etc.)
+          <input value={f.referencia} onChange={(e) => set("referencia", e.target.value)} placeholder="Empresa / contrato / motivo" />
+        </label>
+      </div>
       {f.categoria === "Visitante" && (
         <div style={{ marginTop: 8 }}>
           <div className="dash-sub" style={{ marginBottom: 6, fontWeight: 700 }}>Foto del visitante (cámara del dispositivo o conectada)</div>
@@ -195,11 +200,6 @@ function NuevaCredencial({ onCreado }: { onCreado: () => void }) {
           {foto && <p style={{ color: "#0a7c2f", fontSize: 13, marginTop: 4 }}>✓ Foto lista</p>}
         </div>
       )}
-      <div className="form-fila">
-        <label className="dash-sub" style={{ display: "flex", flexDirection: "column", flex: 1 }}>Referencia (empresa, contrato, etc.)
-          <input value={f.referencia} onChange={(e) => set("referencia", e.target.value)} placeholder="Empresa / contrato / motivo" />
-        </label>
-      </div>
       <div className="form-fila" style={{ alignItems: "flex-end" }}>
         <label className="dash-sub" style={{ display: "flex", flexDirection: "column" }}>Tecnología
           <select value={f.tipo} onChange={(e) => set("tipo", e.target.value)}>

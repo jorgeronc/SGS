@@ -58,26 +58,30 @@ export default function CamaraFoto({ onCapture, alto = 320 }: { onCapture: (blob
   const marco: React.CSSProperties = { width: "100%", maxWidth: alto * 0.75 * 1.34, height: alto, borderRadius: 10, background: "#111", objectFit: "cover", border: "1px solid var(--sc-card-line)" };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      {dispositivos.length > 1 && (
-        <label className="dash-sub" style={{ display: "flex", flexDirection: "column", gap: 4 }}>Cámara
-          <select value={deviceId} onChange={(e) => cambiar(e.target.value)}>
-            {dispositivos.map((d, i) => <option key={d.deviceId} value={d.deviceId}>{d.label || `Cámara ${i + 1}`}</option>)}
-          </select>
-        </label>
-      )}
-      <div style={{ position: "relative", alignSelf: "flex-start" }}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        {preview ? <img src={preview} alt="Foto capturada" style={marco} /> : <video ref={videoRef} playsInline muted style={marco} />}
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ display: "flex", gap: 14, alignItems: "flex-start", flexWrap: "wrap" }}>
+        {/* Imagen / vista previa a la izquierda */}
+        <div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          {preview ? <img src={preview} alt="Foto capturada" style={marco} /> : <video ref={videoRef} playsInline muted style={marco} />}
+        </div>
+        {/* Controles a la derecha: selector arriba, botón abajo (alineados a la izquierda) */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, alignItems: "flex-start" }}>
+          {dispositivos.length > 1 && (
+            <label className="dash-sub" style={{ display: "flex", flexDirection: "column", gap: 4 }}>Cámara
+              <select value={deviceId} onChange={(e) => cambiar(e.target.value)}>
+                {dispositivos.map((d, i) => <option key={d.deviceId} value={d.deviceId}>{d.label || `Cámara ${i + 1}`}</option>)}
+              </select>
+            </label>
+          )}
+          {!preview ? (
+            <button type="button" onClick={capturar} disabled={!listo} style={{ background: "var(--sc-btn,#f4a03f)", color: "#fff", border: "none", borderRadius: 9, padding: "10px 18px", fontWeight: 700, cursor: "pointer" }}>📸 Tomar foto</button>
+          ) : (
+            <button type="button" onClick={retomar} style={{ border: "1px solid var(--sc-card-line)", background: "transparent", color: "var(--sc-text)", borderRadius: 9, padding: "10px 18px", fontWeight: 700, cursor: "pointer" }}>↻ Retomar</button>
+          )}
+        </div>
       </div>
       {error && <p style={{ color: "#b00020", fontSize: 13 }}>{error} <button type="button" onClick={() => arrancar(deviceId || undefined)} style={{ marginLeft: 6 }}>Reintentar</button></p>}
-      <div style={{ display: "flex", gap: 10 }}>
-        {!preview ? (
-          <button type="button" onClick={capturar} disabled={!listo} style={{ background: "var(--sc-btn,#f4a03f)", color: "#fff", border: "none", borderRadius: 9, padding: "10px 18px", fontWeight: 700, cursor: "pointer" }}>📸 Tomar foto</button>
-        ) : (
-          <button type="button" onClick={retomar} style={{ border: "1px solid var(--sc-card-line)", background: "transparent", color: "var(--sc-text)", borderRadius: 9, padding: "10px 18px", fontWeight: 700, cursor: "pointer" }}>↻ Retomar</button>
-        )}
-      </div>
     </div>
   );
 }
