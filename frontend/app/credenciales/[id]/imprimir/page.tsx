@@ -26,6 +26,7 @@ export default function ImprimirCredencialPage() {
   const [numero, setNumero] = useState<string | null>(null);
   const [plantilla, setPlantilla] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [ampliado, setAmpliado] = useState(true); // vista previa ampliada (solo pantalla)
 
   useEffect(() => {
     (async () => {
@@ -104,8 +105,9 @@ export default function ImprimirCredencialPage() {
       html,body{background:#fff;margin:0;padding:0}
       .barra{display:none}
       .sheet{padding:0;margin:0;min-height:0;display:block}
-      /* La tarjeta llena EXACTAMENTE la página (sin márgenes ni escala). */
-      .card{box-shadow:none;margin:0;border-radius:0;width:85.6mm;height:54mm;page-break-inside:avoid}
+      /* La tarjeta llena EXACTAMENTE la página (sin márgenes ni escala). El zoom
+         de la vista previa NO afecta la impresión. */
+      .card{box-shadow:none;margin:0;border-radius:0;width:85.6mm;height:54mm;page-break-inside:avoid;zoom:1 !important}
     }
   `;
 
@@ -127,10 +129,12 @@ export default function ImprimirCredencialPage() {
 
       <div className="barra">
         <button onClick={() => window.print()}>🖨️ Imprimir</button>
+        <button onClick={() => setAmpliado((v) => !v)}>{ampliado ? "🔎 Tamaño real" : "🔍 Vista previa ampliada"}</button>
         <a href="/credenciales">Volver</a>
       </div>
+      <p style={{ fontSize: 12, color: "#667", margin: 0 }}>La impresión siempre sale a 85.6 × 54 mm (CR80). La vista ampliada es solo para revisar/validar.</p>
 
-      <div className={`card${bgUrl ? " bg" : ""}`} style={bgUrl ? { backgroundImage: `url(${bgUrl})` } : undefined}>
+      <div className={`card${bgUrl ? " bg" : ""}`} style={{ ...(bgUrl ? { backgroundImage: `url(${bgUrl})` } : {}), zoom: ampliado ? 2.6 : 1 }}>
         <div className="edge" />
         <div className="band">
           {emblema}
