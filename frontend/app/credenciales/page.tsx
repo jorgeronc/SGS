@@ -15,6 +15,9 @@ const vigente = (r: any) => {
   return r.estatus === "activo" && ahora >= ini && ahora <= fin;
 };
 const localDT = (d: Date) => { const p = (n: number) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
+// Vence a 1 año (empleado/guardia/servicio) o al fin del/los día(s) de visita.
+const finAnio = () => { const d = new Date(); d.setDate(d.getDate() + 365); return localDT(d); };
+const finVisita = (dias: number) => { const d = new Date(); d.setDate(d.getDate() + Math.max(1, dias) - 1); d.setHours(23, 59, 0, 0); return localDT(d); };
 
 // Panel admin: carga de PLANTILLA (imagen de fondo) por categoría de credencial.
 function PlantillasPanel() {
@@ -80,9 +83,17 @@ function PlantillasPanel() {
 function NuevaCredencial({ onCreado }: { onCreado: () => void }) {
   const [personas, setPersonas] = useState<any[]>([]);
   const [f, setF] = useState({ categoria: "Empleado", persona_id: "", nombre: "", apellido_paterno: "", apellido_materno: "", referencia: "", tipo: "qr", codigo: "", fecha_emision: localDT(new Date()), vigencia_fin: "" });
+  const [dias, setDias] = useState(1); // días de vigencia para Visitante
   const [error, setError] = useState<string | null>(null);
   const [creando, setCreando] = useState(false);
   const set = (k: string, v: string) => setF((p) => ({ ...p, [k]: v }));
+
+  // Vigencia por defecto según el tipo: 1 año (empleado/guardia/servicio) o por
+  // día(s) de visita (visitante, editable con el selector de días).
+  useEffect(() => {
+    setF((p) => ({ ...p, vigencia_fin: p.categoria === "Visitante" ? finVisita(dias) : finAnio() }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [f.categoria, dias]);
 
   useEffect(() => {
     supabase.from("personas").select("id, nombre, apellido_paterno, apellido_materno").order("nombre").limit(500)
@@ -104,7 +115,11 @@ function NuevaCredencial({ onCreado }: { onCreado: () => void }) {
     e.preventDefault();
     setError(null);
     if (!f.codigo.trim()) { setError("El código es obligatorio."); return; }
-    if (!f.persona_id && !f.nombre.trim()) { setError("Elige una persona existente o captura el nombre (queda en Personas)."); return; }
+    if (f.categoria === "Visitante") {
+      if (!f.nombre.trim()) { setError("Captura el nombre del visitante (queda en Personas)."); return; }
+    } else if (!f.persona_id) {
+      setError("Elige la persona de la lista (registro maestro)."); return;
+    }
     setCreando(true);
     // Persona (registro maestro): existente, o se crea con los datos capturados.
     let personaId = f.persona_id;
@@ -135,28 +150,38 @@ function NuevaCredencial({ onCreado }: { onCreado: () => void }) {
 
   return (
     <form onSubmit={crear}>
-      <div className="form-fila">
+      <div className="form-fila" style={{ alignItems: "flex-end" }}>
         <label className="dash-sub" style={{ display: "flex", flexDirection: "column" }}>Tipo de credencial <span style={{ color: "#e11d48" }}>*</span>
           <select value={f.categoria} onChange={(e) => set("categoria", e.target.value)}>{CATEGORIAS.map((c) => <option key={c}>{c}</option>)}</select>
         </label>
-        <label className="dash-sub" style={{ display: "flex", flexDirection: "column", flex: 2 }}>Persona existente (opcional)
-          <select value={f.persona_id} onChange={(e) => set("persona_id", e.target.value)}>
-            <option value="">— Nueva persona (captúrala abajo) —</option>
-            {personas.map((p) => <option key={p.id} value={p.id}>{`${p.nombre ?? ""} ${p.apellido_paterno ?? ""} ${p.apellido_materno ?? ""}`.trim()}</option>)}
-          </select>
-        </label>
+        {f.categoria !== "Visitante" && (
+          <label className="dash-sub" style={{ display: "flex", flexDirection: "column", flex: 2 }}>Persona (de la lista) <span style={{ color: "#e11d48" }}>*</span>
+            <select value={f.persona_id} onChange={(e) => set("persona_id", e.target.value)}>
+              <option value="">— Selecciona la persona —</option>
+              {personas.map((p) => <option key={p.id} value={p.id}>{`${p.nombre ?? ""} ${p.apellido_paterno ?? ""} ${p.apellido_materno ?? ""}`.trim()}</option>)}
+            </select>
+          </label>
+        )}
       </div>
-      {!f.persona_id && (
-        <div className="form-fila">
-          <input placeholder="Nombre(s) *" value={f.nombre} onChange={(e) => set("nombre", e.target.value)} style={{ flex: 2 }} />
-          <input placeholder="Apellido paterno" value={f.apellido_paterno} onChange={(e) => set("apellido_paterno", e.target.value)} style={{ flex: 1 }} />
-          <input placeholder="Apellido materno" value={f.apellido_materno} onChange={(e) => set("apellido_materno", e.target.value)} style={{ flex: 1 }} />
+      {f.categoria === "Visitante" && (
+        <div className="form-fila" style={{ alignItems: "flex-end" }}>
+          <label className="dash-sub" style={{ display: "flex", flexDirection: "column", flex: 2 }}>Nombre(s) <span style={{ color: "#e11d48" }}>*</span>
+            <input value={f.nombre} onChange={(e) => set("nombre", e.target.value)} />
+          </label>
+          <label className="dash-sub" style={{ display: "flex", flexDirection: "column", flex: 1 }}>Apellido paterno
+            <input value={f.apellido_paterno} onChange={(e) => set("apellido_paterno", e.target.value)} />
+          </label>
+          <label className="dash-sub" style={{ display: "flex", flexDirection: "column", flex: 1 }}>Apellido materno
+            <input value={f.apellido_materno} onChange={(e) => set("apellido_materno", e.target.value)} />
+          </label>
         </div>
       )}
       <div className="form-fila">
-        <input placeholder="Referencia (empresa, contrato, etc.)" value={f.referencia} onChange={(e) => set("referencia", e.target.value)} style={{ flex: 1 }} />
+        <label className="dash-sub" style={{ display: "flex", flexDirection: "column", flex: 1 }}>Referencia (empresa, contrato, etc.)
+          <input value={f.referencia} onChange={(e) => set("referencia", e.target.value)} placeholder="Empresa / contrato / motivo" />
+        </label>
       </div>
-      <div className="form-fila">
+      <div className="form-fila" style={{ alignItems: "flex-end" }}>
         <label className="dash-sub" style={{ display: "flex", flexDirection: "column" }}>Tecnología
           <select value={f.tipo} onChange={(e) => set("tipo", e.target.value)}>
             <option value="qr">QR</option>
@@ -164,15 +189,24 @@ function NuevaCredencial({ onCreado }: { onCreado: () => void }) {
             <option value="temporal">Código temporal</option>
           </select>
         </label>
-        <input placeholder="Código" value={f.codigo} onChange={(e) => set("codigo", e.target.value)} required />
+        <label className="dash-sub" style={{ display: "flex", flexDirection: "column", flex: 1 }}>Código <span style={{ color: "#e11d48" }}>*</span>
+          <input value={f.codigo} onChange={(e) => set("codigo", e.target.value)} required />
+        </label>
         <label className="dash-sub" style={{ display: "flex", flexDirection: "column" }}>Emisión
           <input type="datetime-local" value={f.fecha_emision} onChange={(e) => set("fecha_emision", e.target.value)} />
         </label>
-        <label className="dash-sub" style={{ display: "flex", flexDirection: "column" }}>Vence
-          <input type="datetime-local" value={f.vigencia_fin} onChange={(e) => set("vigencia_fin", e.target.value)} />
-        </label>
+        {f.categoria === "Visitante" ? (
+          <label className="dash-sub" style={{ display: "flex", flexDirection: "column" }}>Días de vigencia
+            <input type="number" min={1} max={90} value={dias} onChange={(e) => setDias(Math.max(1, Number(e.target.value) || 1))} style={{ width: 96 }} />
+          </label>
+        ) : (
+          <label className="dash-sub" style={{ display: "flex", flexDirection: "column" }}>Vence
+            <input type="datetime-local" value={f.vigencia_fin} onChange={(e) => set("vigencia_fin", e.target.value)} />
+          </label>
+        )}
         <button type="submit" disabled={creando}>{creando ? "Emitiendo…" : "Emitir credencial"}</button>
       </div>
+      {f.categoria === "Visitante" && <div className="dash-sub" style={{ fontSize: 12, marginTop: 4 }}>Vigencia hasta: {f.vigencia_fin ? new Date(f.vigencia_fin).toLocaleString() : "—"} ({dias} día{dias === 1 ? "" : "s"}).</div>}
       <div style={{ marginTop: 6, background: "var(--sc-surface-2, #f3f6f9)", border: "1px solid var(--sc-card-line, #e2e6ec)", borderRadius: 8, padding: 8 }}>
         <div className="dash-sub" style={{ fontSize: 12.5, color: "#0b3d66", fontWeight: 700 }}>
           {f.categoria} · Contenido ({tipoLabel(f.tipo)}): <code>{f.codigo || "—"}</code>
@@ -217,6 +251,8 @@ export default function CredencialesPage() {
             <h3 style={{ margin: "0 0 8px" }}>{r.persona ? `${r.persona.nombre ?? ""} ${r.persona.apellido_paterno ?? ""}`.trim() : r.descripcion ?? "Credencial"}</h3>
             <dl className="sc-kv">
               <dt>Tipo</dt><dd>{r.categoria ?? "—"}</dd>
+              <dt>Titular</dt><dd>{r.persona ? `${r.persona.nombre ?? ""} ${r.persona.apellido_paterno ?? ""} ${r.persona.apellido_materno ?? ""}`.trim() : "—"}</dd>
+              <dt>Referencia</dt><dd>{r.descripcion ?? "—"}</dd>
               <dt>Folio</dt><dd>{r.folio ?? "—"}</dd>
               <dt>Tecnología</dt><dd>{tipoLabel(r.tipo)}</dd>
               <dt>Código</dt><dd><code>{r.codigo}</code></dd>
@@ -238,7 +274,7 @@ export default function CredencialesPage() {
         )}
         editar={[
           { campo: "categoria", label: "Tipo de credencial", tipo: "select", opciones: CATEGORIAS },
-          { campo: "descripcion", label: "Descripción" },
+          { campo: "descripcion", label: "Referencia (empresa, contrato, etc.)" },
           { campo: "tipo", label: "Tecnología", tipo: "select", opciones: ["qr", "nfc", "temporal"] },
           { campo: "vigencia_fin", label: "Vence", tipo: "date" },
         ]}

@@ -48,7 +48,8 @@ export default function VerCredencialPage() {
   const nombre = persona ? `${persona.nombre ?? ""} ${persona.apellido_paterno ?? ""} ${persona.apellido_materno ?? ""}`.trim() : (cred?.descripcion ?? "Credencial");
   const dd = cred?.datos_adicionales ?? {};
   const empresa = dd.empresa ?? null;
-  const role = cat === "Guardia" ? "Guardia de seguridad" : cat === "Empleado" ? (persona?.ocupacion ?? "Personal interno") : (empresa ? `Empresa: ${empresa}` : (cred?.descripcion ?? SUBT[cat]));
+  const referencia = empresa || cred?.descripcion || null;
+  const role = cat === "Guardia" ? "Guardia de seguridad" : cat === "Empleado" ? (persona?.ocupacion ?? "Personal interno") : cat === "Visitante" ? (referencia ?? "Visitante") : (empresa ? `Empresa: ${empresa}` : (cred?.descripcion ?? SUBT[cat]));
   const fotoUrl = useMemo(() => urlFoto(Array.isArray(persona?.fotografias) ? persona.fotografias[0] : null), [persona]);
   const bgUrl = plantilla ? urlFoto(plantilla) : null;
   const numeroMostrar = numero ?? cred?.codigo ?? "—";
@@ -139,7 +140,7 @@ export default function VerCredencialPage() {
               <div><div className="cv-name">{nombre}</div><div className="cv-role">{role}</div></div>
               <div className="cv-fields">
                 <div className="cv-col">
-                  <div><dt>{cat === "Visitante" ? "Referencia" : "Número"}</dt><dd>{cat === "Visitante" ? (empresa || cred.descripcion || "—") : numeroMostrar}</dd></div>
+                  {cat !== "Visitante" && <div><dt>Número</dt><dd>{numeroMostrar}</dd></div>}
                   <div><dt>{cat === "Visitante" ? "Vence" : "Vigencia"}</dt><dd>{cred.vigencia_fin ? fFecha(cred.vigencia_fin) : "Sin venc."}</dd></div>
                 </div>
                 <div className="cv-col">
