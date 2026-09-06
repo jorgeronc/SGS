@@ -154,12 +154,12 @@ export default function ImprimirCredencialPage() {
             </div>
             <div className="fields">
               <div className="col">
-                <div><dt>Número</dt><dd>{numeroMostrar}</dd></div>
+                <div><dt>{cat === "Visitante" ? "Referencia" : "Número"}</dt><dd>{cat === "Visitante" ? (empresa || cred.descripcion || "—") : numeroMostrar}</dd></div>
                 <div><dt>{cat === "Visitante" ? "Vence" : "Vigencia"}</dt><dd>{cred.vigencia_fin ? fFecha(cred.vigencia_fin) : "Sin venc."}</dd></div>
               </div>
               <div className="col">
                 <div><dt>Emisión</dt><dd>{fFecha(cred.fecha_emision)}</dd></div>
-                {empresa && <div><dt>Empresa</dt><dd>{empresa}</dd></div>}
+                {empresa && cat !== "Visitante" && <div><dt>Empresa</dt><dd>{empresa}</dd></div>}
               </div>
             </div>
             <div className="bottom">

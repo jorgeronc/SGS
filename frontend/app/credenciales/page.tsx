@@ -79,7 +79,7 @@ function PlantillasPanel() {
 // Alta de credencial: categoría (tipo), fecha de emisión, tecnología, código y vigencia.
 function NuevaCredencial({ onCreado }: { onCreado: () => void }) {
   const [personas, setPersonas] = useState<any[]>([]);
-  const [f, setF] = useState({ categoria: "Empleado", persona_id: "", descripcion: "", tipo: "qr", codigo: "", fecha_emision: localDT(new Date()), vigencia_fin: "" });
+  const [f, setF] = useState({ categoria: "Empleado", persona_id: "", nombre: "", apellido_paterno: "", apellido_materno: "", referencia: "", tipo: "qr", codigo: "", fecha_emision: localDT(new Date()), vigencia_fin: "" });
   const [error, setError] = useState<string | null>(null);
   const [creando, setCreando] = useState(false);
   const set = (k: string, v: string) => setF((p) => ({ ...p, [k]: v }));
@@ -104,12 +104,24 @@ function NuevaCredencial({ onCreado }: { onCreado: () => void }) {
     e.preventDefault();
     setError(null);
     if (!f.codigo.trim()) { setError("El código es obligatorio."); return; }
-    if (!f.persona_id && !f.descripcion.trim()) { setError("Elige una persona o describe la credencial (ej. Visitante Juan Pérez)."); return; }
+    if (!f.persona_id && !f.nombre.trim()) { setError("Elige una persona existente o captura el nombre (queda en Personas)."); return; }
     setCreando(true);
+    // Persona (registro maestro): existente, o se crea con los datos capturados.
+    let personaId = f.persona_id;
+    if (!personaId) {
+      const { data: pdata, error: perr } = await supabase.from("personas").insert({
+        nombre: f.nombre.trim(),
+        apellido_paterno: f.apellido_paterno.trim() || null,
+        apellido_materno: f.apellido_materno.trim() || null,
+        datos_adicionales: { origen: "credencial", empresa: f.referencia.trim() || null },
+      }).select("id").single();
+      if (perr) { setCreando(false); setError(perr.message); return; }
+      personaId = (pdata as any).id;
+    }
     const { error } = await supabase.from("credenciales").insert({
       categoria: f.categoria,
-      persona_id: f.persona_id || null,
-      descripcion: f.descripcion.trim() || null,
+      persona_id: personaId || null,
+      descripcion: f.referencia.trim() || null,
       tipo: f.tipo,
       codigo: f.codigo.trim(),
       fecha_emision: f.fecha_emision ? new Date(f.fecha_emision).toISOString() : new Date().toISOString(),
@@ -127,11 +139,22 @@ function NuevaCredencial({ onCreado }: { onCreado: () => void }) {
         <label className="dash-sub" style={{ display: "flex", flexDirection: "column" }}>Tipo de credencial <span style={{ color: "#e11d48" }}>*</span>
           <select value={f.categoria} onChange={(e) => set("categoria", e.target.value)}>{CATEGORIAS.map((c) => <option key={c}>{c}</option>)}</select>
         </label>
-        <select value={f.persona_id} onChange={(e) => set("persona_id", e.target.value)} style={{ flex: 2 }}>
-          <option value="">— Persona (registro maestro, opcional) —</option>
-          {personas.map((p) => <option key={p.id} value={p.id}>{`${p.nombre ?? ""} ${p.apellido_paterno ?? ""} ${p.apellido_materno ?? ""}`.trim()}</option>)}
-        </select>
-        <input placeholder="Descripción (ej. Visitante Juan Pérez)" value={f.descripcion} onChange={(e) => set("descripcion", e.target.value)} style={{ flex: 2 }} />
+        <label className="dash-sub" style={{ display: "flex", flexDirection: "column", flex: 2 }}>Persona existente (opcional)
+          <select value={f.persona_id} onChange={(e) => set("persona_id", e.target.value)}>
+            <option value="">— Nueva persona (captúrala abajo) —</option>
+            {personas.map((p) => <option key={p.id} value={p.id}>{`${p.nombre ?? ""} ${p.apellido_paterno ?? ""} ${p.apellido_materno ?? ""}`.trim()}</option>)}
+          </select>
+        </label>
+      </div>
+      {!f.persona_id && (
+        <div className="form-fila">
+          <input placeholder="Nombre(s) *" value={f.nombre} onChange={(e) => set("nombre", e.target.value)} style={{ flex: 2 }} />
+          <input placeholder="Apellido paterno" value={f.apellido_paterno} onChange={(e) => set("apellido_paterno", e.target.value)} style={{ flex: 1 }} />
+          <input placeholder="Apellido materno" value={f.apellido_materno} onChange={(e) => set("apellido_materno", e.target.value)} style={{ flex: 1 }} />
+        </div>
+      )}
+      <div className="form-fila">
+        <input placeholder="Referencia (empresa, contrato, etc.)" value={f.referencia} onChange={(e) => set("referencia", e.target.value)} style={{ flex: 1 }} />
       </div>
       <div className="form-fila">
         <label className="dash-sub" style={{ display: "flex", flexDirection: "column" }}>Tecnología
@@ -207,9 +230,9 @@ export default function CredencialesPage() {
                 <div style={{ fontSize: 12, color: "#666", marginTop: 6 }}>Escanéalo en la caseta</div>
               </div>
             )}
-            <a href={`/credenciales/${r.id}/imprimir`} target="_blank" rel="noopener noreferrer"
+            <a href={`/credenciales/${r.id}`}
                style={{ display: "block", textAlign: "center", marginTop: 12, background: "var(--sc-btn,#f4a03f)", color: "#fff", borderRadius: 9, padding: "10px 14px", fontWeight: 700, textDecoration: "none" }}>
-              🖨️ Imprimir credencial
+              Abrir credencial (ver / imprimir)
             </a>
           </>
         )}
