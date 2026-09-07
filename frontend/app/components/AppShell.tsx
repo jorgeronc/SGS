@@ -84,6 +84,7 @@ const GRUPOS: { grupo: string; items: { href: string; label: string; ico: string
       { href: "/turnos", label: "Rol de turnos", ico: "🗓" },
       { href: "/sla", label: "Metas de SLA", ico: "🎯" },
       { href: "/reporte-sla", label: "Reporte mensual", ico: "📄" },
+      { href: "/reporte-horas", label: "Horas trabajadas", ico: "⏱" },
       { href: "/directorio", label: "Directorio de autoridades", ico: "📇" },
       { href: "/kardex", label: "Kardex", ico: "▤" },
       { href: "/bitacora", label: "Bitácora", ico: "▥" },
