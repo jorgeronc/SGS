@@ -1,26 +1,33 @@
 "use client";
 
-import type { ReporteSla } from "@/lib/sla";
+import type { SlaResultado, MetricaSla } from "@/lib/sla";
+import { puntajeMetrica } from "@/lib/sla";
 
 // Vista del reporte de cumplimiento SLA / Índice de Seguridad. La usan la página
 // interactiva (/reporte-sla) y la versión imprimible (/reporte-sla/imprimir).
+// Renderiza SOLO las metas que el cliente tiene activas (catálogo por cliente).
 
-function fmtDur(min: number | null): string {
-  if (min == null) return "—";
-  const m = Math.floor(min); const s = Math.round((min - m) * 60);
-  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")} min`;
-}
-const pct = (v: number | null) => (v == null ? "—" : `${Math.round(v)}%`);
 const idxColor = (v: number | null) => (v == null ? "#607d8b" : v >= 90 ? "#2e7d32" : v >= 75 ? "#f9a825" : "#d32f2f");
 
-function Barra({ label, valor, meta, texto, ok }: { label: string; valor: number | null; meta?: string; texto: string; ok: boolean | null }) {
-  const w = valor == null ? 0 : Math.max(0, Math.min(100, valor));
-  const color = ok == null ? "#607d8b" : ok ? "#2e7d32" : "#d32f2f";
+function fmtValor(m: MetricaSla): string {
+  if (m.valor == null) return "—";
+  const u = m.unidad === "%" ? "%" : m.unidad === "min" ? " min" : m.unidad === "h" ? " h" : "";
+  const base = `${m.valor}${u}`;
+  return m.detalle ? `${base} (${m.detalle})` : base;
+}
+function fmtMeta(m: MetricaSla): string {
+  const u = m.unidad === "%" ? "%" : m.unidad === "min" ? " min" : m.unidad === "h" ? " h" : "";
+  return `${m.dir} ${m.meta}${u}`;
+}
+
+function Barra({ m }: { m: MetricaSla }) {
+  const w = puntajeMetrica(m);
+  const color = m.cumple == null ? "#607d8b" : m.cumple ? "#2e7d32" : "#d32f2f";
   return (
     <div style={{ margin: "8px 0" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 3 }}>
-        <span><b>{label}</b>{meta ? <span style={{ color: "#888" }}> · meta {meta}</span> : null}</span>
-        <span style={{ color, fontWeight: 700 }}>{texto} {ok == null ? "" : ok ? "✓" : "✗"}</span>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 3, gap: 10 }}>
+        <span><b>{m.nombre}</b><span style={{ color: "#888" }}> · meta {fmtMeta(m)}</span></span>
+        <span style={{ color, fontWeight: 700, whiteSpace: "nowrap" }}>{fmtValor(m)} {m.cumple == null ? "" : m.cumple ? "✓" : "✗"}</span>
       </div>
       <div style={{ height: 10, background: "#e6eaef", borderRadius: 6, overflow: "hidden" }}>
         <div style={{ width: `${w}%`, height: "100%", background: color }} />
@@ -29,11 +36,14 @@ function Barra({ label, valor, meta, texto, ok }: { label: string; valor: number
   );
 }
 
-export default function ReporteSlaVista({ r, cliente, periodo }: { r: ReporteSla; cliente: string; periodo: string }) {
-  const m = r.metas;
+export default function ReporteSlaVista({ r, cliente, periodo }: { r: SlaResultado; cliente: string; periodo: string }) {
+  const activas = r.metricas.filter((m) => m.activa);
+  const conDato = activas.filter((m) => m.valor != null);
+  const cumplidas = conDato.filter((m) => m.cumple === true).length;
   return (
     <div>
       <div style={{ display: "flex", alignItems: "center", gap: 14, borderBottom: "2px solid #1F3A5F", paddingBottom: 10 }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/escudo.png" alt="" style={{ width: 48, height: 48 }} />
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 800, fontSize: 18, color: "#1F3A5F" }}>Reporte de Cumplimiento de Seguridad</div>
@@ -45,19 +55,20 @@ export default function ReporteSlaVista({ r, cliente, periodo }: { r: ReporteSla
         </div>
       </div>
 
-      <div style={{ marginTop: 14 }}>
-        <Barra label="Cobertura / asistencia GPS" valor={r.coberturaPct} meta={`≥ ${m.cobertura_pct}%`} texto={`${pct(r.coberturaPct)} (${r.cubiertos}/${r.programados})`} ok={r.cumple.cobertura} />
-        <Barra label="Rondines en rango" valor={r.rondinesPct} meta={`≥ ${m.rondines_pct}%`} texto={`${pct(r.rondinesPct)} (${r.rondinesDentro}/${r.rondinesTotal})`} ok={r.cumple.rondines} />
-        <Barra label="Tiempo de respuesta" valor={r.tiempoRespMin == null ? null : Math.max(0, 100 - (r.tiempoRespMin / (m.tiempo_resp_min * 2)) * 100)} meta={`≤ ${m.tiempo_resp_min} min`} texto={fmtDur(r.tiempoRespMin)} ok={r.cumple.resp} />
-        <Barra label="Incidentes críticos" valor={r.incCriticos === 0 ? 100 : Math.max(0, 100 - r.incCriticos * 20)} meta={`≤ ${m.incidentes_criticos_max}`} texto={`${r.incCriticos} críticos`} ok={r.cumple.incidentes} />
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginTop: 16 }}>
-        <Caja t="Incidentes" v={`${r.incTotal}`} s={`🔴 ${r.sev.alta} · 🟠 ${r.sev.media} · 🟢 ${r.sev.baja}`} />
-        <Caja t="Tiempo prom. respuesta" v={fmtDur(r.tiempoRespMin)} s="recepción → cierre" />
-        <Caja t="Sitios evaluados" v={`${r.sitios}`} s="del cliente" />
-        {r.horasContratadas != null && <Caja t="Horas contratadas / cubiertas" v={`${r.horasContratadas} h`} s={`≈ ${r.horasCubiertas ?? "—"} h cubiertas (est.)`} />}
-      </div>
+      {activas.length === 0 ? (
+        <p style={{ color: "#666", marginTop: 14 }}>Este cliente no tiene metas de SLA seleccionadas. Configúralas en <b>Metas de SLA</b>.</p>
+      ) : (
+        <>
+          <div style={{ marginTop: 14 }}>
+            {activas.map((m) => <Barra key={m.clave} m={m} />)}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginTop: 16 }}>
+            <Caja t="Metas cumplidas" v={`${cumplidas}/${conDato.length}`} s="de las que aplican con dato" />
+            <Caja t="Metas seleccionadas" v={`${activas.length}`} s="para este cliente" />
+            <Caja t="Sitios evaluados" v={`${r.sitios}`} s="del cliente" />
+          </div>
+        </>
+      )}
     </div>
   );
 }

@@ -3,94 +3,120 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
+import { SLA_CATALOGO } from "@/lib/sla";
 
-// Administración de metas de SLA por cliente (o global). Ver migración 0066.
-interface Fila { key: string; cliente_id: string | null; nombre: string; metaId: string | null; cobertura_pct: number; rondines_pct: number; tiempo_resp_min: number; incidentes_criticos_max: number; }
+// Metas de SLA como CATÁLOGO seleccionable por cliente (o global por defecto).
+// Cada cliente elige qué metas aplican y su valor. Ver 0094_sla_catalogo.
+interface Fila { clave: string; nombre: string; unidad: string; dir: string; modulo: string; activa: boolean; valor: number | null; }
 
 export default function SlaPage() {
+  const [clientes, setClientes] = useState<any[]>([]);
+  const [scope, setScope] = useState("__global__"); // "__global__" o id de cliente
   const [filas, setFilas] = useState<Fila[]>([]);
   const [cargando, setCargando] = useState(true);
-  const [guardando, setGuardando] = useState<string | null>(null);
+  const [guardando, setGuardando] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
-  const cargar = useCallback(async () => {
-    setCargando(true);
-    const [{ data: cli }, { data: metas }] = await Promise.all([
-      supabase.from("clientes").select("id, razon_social").eq("estatus", "activo").order("razon_social"),
-      supabase.from("sla_metas").select("id, cliente_id, cobertura_pct, rondines_pct, tiempo_resp_min, incidentes_criticos_max").eq("estatus", "activo"),
-    ]);
-    const metaBy = new Map<string, any>();
-    ((metas as any[]) ?? []).forEach((m) => metaBy.set(m.cliente_id ?? "__global__", m));
-    const g = metaBy.get("__global__") ?? {};
-    const out: Fila[] = [{
-      key: "__global__", cliente_id: null, nombre: "▸ Meta global (por defecto)", metaId: g.id ?? null,
-      cobertura_pct: g.cobertura_pct ?? 95, rondines_pct: g.rondines_pct ?? 90, tiempo_resp_min: g.tiempo_resp_min ?? 10, incidentes_criticos_max: g.incidentes_criticos_max ?? 0,
-    }];
-    ((cli as any[]) ?? []).forEach((c) => {
-      const m = metaBy.get(c.id) ?? {};
-      out.push({ key: c.id, cliente_id: c.id, nombre: c.razon_social, metaId: m.id ?? null,
-        cobertura_pct: m.cobertura_pct ?? 95, rondines_pct: m.rondines_pct ?? 90, tiempo_resp_min: m.tiempo_resp_min ?? 10, incidentes_criticos_max: m.incidentes_criticos_max ?? 0 });
-    });
-    setFilas(out);
-    setCargando(false);
+  useEffect(() => {
+    supabase.from("clientes").select("id, razon_social").eq("estatus", "activo").order("razon_social").then(({ data }) => setClientes((data as any[]) ?? []));
   }, []);
+
+  const cargar = useCallback(async () => {
+    setCargando(true); setMsg(null);
+    const cid = scope === "__global__" ? null : scope;
+    let q = supabase.from("sla_metas_cliente").select("clave, valor, activa");
+    q = cid ? q.eq("cliente_id", cid) : q.is("cliente_id", null);
+    const { data } = await q;
+    const by = new Map(((data as any[]) ?? []).map((r) => [r.clave, r]));
+    setFilas(SLA_CATALOGO.map((c) => {
+      const r = by.get(c.clave);
+      return { clave: c.clave, nombre: c.nombre, unidad: c.unidad, dir: c.dir, modulo: c.modulo, activa: r?.activa ?? c.activaDefecto, valor: r?.valor ?? c.defecto };
+    }));
+    setCargando(false);
+  }, [scope]);
 
   useEffect(() => { cargar(); }, [cargar]);
 
-  function set(k: string, campo: keyof Fila, v: number) {
-    setFilas((p) => p.map((f) => (f.key === k ? { ...f, [campo]: v } : f)));
+  function set(clave: string, campo: "activa" | "valor", v: any) {
+    setFilas((p) => p.map((f) => (f.clave === clave ? { ...f, [campo]: v } : f)));
   }
 
-  async function guardar(f: Fila) {
-    setGuardando(f.key); setMsg(null);
-    const payload = { cliente_id: f.cliente_id, cobertura_pct: f.cobertura_pct, rondines_pct: f.rondines_pct, tiempo_resp_min: f.tiempo_resp_min, incidentes_criticos_max: f.incidentes_criticos_max, actualizado_en: new Date().toISOString() };
-    const { error } = f.metaId
-      ? await supabase.from("sla_metas").update(payload).eq("id", f.metaId)
-      : await supabase.from("sla_metas").insert(payload);
-    setGuardando(null);
-    if (error) { setMsg(error.message); return; }
-    setMsg(`Metas de "${f.nombre}" guardadas.`);
-    cargar();
+  async function guardar() {
+    setGuardando(true); setMsg(null);
+    const cid = scope === "__global__" ? null : scope;
+    for (const f of filas) {
+      let sel = supabase.from("sla_metas_cliente").select("id");
+      sel = cid ? sel.eq("cliente_id", cid) : sel.is("cliente_id", null);
+      const { data: ex } = await sel.eq("clave", f.clave).maybeSingle();
+      const payload = { cliente_id: cid, clave: f.clave, valor: f.valor, activa: f.activa, actualizado_en: new Date().toISOString() };
+      const { error } = (ex as any)?.id
+        ? await supabase.from("sla_metas_cliente").update(payload).eq("id", (ex as any).id)
+        : await supabase.from("sla_metas_cliente").insert(payload);
+      if (error) { setGuardando(false); setMsg(error.message); return; }
+    }
+    setGuardando(false);
+    setMsg("Metas guardadas.");
   }
+
+  const unidadLbl = (u: string) => (u === "%" ? "%" : u === "min" ? "min" : u === "h" ? "h" : "n.º");
+  const scopeNombre = scope === "__global__" ? "Global (por defecto)" : (clientes.find((c) => c.id === scope)?.razon_social ?? "Cliente");
 
   return (
     <main className="contenedor">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
         <div>
           <h2 style={{ margin: 0 }}>Metas de SLA</h2>
-          <p className="dash-sub">Define los compromisos por cliente (o global). Alimentan el cumplimiento SLA, el Índice de Seguridad y el reporte mensual.</p>
+          <p className="dash-sub">Catálogo de metas: elige cuáles aplican por cliente y su valor. Alimentan el Índice de Seguridad y el reporte mensual.</p>
         </div>
-        <Link href="/reporte-sla" className="qbtn2">📄 Reporte mensual →</Link>
+        <div style={{ display: "flex", gap: 8 }}>
+          <Link href="/reporte-sla" className="qbtn2">📄 Reporte mensual →</Link>
+          <Link href="/reporte-horas" className="qbtn2">⏱ Horas trabajadas →</Link>
+        </div>
+      </div>
+
+      <div className="form-fila" style={{ margin: "12px 0" }}>
+        <label className="dash-sub" style={{ display: "flex", flexDirection: "column" }}>Metas de
+          <select value={scope} onChange={(e) => setScope(e.target.value)} style={{ minWidth: 280 }}>
+            <option value="__global__">Global (por defecto para todos)</option>
+            {clientes.map((c) => <option key={c.id} value={c.id}>{c.razon_social}</option>)}
+          </select>
+        </label>
+        <button className="qbtn2 primary" onClick={guardar} disabled={guardando || cargando} style={{ alignSelf: "flex-end" }}>{guardando ? "Guardando…" : "Guardar"}</button>
       </div>
 
       {msg && <p style={{ color: msg.includes("guardadas") ? "#0a7c2f" : "#b00020" }}>{msg}</p>}
 
       {cargando ? <p>Cargando…</p> : (
-        <table>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
-            <tr>
-              <th>Cliente</th>
-              <th>Cobertura ≥ %</th>
-              <th>Rondines ≥ %</th>
-              <th>Resp. ≤ min</th>
-              <th>Críticos ≤</th>
-              <th></th>
+            <tr style={{ textAlign: "left", borderBottom: "2px solid var(--sc-card-line)" }}>
+              <th style={{ padding: "8px 10px" }}>Meta</th>
+              <th style={{ padding: "8px 10px" }}>Módulo</th>
+              <th style={{ padding: "8px 10px", textAlign: "center" }}>Aplica</th>
+              <th style={{ padding: "8px 10px" }}>Objetivo</th>
             </tr>
           </thead>
           <tbody>
             {filas.map((f) => (
-              <tr key={f.key} style={f.cliente_id === null ? { background: "var(--sc-surface-2, #f3f6f9)", fontWeight: 600 } : undefined}>
-                <td>{f.nombre}</td>
-                <td><input type="number" min={0} max={100} value={f.cobertura_pct} onChange={(e) => set(f.key, "cobertura_pct", Number(e.target.value))} style={{ width: 70 }} /></td>
-                <td><input type="number" min={0} max={100} value={f.rondines_pct} onChange={(e) => set(f.key, "rondines_pct", Number(e.target.value))} style={{ width: 70 }} /></td>
-                <td><input type="number" min={0} value={f.tiempo_resp_min} onChange={(e) => set(f.key, "tiempo_resp_min", Number(e.target.value))} style={{ width: 70 }} /></td>
-                <td><input type="number" min={0} value={f.incidentes_criticos_max} onChange={(e) => set(f.key, "incidentes_criticos_max", Number(e.target.value))} style={{ width: 60 }} /></td>
-                <td><button className="qbtn2" onClick={() => guardar(f)} disabled={guardando === f.key}>{guardando === f.key ? "…" : "Guardar"}</button></td>
+              <tr key={f.clave} style={{ borderBottom: "1px solid var(--sc-card-line)", opacity: f.activa ? 1 : 0.55 }}>
+                <td style={{ padding: "8px 10px", fontWeight: 600 }}>{f.nombre}</td>
+                <td style={{ padding: "8px 10px", color: "var(--sc-text-soft)", fontSize: 13 }}>{f.modulo}</td>
+                <td style={{ padding: "8px 10px", textAlign: "center" }}>
+                  <input type="checkbox" checked={f.activa} onChange={(e) => set(f.clave, "activa", e.target.checked)} />
+                </td>
+                <td style={{ padding: "8px 10px" }}>
+                  <span style={{ color: "var(--sc-text-soft)", marginRight: 6 }}>{f.dir}</span>
+                  <input type="number" value={f.valor ?? 0} onChange={(e) => set(f.clave, "valor", Number(e.target.value))} disabled={!f.activa} style={{ width: 80 }} />
+                  <span style={{ color: "var(--sc-text-soft)", marginLeft: 6 }}>{unidadLbl(f.unidad)}</span>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       )}
+      <p className="dash-sub" style={{ fontSize: 12, marginTop: 10 }}>
+        Editando: <b>{scopeNombre}</b>. Las metas de <b>Logística</b> y <b>Tareas</b> ya se pueden seleccionar; su cálculo por cliente se habilitará al mapear su fuente (por ahora aparecen sin dato en el reporte).
+      </p>
     </main>
   );
 }
