@@ -115,7 +115,7 @@ export default function SlaPage() {
         </table>
       )}
       <p className="dash-sub" style={{ fontSize: 12, marginTop: 10 }}>
-        Editando: <b>{scopeNombre}</b>. Las metas de <b>Logística</b> y <b>Tareas</b> ya se pueden seleccionar; su cálculo por cliente se habilitará al mapear su fuente (por ahora aparecen sin dato en el reporte).
+        Editando: <b>{scopeNombre}</b>. Logística (movimientos/inspecciones) se calcula por los sitios del cliente; <b>Tareas</b> es a nivel organización (aún sin liga a cliente).
       </p>
     </main>
   );

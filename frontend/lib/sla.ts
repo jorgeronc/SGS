@@ -26,9 +26,9 @@ export const SLA_CATALOGO: MetaCat[] = [
   { clave: "accesos_rechazados",  nombre: "Accesos rechazados",                unidad: "%",   dir: "<=", defecto: 5,  peso: 0.06, activaDefecto: false, modulo: "Control de acceso" },
   { clave: "horas_extra_guardia", nombre: "Horas extra por guardia (mes)",     unidad: "h",   dir: "<=", defecto: 40, peso: 0.08, activaDefecto: false, modulo: "Turnos" },
   { clave: "guardias_sobre_extra",nombre: "Guardias que exceden horas extra",  unidad: "%",   dir: "<=", defecto: 10, peso: 0.06, activaDefecto: false, modulo: "Turnos" },
-  { clave: "movimientos_liberados",nombre: "Movimientos con liberación",       unidad: "%",   dir: ">=", defecto: 95, peso: 0.00, activaDefecto: false, modulo: "Logística" },
-  { clave: "inspecciones_sin_novedad", nombre: "Inspecciones sin novedad",     unidad: "%",   dir: ">=", defecto: 95, peso: 0.00, activaDefecto: false, modulo: "Logística" },
-  { clave: "tareas_a_tiempo",     nombre: "Tareas completadas a tiempo",       unidad: "%",   dir: ">=", defecto: 90, peso: 0.00, activaDefecto: false, modulo: "Tareas" },
+  { clave: "movimientos_liberados",nombre: "Movimientos con liberación",       unidad: "%",   dir: ">=", defecto: 95, peso: 0.05, activaDefecto: false, modulo: "Logística" },
+  { clave: "inspecciones_sin_novedad", nombre: "Inspecciones sin novedad",     unidad: "%",   dir: ">=", defecto: 95, peso: 0.05, activaDefecto: false, modulo: "Logística" },
+  { clave: "tareas_a_tiempo",     nombre: "Tareas completadas a tiempo",       unidad: "%",   dir: ">=", defecto: 90, peso: 0.03, activaDefecto: false, modulo: "Tareas" },
 ];
 
 export interface MetricaSla {
@@ -152,6 +152,39 @@ export async function computeSla(clienteId: string | null, ini: string, fin: str
       const metaE = cfg.horas_extra_guardia.valor ?? 40;
       if (act("horas_extra_guardia")) { val.horas_extra_guardia = rh.filas.length ? Math.max(...rh.filas.map((f) => f.extra)) : 0; det.horas_extra_guardia = `${rh.filas.filter((f) => f.extra > metaE).length} guardia(s) exceden`; }
       if (act("guardias_sobre_extra")) { val.guardias_sobre_extra = rh.filas.length ? Math.round((rh.filas.filter((f) => f.extra > metaE).length / rh.filas.length) * 100) : 0; }
+    }
+
+    // --- Logística: movimientos con liberación + inspecciones sin novedad ---
+    let movIdsCliente: string[] = [];
+    if (act("movimientos_liberados") || act("inspecciones_sin_novedad")) {
+      const idsCsv = sitiosIds.join(",");
+      const { data: mov } = await supabase.from("movimientos").select("id")
+        .eq("estatus", "activo").neq("estado", "CANCELADO").gte("creado_en", ini).lte("creado_en", fin)
+        .or(`sitio_origen_id.in.(${idsCsv}),sitio_destino_id.in.(${idsCsv})`);
+      movIdsCliente = ((mov as any[]) ?? []).map((m) => m.id);
+    }
+    if (act("movimientos_liberados")) {
+      if (movIdsCliente.length) {
+        const { data: lib } = await supabase.from("liberaciones_seguridad").select("movimiento_id, resultado").in("movimiento_id", movIdsCliente).eq("estatus", "activo");
+        const aprob = new Set(((lib as any[]) ?? []).filter((l) => l.resultado === "APPROVED").map((l) => l.movimiento_id));
+        val.movimientos_liberados = Math.round((aprob.size / movIdsCliente.length) * 100); det.movimientos_liberados = `${aprob.size}/${movIdsCliente.length}`;
+      } else val.movimientos_liberados = null;
+    }
+    if (act("inspecciones_sin_novedad")) {
+      const idsCsv = sitiosIds.join(",");
+      const orFiltro = movIdsCliente.length ? `sitio_id.in.(${idsCsv}),movimiento_id.in.(${movIdsCliente.join(",")})` : `sitio_id.in.(${idsCsv})`;
+      const { data: insp } = await supabase.from("inspecciones").select("resultado").eq("estatus", "activo").gte("creado_en", ini).lte("creado_en", fin).not("resultado", "is", null).or(orFiltro);
+      const ii = (insp as any[]) ?? [];
+      const sinNov = ii.filter((x) => /(\bok\b|sin novedad|aprob)/i.test(String(x.resultado))).length;
+      val.inspecciones_sin_novedad = ii.length ? Math.round((sinNov / ii.length) * 100) : null; det.inspecciones_sin_novedad = `${sinNov}/${ii.length}`;
+    }
+
+    // --- Tareas completadas a tiempo (organización; sin liga a cliente) ---
+    if (act("tareas_a_tiempo")) {
+      const { data: tar } = await supabase.from("tareas").select("estado, vigencia_hasta").eq("estatus", "activo").not("vigencia_hasta", "is", null).gte("vigencia_hasta", ini).lte("vigencia_hasta", fin);
+      const rel = ((tar as any[]) ?? []).filter((t) => t.estado === "completada" || t.estado === "vencida");
+      val.tareas_a_tiempo = rel.length ? Math.round((rel.filter((t) => t.estado === "completada").length / rel.length) * 100) : null;
+      det.tareas_a_tiempo = "organización";
     }
   }
 
