@@ -29,8 +29,11 @@ export interface FiltroAvanzadoLM {
 export interface CampoEdit {
   campo: string;
   label: string;
-  tipo?: "text" | "number" | "date" | "select" | "checkbox" | "textarea";
+  tipo?: "text" | "number" | "date" | "select" | "checkbox" | "textarea" | "custom";
   opciones?: string[];
+  // Para tipo "custom": render libre (p. ej. un mapa) sobre el borrador de edición.
+  // No se persiste por `campo`; debe escribir columnas reales en el borrador.
+  render?: (borrador: any, setBorrador: (updater: any) => void) => ReactNode;
 }
 // Acciones en lote (opcional): habilita casillas de selección múltiple y una
 // barra de acciones que se aplican a todos los registros marcados.
@@ -40,8 +43,9 @@ export interface LoteLM {
   nombrePlural?: string;
 }
 
-function EdInput({ campo, value, onChange }: { campo: CampoEdit; value: any; onChange: (v: any) => void }) {
+function EdInput({ campo, value, onChange, borrador, setBorrador }: { campo: CampoEdit; value: any; onChange: (v: any) => void; borrador?: any; setBorrador?: (u: any) => void }) {
   const t = campo.tipo ?? "text";
+  if (t === "custom") return <div style={{ gridColumn: "1 / -1" }}>{campo.render?.(borrador, setBorrador!)}</div>;
   return (
     <label className="sc-edit-l">
       <span>{campo.label}</span>
@@ -147,6 +151,7 @@ export default function ListaMaestra({
     setGuardandoEd(true); setErrEd(null);
     const upd: Record<string, any> = {};
     for (const c of editar) {
+      if (c.tipo === "custom") continue; // el custom escribe columnas reales por su cuenta
       let v = borrador[c.campo];
       if (c.tipo === "number") v = v === "" || v == null ? null : Number(v);
       else if (c.tipo === "checkbox") v = !!v;
@@ -482,7 +487,7 @@ export default function ListaMaestra({
               {editando && editar ? (
                 <div className="sc-edit">
                   {editar.map((c) => (
-                    <EdInput key={c.campo} campo={c} value={borrador[c.campo]} onChange={(v) => setBorrador((p: any) => ({ ...p, [c.campo]: v }))} />
+                    <EdInput key={c.campo} campo={c} value={borrador[c.campo]} onChange={(v) => setBorrador((p: any) => ({ ...p, [c.campo]: v }))} borrador={borrador} setBorrador={setBorrador} />
                   ))}
                   {errEd && <p style={{ color: "#b00020", fontSize: 12 }}>{errEd}</p>}
                 </div>

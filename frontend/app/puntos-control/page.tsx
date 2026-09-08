@@ -122,6 +122,28 @@ function NuevoPunto({ onCreado }: { onCreado: () => void }) {
   );
 }
 
+// Editor del punto EN EL MAPA (para la edición de ListaMaestra): busca por
+// dirección o mueve el marcador; escribe latitud/longitud en el borrador. Si el
+// sitio tiene coordenadas, el mapa vuela a su geocerca (Calles/Liberty).
+function EditarPuntoMapa({ borrador, setBorrador }: { borrador: any; setBorrador: (u: any) => void }) {
+  const [buscarDir, setBuscarDir] = useState<string>(borrador?.descripcion ?? "");
+  const lat = borrador?.latitud != null && borrador.latitud !== "" ? Number(borrador.latitud) : null;
+  const lng = borrador?.longitud != null && borrador.longitud !== "" ? Number(borrador.longitud) : null;
+  const s = borrador?.sitio;
+  const centro = s?.latitud != null ? { lat: Number(s.latitud), lng: Number(s.longitud) } : null;
+  const pick = (la: number, lo: number) => setBorrador((p: any) => ({ ...p, latitud: la, longitud: lo }));
+  return (
+    <div style={{ marginTop: 4 }}>
+      <label className="dash-sub" style={{ display: "block", marginBottom: 6 }}>Ubicación en el mapa — busca la dirección o arrastra el marcador para ajustar el punto:</label>
+      <DireccionGeocode direccion={buscarDir} lat={lat != null ? String(lat) : ""} lng={lng != null ? String(lng) : ""}
+        onDireccion={setBuscarDir} onCoords={(la, lo) => pick(Number(la), Number(lo))} size={80}
+        placeholder="Ubicación o dirección del punto de control" />
+      <MapaPicker lat={lat} lng={lng} onPick={pick}
+        centro={centro} radioGeocerca={s?.radio_geofence_m ?? null} className="mapbox" />
+    </div>
+  );
+}
+
 export default function PuntosControlPage() {
   return (
     <ListaMaestra
@@ -130,7 +152,7 @@ export default function PuntosControlPage() {
       tabla="puntos_control"
       modulo="puntos_control"
       orderBy="orden"
-      select="id, folio, nombre, codigo, orden, descripcion, latitud, longitud, tipo_punto, radio_m, tipo_control, ubicacion_control, estatus, creado_en, sitio_id, sitio:sitios(nombre, cliente_id, cliente:clientes(razon_social))"
+      select="id, folio, nombre, codigo, orden, descripcion, latitud, longitud, tipo_punto, radio_m, tipo_control, ubicacion_control, estatus, creado_en, sitio_id, sitio:sitios(nombre, cliente_id, latitud, longitud, radio_geofence_m, cliente:clientes(razon_social))"
       placeholderBuscar="Buscar punto, código, sitio…"
       columnas={[
         { header: "Folio", celda: (r) => r.folio ?? "—" },
@@ -181,6 +203,7 @@ export default function PuntosControlPage() {
         { campo: "latitud", label: "Latitud", tipo: "number" },
         { campo: "longitud", label: "Longitud", tipo: "number" },
         { campo: "descripcion", label: "Descripción", tipo: "textarea" },
+        { campo: "ubicacion_mapa", label: "Ubicación en el mapa", tipo: "custom", render: (b, setB) => <EditarPuntoMapa borrador={b} setBorrador={setB} /> },
       ]}
       nuevo={(onCreado) => <NuevoPunto onCreado={onCreado} />}
     />

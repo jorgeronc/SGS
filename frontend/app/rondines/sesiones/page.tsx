@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
-import MapaReportes, { type ReporteMapa } from "@/app/components/MapaReportes";
+import MapaTrazaLiberty from "@/app/components/MapaTrazaLiberty";
+import { type ReporteMapa } from "@/app/components/MapaReportes";
 
 // Sesiones de rondín (trazabilidad, Fase 1A). Lista histórica con filtros y, al
 // elegir una sesión, su TRAZA GPS (recorrido_gps) + CHECKS (rondines) sobre el
@@ -196,7 +197,7 @@ export default function SesionesRondinPage() {
                 <Caja t="Duración" v={sel.duracion_min != null ? `${sel.duracion_min} min` : "—"} />
               </div>
               <div className="mapcard">
-                <MapaReportes reportes={reportes} ruta={ruta} className="mapbox-dash" />
+                <MapaTrazaLiberty reportes={reportes} ruta={ruta} className="mapbox-dash" />
               </div>
               <div style={{ fontSize: 12, color: "var(--sc-text-soft)", margin: "8px 0" }}>
                 <b>{ruta.length}</b> puntos GPS · <b>{checks.length}</b> checks · inicio {new Date(sel.iniciada_en).toLocaleString()}{sel.finalizada_en ? ` · fin ${new Date(sel.finalizada_en).toLocaleString()}` : " · en curso"}
