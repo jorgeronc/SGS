@@ -30,6 +30,7 @@ const GRUPOS: { grupo: string; items: { href: string; label: string; ico: string
       { href: "/sitios", label: "Sitios / Puestos", ico: "📍" },
       { href: "/puntos-control", label: "Puntos de control", ico: "🚩" },
       { href: "/rondines", label: "Rondines", ico: "🔁" },
+      { href: "/rondines/sesiones", label: "Sesiones de rondín", ico: "🧭" },
       { href: "/supervision", label: "Supervisión rondín", ico: "🛰" },
       { href: "/tareas", label: "Tareas", ico: "✔" },
       { href: "/chat", label: "Chat", ico: "💬" },
