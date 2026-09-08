@@ -58,10 +58,10 @@ create table if not exists sesiones_rondin (
 );
 create index if not exists idx_sesiones_rondin_guardia on sesiones_rondin(personal_id, estado);
 create index if not exists idx_sesiones_rondin_sitio   on sesiones_rondin(sitio_id, iniciada_en);
-comment on table sesiones_rondin is 'Sesión de rondín (RON): agrupa traza GPS + checks + indicadores. Se abre/cierra sola por geocerca (0095).';
+comment on table sesiones_rondin is 'Sesión de rondín (folio RN): agrupa traza GPS + checks + indicadores. Se abre/cierra sola por geocerca (0095).';
 
--- Folio RON.
-insert into foliadores (modulo, nombre, iniciales) values ('sesiones_rondin','Sesiones de rondín','RON')
+-- Folio RN (foliadores.iniciales exige exactamente 2 caracteres).
+insert into foliadores (modulo, nombre, iniciales) values ('sesiones_rondin','Sesiones de rondín','RN')
   on conflict (modulo) do nothing;
 drop trigger if exists trg_folio_sesiones_rondin on sesiones_rondin;
 create trigger trg_folio_sesiones_rondin before insert on sesiones_rondin
