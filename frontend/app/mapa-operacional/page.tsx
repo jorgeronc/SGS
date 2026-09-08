@@ -15,7 +15,7 @@ import { computeReporteSla } from "@/lib/sla";
 import { getEstadoMapa, setVistaMapa, setVentanasMapa, limpiarAlCerrarSesion } from "@/lib/mapaOperacionalEstado";
 
 const CENTER: [number, number] = [-100.309, 25.6714];
-const COL = { guardia: "#1f9d5c", pausa: "#d98a2b", incidente: "#e23b53", camara: "#0e8f86", geof: "#2f6bff", sitio: "#7c5cff" };
+const COL = { guardia: "#1f9d5c", pausa: "#d98a2b", incidente: "#e23b53", camara: "#0e8f86", geof: "#2f6bff", sitio: "#7c5cff", punto: "#eab308" };
 const ESTILO_KEY = "sgs_mapa_estilo"; // preferencia duradera del tipo de mapa (localStorage)
 const PRIO_LBL: Record<string, string> = { alta: "Crítica", media: "Media", baja: "Baja" };
 
@@ -91,6 +91,7 @@ export default function MapaOperacionalPage() {
   const [incidentes, setIncidentes] = useState<any[]>([]);
   const [camaras, setCamaras] = useState<any[]>([]);
   const [sitios, setSitios] = useState<any[]>([]);
+  const [puntos, setPuntos] = useState<any[]>([]);
   const [dentro, setDentro] = useState({ personas: 0, vehiculos: 0, rechazos: 0 });
   const [indice, setIndice] = useState<number | null>(null);
   const [ultima, setUltima] = useState<Date | null>(null); // null hasta montar (evita mismatch de hidratación)
@@ -106,7 +107,7 @@ export default function MapaOperacionalPage() {
     const { data } = await supabase.rpc("rpc_incidente_unir_chat", { p_llamada: inc.id });
     if (data) setSelChat({ canalId: data as string, folio: inc.folio ?? "incidente" });
   }
-  const [capas, setCapas] = useState({ guardias: true, incidentes: true, camaras: true, sitios: true, geofences: true });
+  const [capas, setCapas] = useState({ guardias: true, incidentes: true, camaras: true, sitios: true, puntos: true, geofences: true });
   const [estiloId, setEstiloId] = useState<EstiloMapaId>("auto");
 
   const mlRef = useRef<any>(null);
@@ -124,8 +125,8 @@ export default function MapaOperacionalPage() {
   const [mapListo, setMapListo] = useState(false);
   const [mlListo, setMlListo] = useState(false);
   const incLoc = useRef<{ lng: number; lat: number } | null>(null);
-  const datos = useRef({ guardias, incidentes, camaras, sitios, capas });
-  datos.current = { guardias, incidentes, camaras, sitios, capas };
+  const datos = useRef({ guardias, incidentes, camaras, sitios, puntos, capas });
+  datos.current = { guardias, incidentes, camaras, sitios, puntos, capas };
   const estiloAplicado = useRef<string | null>(null); // último estiloId aplicado al mapa
   const vistaRestaurada = useRef(false);              // centro/zoom restaurados una sola vez
   const guardarVistaAttach = useRef(false);           // suscripción a moveend/zoomend (una vez)
@@ -221,16 +222,18 @@ export default function MapaOperacionalPage() {
     } else {
       incQ = incQ.eq("estatus", "activo").in("estado_despacho", ["recibida", "despachada", "en_atencion"]);
     }
-    const [{ data: inc }, { data: cam }, { data: sit }] = await Promise.all([
+    const [{ data: inc }, { data: cam }, { data: sit }, { data: pts }] = await Promise.all([
       incQ,
       supabase.from("camaras").select("id, nombre, estado_operativo, latitud, longitud").eq("estatus", "activo").not("latitud", "is", null),
       supabase.from("sitios").select("id, nombre, latitud, longitud, radio_geofence_m").eq("estatus", "activo").not("latitud", "is", null),
+      supabase.from("puntos_control").select("id, nombre, codigo, tipo_punto, latitud, longitud, sitio:sitios(nombre)").eq("estatus", "activo").not("latitud", "is", null),
     ]);
     let incArr = (inc as any[]) ?? [];
     if (f.q) { const qq = f.q.toLowerCase(); incArr = incArr.filter((i) => `${i.folio ?? ""} ${i.tipo ?? ""} ${i.direccion ?? ""}`.toLowerCase().includes(qq)); }
     setIncidentes(incArr);
     setCamaras((cam as any[]) ?? []);
     setSitios((sit as any[]) ?? []);
+    setPuntos((pts as any[]) ?? []);
     const [{ count: pd }, { count: vd }, { count: ar }] = await Promise.all([
       supabase.from("v_personas_dentro").select("*", { count: "exact", head: true }),
       supabase.from("v_vehiculos_dentro").select("*", { count: "exact", head: true }),
@@ -296,9 +299,10 @@ export default function MapaOperacionalPage() {
   const pintar = useCallback(() => {
     const map = mapRef.current, maplibre = mlRef.current; if (!map || !maplibre) return;
     marks.current.forEach((m) => m.remove()); marks.current = [];
-    const { guardias, incidentes, camaras, sitios, capas } = datos.current;
+    const { guardias, incidentes, camaras, sitios, puntos, capas } = datos.current;
     const add = (lng: number, lat: number, el: HTMLElement) => marks.current.push(new maplibre.Marker({ element: el, anchor: "bottom" }).setLngLat([lng, lat]).addTo(map));
     if (capas.sitios) sitios.forEach((s: any) => { if (s.latitud != null) add(Number(s.longitud), Number(s.latitud), pinEl(COL.sitio, "🛡", s.nombre ?? "Sitio", false, false, () => irASitio(s))); });
+    if (capas.puntos) puntos.forEach((p: any) => { if (p.latitud != null) add(Number(p.longitud), Number(p.latitud), pinEl(COL.punto, "🚩", p.nombre ?? "Punto", true, false, undefined, { hoverOnly: true, sub: p.sitio?.nombre ?? p.codigo ?? "" })); });
     if (capas.guardias) guardias.forEach((g: any) => { if (g.latitud != null) add(Number(g.longitud), Number(g.latitud), pinEl(g.estatus_servicio === "en_pausa" ? COL.pausa : COL.guardia, "👮", guardiaNombre(g), false, false)); });
     if (capas.camaras) camaras.forEach((c: any) => add(Number(c.longitud), Number(c.latitud), pinEl(colorCamara(c.estado_operativo), "📷", c.nombre ?? "Cámara", true, false, () => setSelCam(c), { hoverOnly: true, sub: c.estado_operativo ?? "" })));
     if (capas.incidentes) incidentes.forEach((it: any) => add(Number(it.longitud), Number(it.latitud), pinEl(COL.incidente, "⚠", it.folio ?? it.tipo ?? "Incidente", false, it.prioridad === "alta", () => enfocarIncidente(it))));
@@ -344,7 +348,7 @@ export default function MapaOperacionalPage() {
   function onReady(map: any) { mapRef.current = map; setMapListo(true); ensureGeocercas(map); pintar(); centrarFoco(); restaurarEstado(map); }
 
   // Redibuja al cambiar datos/capas (sin reencuadrar).
-  useEffect(() => { if (mapRef.current) { pintar(); ensureGeocercas(mapRef.current); } }, [guardias, incidentes, camaras, sitios, capas, mlListo, pintar]);
+  useEffect(() => { if (mapRef.current) { pintar(); ensureGeocercas(mapRef.current); } }, [guardias, incidentes, camaras, sitios, puntos, capas, mlListo, pintar]);
   useEffect(() => { centrarFoco(); }, [incidentes, centrarFoco]);
 
   const panel = "background:var(--sc-content);border:1px solid var(--sc-card-line);border-radius:12px;color:var(--sc-text)";
@@ -364,7 +368,7 @@ export default function MapaOperacionalPage() {
       {/* Barra de Capas (horizontal). Los conteos ya viven en la barra inferior. */}
       <div style={{ position: "absolute", top: 14, left: "50%", transform: "translateX(-50%)", display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap", maxWidth: "calc(100vw - 28px)", padding: "5px 10px", zIndex: 5, ...cssObj(panel) }}>
         <span style={{ fontSize: 11, letterSpacing: ".08em", color: "var(--sc-text-faint)", textTransform: "uppercase", marginRight: 2 }}>Capas</span>
-        {([["guardias", COL.guardia, "Guardias"], ["incidentes", COL.incidente, "Incidentes"], ["camaras", COL.camara, "Cámaras"], ["sitios", COL.sitio, "Sitios"], ["geofences", COL.geof, "Geocercas"]] as const).map(([k, c, l]) => (
+        {([["guardias", COL.guardia, "Guardias"], ["incidentes", COL.incidente, "Incidentes"], ["camaras", COL.camara, "Cámaras"], ["sitios", COL.sitio, "Sitios"], ["puntos", COL.punto, "Puntos de control"], ["geofences", COL.geof, "Geocercas"]] as const).map(([k, c, l]) => (
           <label key={k} style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, padding: "4px 8px", cursor: "pointer" }}>
             <input type="checkbox" checked={capas[k]} onChange={() => toggle(k)} />
             <span style={{ width: 8, height: 8, borderRadius: "50%", background: c }} /> {l}
