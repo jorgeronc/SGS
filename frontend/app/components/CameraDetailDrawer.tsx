@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import VisorCamara from "@/app/components/VisorCamara";
+import { CatalogoSelect } from "@/app/components/CatalogoSelect";
 
 // Inspector de cámara (Camera Inspector / Detalle de cámara). REUTILIZABLE desde
 // catálogo, muro, mapa e incidente. La UI es guiada por CAPACIDADES (live/snapshot/
@@ -34,11 +35,12 @@ export default function CameraDetailDrawer({ camaraId, onClose, verMapaHref }: {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ txt: string; href?: string; ok: boolean } | null>(null);
   const [incAbierto, setIncAbierto] = useState(false);
+  const [incTipo, setIncTipo] = useState("");
   const [incPrio, setIncPrio] = useState("alta");
   const [incDesc, setIncDesc] = useState("");
 
   useEffect(() => {
-    setMsg(null); setIncAbierto(false); setTab("detalle");
+    setMsg(null); setIncAbierto(false); setIncTipo(""); setTab("detalle");
     const cols = "id, folio, nombre, zona, ubicacion_desc, tipo, es_ptz, resolucion, fps, vms, ip, retencion_dias, grabacion_disponible, ultima_actividad, estado_operativo, proveedor, latitud, longitud, sitio:sitios(nombre)";
     supabase.from("camaras").select(cols).eq("id", camaraId).maybeSingle().then(async ({ data, error }) => {
       if (error) { // columnas nuevas aún no migradas (0067) -> cae a lo básico
@@ -72,11 +74,12 @@ export default function CameraDetailDrawer({ camaraId, onClose, verMapaHref }: {
   }
 
   async function crearIncidente() {
+    if (!incTipo) { setMsg({ txt: "Selecciona el tipo de incidente.", ok: false }); return; }
     setBusy(true); setMsg(null);
-    const { data, error } = await supabase.rpc("rpc_camara_crear_incidente", { p_camara: camaraId, p_tipo: null, p_prioridad: incPrio, p_descripcion: incDesc || null, p_snapshot_url: vista?.imagen_url ?? null });
+    const { data, error } = await supabase.rpc("rpc_camara_crear_incidente", { p_camara: camaraId, p_tipo: incTipo, p_prioridad: incPrio, p_descripcion: incDesc || null, p_snapshot_url: vista?.imagen_url ?? null });
     setBusy(false);
     if (error) { setMsg({ txt: error.message, ok: false }); return; }
-    setIncAbierto(false); setIncDesc("");
+    setIncAbierto(false); setIncTipo(""); setIncDesc("");
     setMsg({ txt: `Incidente ${(data as any)?.folio ?? ""} creado.`, href: `/cad/${(data as any)?.llamada_id}`, ok: true });
   }
 
@@ -151,6 +154,10 @@ export default function CameraDetailDrawer({ camaraId, onClose, verMapaHref }: {
             {/* Form incidente */}
             {incAbierto && (
               <div style={{ marginTop: 10, padding: 10, border: "1px solid var(--sc-card-line)", borderRadius: 10 }}>
+                <label style={{ display: "block", fontSize: 12, color: "var(--sc-text-soft)", marginBottom: 8 }}>
+                  Tipo de incidente <span style={{ color: "#e23b53" }}>*</span>
+                  <CatalogoSelect categoria="tipo_incidencia" value={incTipo} onChange={setIncTipo} placeholder="— Selecciona el tipo —" />
+                </label>
                 <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
                   <select value={incPrio} onChange={(ev) => setIncPrio(ev.target.value)} style={{ padding: "7px 9px", borderRadius: 8, border: "1px solid var(--sc-card-line)", background: "var(--sc-content)", color: "var(--sc-text)", fontSize: 13 }}>
                     <option value="alta">Prioridad alta</option><option value="media">Media</option><option value="baja">Baja</option>

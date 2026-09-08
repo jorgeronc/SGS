@@ -52,6 +52,16 @@ function limpiarFoco(map: any) {
   if (map?.getSource?.("foco-radio")) map.getSource("foco-radio").setData({ type: "FeatureCollection", features: [] } as any);
 }
 
+// Ejecuta fn cuando el estilo del mapa esté completamente cargado. addSource/
+// addLayer lanzan "Style is not done loading" si se llaman durante un setStyle
+// (p.ej. al restaurar el tipo de mapa guardado), así que las operaciones de capa
+// deben esperar a este momento.
+function cuandoEstiloListo(map: any, fn: () => void) {
+  if (map.isStyleLoaded()) { fn(); return; }
+  const h = () => { if (map.isStyleLoaded()) { map.off("styledata", h); fn(); } };
+  map.on("styledata", h);
+}
+
 // Elemento HTML de un marcador (pin o punto), estilo del diseño.
 // opts.hoverOnly: la etiqueta (nombre + opts.sub) se oculta y solo aparece al
 // pasar el cursor (tooltip), p.ej. cámaras -> nombre + estatus.
@@ -246,6 +256,9 @@ export default function MapaOperacionalPage() {
 
   // Geocercas como polígonos (capa de estilo; se re-crea tras cambios de tema).
   function ensureGeocercas(map: any) {
+    // Si el estilo está recargándose (setStyle), addSource/addLayer lanzarían;
+    // onReady (styledata) vuelve a llamar a esta función cuando el estilo cargue.
+    if (!map.isStyleLoaded()) return;
     const fc = { type: "FeatureCollection", features: sitios.map((s) => ({ type: "Feature", properties: {}, geometry: { type: "Polygon", coordinates: [circulo(Number(s.longitud), Number(s.latitud), Number(s.radio_geofence_m) || 150)] } })) };
     if (!map.getSource("geocercas")) {
       map.addSource("geocercas", { type: "geojson", data: fc as any });
@@ -262,10 +275,12 @@ export default function MapaOperacionalPage() {
     setSelInc(it);
     const map = mapRef.current, ml = mlRef.current;
     if (!map || !ml || it.latitud == null) return;
-    const lng = Number(it.longitud), lat = Number(it.latitud);
-    const ring = dibujarFoco(map, lng, lat);
-    const b = ring.reduce((bb: any, c: number[]) => bb.extend(c as [number, number]), new ml.LngLatBounds(ring[0] as [number, number], ring[0] as [number, number]));
-    map.fitBounds(b, { padding: 60, maxZoom: 16, duration: 800 });
+    cuandoEstiloListo(map, () => {
+      const lng = Number(it.longitud), lat = Number(it.latitud);
+      const ring = dibujarFoco(map, lng, lat);
+      const b = ring.reduce((bb: any, c: number[]) => bb.extend(c as [number, number]), new ml.LngLatBounds(ring[0] as [number, number], ring[0] as [number, number]));
+      map.fitBounds(b, { padding: 60, maxZoom: 16, duration: 800 });
+    });
   }, []);
 
   // Centra el mapa en un sitio SIN cerrar las ventanas abiertas (chat/cámara/incidente).
@@ -321,7 +336,7 @@ export default function MapaOperacionalPage() {
     if (f.incidente || f.fit) return; // el foco desde CAD manda
     const e = getEstadoMapa();
     if (e.view) map.jumpTo({ center: e.view.center, zoom: e.view.zoom });
-    if (e.selInc && e.selInc.latitud != null) dibujarFoco(map, Number(e.selInc.longitud), Number(e.selInc.latitud));
+    if (e.selInc && e.selInc.latitud != null) cuandoEstiloListo(map, () => dibujarFoco(map, Number(e.selInc.longitud), Number(e.selInc.latitud)));
   }
 
   function onReady(map: any) { mapRef.current = map; setMapListo(true); ensureGeocercas(map); pintar(); centrarFoco(); restaurarEstado(map); }
