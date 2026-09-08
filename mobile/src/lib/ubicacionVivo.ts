@@ -98,26 +98,21 @@ async function reportar(loc: Location.LocationObject): Promise<void> {
   if (!raw) return;
   const id = JSON.parse(raw) as Ident;
   const est = await getEstatusServicio();
-  // Última posición viva (upsert) para el mapa de monitoreo. actualizado_en lo
-  // sella el servidor (trigger 0097), así el reloj del teléfono no afecta la
-  // frescura "en línea".
-  const { error: eUp } = await supabase.from("ubicaciones_guardias").upsert(
-    {
-      personal_id: id.personalId,
-      user_id: id.userId,
-      etiqueta: id.etiqueta,
-      unidad: id.unidad,
-      latitud: loc.coords.latitude,
-      longitud: loc.coords.longitude,
-      precision_m: loc.coords.accuracy ?? null,
-      rumbo: loc.coords.heading ?? null,
-      velocidad: loc.coords.speed ?? null,
-      en_linea: true,
-      estatus_servicio: est.estatus,
-      motivo_pausa: est.motivo,
-    },
-    { onConflict: "personal_id" }
-  );
+  // Última posición viva para el mapa de monitoreo. El servidor deriva user_id de
+  // auth.uid() y sella actualizado_en (RPC 0098), así ni el reloj ni una identidad
+  // desincronizada del teléfono impiden que el guardia aparezca.
+  const { error: eUp } = await supabase.rpc("rpc_reportar_ubicacion", {
+    p_personal: id.personalId,
+    p_lat: loc.coords.latitude,
+    p_lng: loc.coords.longitude,
+    p_etiqueta: id.etiqueta,
+    p_unidad: id.unidad,
+    p_precision: loc.coords.accuracy ?? null,
+    p_rumbo: loc.coords.heading ?? null,
+    p_velocidad: loc.coords.speed ?? null,
+    p_estatus: est.estatus,
+    p_motivo: est.motivo,
+  });
   if (eUp) { ultimoError = eUp.message; } else { ultimoReporte = Date.now(); ultimoError = null; }
   // Historial acumulado (trayecto) para supervisar el recorrido del rondín.
   // Con buffer offline: id de cliente + fecha del dispositivo; se sincroniza al
