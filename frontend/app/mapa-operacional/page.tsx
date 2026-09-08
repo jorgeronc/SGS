@@ -12,9 +12,11 @@ import ChatIncidente from "@/app/components/ChatIncidente";
 import VisorTransmision from "@/app/components/VisorTransmision";
 import { useGuardiasEnLinea } from "@/lib/guardiasVivo";
 import { computeReporteSla } from "@/lib/sla";
+import { getEstadoMapa, setVistaMapa, setVentanasMapa, limpiarAlCerrarSesion } from "@/lib/mapaOperacionalEstado";
 
 const CENTER: [number, number] = [-100.309, 25.6714];
-const COL = { guardia: "#1f9d5c", pausa: "#d98a2b", incidente: "#e23b53", camara: "#0e8f86", geof: "#2f6bff" };
+const COL = { guardia: "#1f9d5c", pausa: "#d98a2b", incidente: "#e23b53", camara: "#0e8f86", geof: "#2f6bff", sitio: "#7c5cff" };
+const ESTILO_KEY = "sgs_mapa_estilo"; // preferencia duradera del tipo de mapa (localStorage)
 const PRIO_LBL: Record<string, string> = { alta: "Crítica", media: "Media", baja: "Baja" };
 
 // Color del icono de cámara según su estado_operativo (activa/inactiva/mantenimiento).
@@ -78,16 +80,19 @@ export default function MapaOperacionalPage() {
   const [dentro, setDentro] = useState({ personas: 0, vehiculos: 0, rechazos: 0 });
   const [indice, setIndice] = useState<number | null>(null);
   const [ultima, setUltima] = useState<Date | null>(null); // null hasta montar (evita mismatch de hidratación)
-  const [selInc, setSelInc] = useState<any | null>(null);
-  const [selCam, setSelCam] = useState<any | null>(null);
-  const [selChat, setSelChat] = useState<{ canalId: string; folio: string } | null>(null);
+  // Ventanas abiertas: se restauran del estado que sobrevive la navegación.
+  const est0 = getEstadoMapa();
+  const [selInc, setSelInc] = useState<any | null>(est0.selInc);
+  const [selCam, setSelCam] = useState<any | null>(est0.selCam);
+  const [selChat, setSelChat] = useState<{ canalId: string; folio: string } | null>(est0.selChat);
+  const [sitioFoco, setSitioFoco] = useState<string>(""); // selector "Ir a sitio"
 
   // Abre (asegurando membresía) el chat del incidente en el panel izquierdo.
   async function abrirChatIncidente(inc: any) {
     const { data } = await supabase.rpc("rpc_incidente_unir_chat", { p_llamada: inc.id });
     if (data) setSelChat({ canalId: data as string, folio: inc.folio ?? "incidente" });
   }
-  const [capas, setCapas] = useState({ guardias: true, incidentes: true, camaras: true, geofences: true });
+  const [capas, setCapas] = useState({ guardias: true, incidentes: true, camaras: true, sitios: true, geofences: true });
   const [estiloId, setEstiloId] = useState<EstiloMapaId>("auto");
 
   const mlRef = useRef<any>(null);
@@ -105,10 +110,34 @@ export default function MapaOperacionalPage() {
   const [mapListo, setMapListo] = useState(false);
   const [mlListo, setMlListo] = useState(false);
   const incLoc = useRef<{ lng: number; lat: number } | null>(null);
-  const datos = useRef({ guardias, incidentes, camaras, capas });
-  datos.current = { guardias, incidentes, camaras, capas };
+  const datos = useRef({ guardias, incidentes, camaras, sitios, capas });
+  datos.current = { guardias, incidentes, camaras, sitios, capas };
+  const estiloAplicado = useRef<string | null>(null); // último estiloId aplicado al mapa
+  const vistaRestaurada = useRef(false);              // centro/zoom restaurados una sola vez
+  const guardarVistaAttach = useRef(false);           // suscripción a moveend/zoomend (una vez)
 
   useEffect(() => { import("maplibre-gl").then((m) => { mlRef.current = (m as any).default ?? m; setMlListo(true); }); }, []);
+
+  // Preferencia duradera del tipo de mapa + limpieza del estado al cerrar sesión.
+  useEffect(() => {
+    limpiarAlCerrarSesion();
+    try { const s = localStorage.getItem(ESTILO_KEY) as EstiloMapaId | null; if (s) setEstiloId(s); } catch { /* */ }
+  }, []);
+
+  // Persiste las ventanas abiertas para restaurarlas al regresar al mapa.
+  useEffect(() => { setVentanasMapa({ selInc, selCam, selChat }); }, [selInc, selCam, selChat]);
+
+  // Aplica el estilo elegido (o restaurado) al mapa. Un solo camino para cambio
+  // manual y restauración; styledata re-agrega capas/marcadores (idempotente).
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapListo) return;
+    if (estiloAplicado.current === estiloId) return;
+    const primera = estiloAplicado.current === null;
+    estiloAplicado.current = estiloId;
+    if (primera && estiloId === "auto") return; // el mapa ya se creó con 'auto'
+    map.setStyle(estiloMapaPorId(estiloId, temaMapa() === "dark"), { diff: false });
+  }, [estiloId, mapListo]);
 
   // Lee el filtro de la URL una vez (evita useSearchParams para no requerir Suspense).
   useEffect(() => {
@@ -239,16 +268,24 @@ export default function MapaOperacionalPage() {
     map.fitBounds(b, { padding: 60, maxZoom: 16, duration: 800 });
   }, []);
 
-  // Redibuja los marcadores (guardias, incidentes, cámaras) según datos + capas.
+  // Centra el mapa en un sitio SIN cerrar las ventanas abiertas (chat/cámara/incidente).
+  const irASitio = useCallback((s: any) => {
+    const map = mapRef.current;
+    if (!map || s?.latitud == null) return;
+    map.flyTo({ center: [Number(s.longitud), Number(s.latitud)], zoom: 15.5, duration: 800 });
+  }, []);
+
+  // Redibuja los marcadores (guardias, incidentes, cámaras, sitios) según datos + capas.
   const pintar = useCallback(() => {
     const map = mapRef.current, maplibre = mlRef.current; if (!map || !maplibre) return;
     marks.current.forEach((m) => m.remove()); marks.current = [];
-    const { guardias, incidentes, camaras, capas } = datos.current;
+    const { guardias, incidentes, camaras, sitios, capas } = datos.current;
     const add = (lng: number, lat: number, el: HTMLElement) => marks.current.push(new maplibre.Marker({ element: el, anchor: "bottom" }).setLngLat([lng, lat]).addTo(map));
+    if (capas.sitios) sitios.forEach((s: any) => { if (s.latitud != null) add(Number(s.longitud), Number(s.latitud), pinEl(COL.sitio, "🛡", s.nombre ?? "Sitio", false, false, () => irASitio(s))); });
     if (capas.guardias) guardias.forEach((g: any) => { if (g.latitud != null) add(Number(g.longitud), Number(g.latitud), pinEl(g.estatus_servicio === "en_pausa" ? COL.pausa : COL.guardia, "👮", guardiaNombre(g), false, false)); });
     if (capas.camaras) camaras.forEach((c: any) => add(Number(c.longitud), Number(c.latitud), pinEl(colorCamara(c.estado_operativo), "📷", c.nombre ?? "Cámara", true, false, () => setSelCam(c), { hoverOnly: true, sub: c.estado_operativo ?? "" })));
     if (capas.incidentes) incidentes.forEach((it: any) => add(Number(it.longitud), Number(it.latitud), pinEl(COL.incidente, "⚠", it.folio ?? it.tipo ?? "Incidente", false, it.prioridad === "alta", () => enfocarIncidente(it))));
-  }, [enfocarIncidente]);
+  }, [enfocarIncidente, irASitio]);
 
   // Desde CAD: con ?incidente=<id> centra y abre ese incidente; con ?fit=1
   // (ver en mapa según filtros) encuadra todos los incidentes visibles. Una sola vez.
@@ -270,7 +307,24 @@ export default function MapaOperacionalPage() {
     }
   }, [enfocarIncidente]);
 
-  function onReady(map: any) { mapRef.current = map; setMapListo(true); ensureGeocercas(map); pintar(); centrarFoco(); }
+  // Restaura centro/zoom + foco del incidente guardado (una vez) y mantiene el
+  // estado al día en cada movimiento. El foco por URL (?incidente/?fit) gana.
+  function restaurarEstado(map: any) {
+    if (!guardarVistaAttach.current) {
+      guardarVistaAttach.current = true;
+      const save = () => { try { const c = map.getCenter(); setVistaMapa([c.lng, c.lat], map.getZoom()); } catch { /* */ } };
+      map.on("moveend", save); map.on("zoomend", save);
+    }
+    if (vistaRestaurada.current) return;
+    vistaRestaurada.current = true;
+    const f = filtro.current;
+    if (f.incidente || f.fit) return; // el foco desde CAD manda
+    const e = getEstadoMapa();
+    if (e.view) map.jumpTo({ center: e.view.center, zoom: e.view.zoom });
+    if (e.selInc && e.selInc.latitud != null) dibujarFoco(map, Number(e.selInc.longitud), Number(e.selInc.latitud));
+  }
+
+  function onReady(map: any) { mapRef.current = map; setMapListo(true); ensureGeocercas(map); pintar(); centrarFoco(); restaurarEstado(map); }
 
   // Redibuja al cambiar datos/capas (sin reencuadrar).
   useEffect(() => { if (mapRef.current) { pintar(); ensureGeocercas(mapRef.current); } }, [guardias, incidentes, camaras, sitios, capas, mlListo, pintar]);
@@ -278,12 +332,11 @@ export default function MapaOperacionalPage() {
 
   const panel = "background:var(--sc-content);border:1px solid var(--sc-card-line);border-radius:12px;color:var(--sc-text)";
   const toggle = (k: keyof typeof capas) => setCapas((p) => ({ ...p, [k]: !p[k] }));
-  // Cambia el tipo de mapa base (estilos del proveedor). onReady (styledata) re-agrega
-  // capas/marcadores de forma idempotente tras el cambio de estilo.
+  // Cambia el tipo de mapa base y lo GUARDA como preferencia del usuario. El efecto
+  // de estilo aplica el setStyle; onReady (styledata) re-agrega capas/marcadores.
   const cambiarEstilo = (id: EstiloMapaId) => {
     setEstiloId(id);
-    const map = mapRef.current;
-    if (map) map.setStyle(estiloMapaPorId(id, temaMapa() === "dark"), { diff: false });
+    try { localStorage.setItem(ESTILO_KEY, id); } catch { /* */ }
   };
 
   return (
@@ -294,7 +347,7 @@ export default function MapaOperacionalPage() {
       {/* Barra de Capas (horizontal). Los conteos ya viven en la barra inferior. */}
       <div style={{ position: "absolute", top: 14, left: "50%", transform: "translateX(-50%)", display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap", maxWidth: "calc(100vw - 28px)", padding: "5px 10px", zIndex: 5, ...cssObj(panel) }}>
         <span style={{ fontSize: 11, letterSpacing: ".08em", color: "var(--sc-text-faint)", textTransform: "uppercase", marginRight: 2 }}>Capas</span>
-        {([["guardias", COL.guardia, "Guardias"], ["incidentes", COL.incidente, "Incidentes"], ["camaras", COL.camara, "Cámaras"], ["geofences", COL.geof, "Geocercas"]] as const).map(([k, c, l]) => (
+        {([["guardias", COL.guardia, "Guardias"], ["incidentes", COL.incidente, "Incidentes"], ["camaras", COL.camara, "Cámaras"], ["sitios", COL.sitio, "Sitios"], ["geofences", COL.geof, "Geocercas"]] as const).map(([k, c, l]) => (
           <label key={k} style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, padding: "4px 8px", cursor: "pointer" }}>
             <input type="checkbox" checked={capas[k]} onChange={() => toggle(k)} />
             <span style={{ width: 8, height: 8, borderRadius: "50%", background: c }} /> {l}
@@ -305,6 +358,13 @@ export default function MapaOperacionalPage() {
           <span style={{ color: "var(--sc-text-faint)" }}>🗺 Mapa</span>
           <select value={estiloId} onChange={(e) => cambiarEstilo(e.target.value as EstiloMapaId)} style={{ background: "var(--sc-content)", color: "var(--sc-text)", border: "1px solid var(--sc-card-line)", borderRadius: 6, padding: "3px 6px", fontSize: 12.5, cursor: "pointer" }}>
             {ESTILOS_MAPA.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+          </select>
+        </label>
+        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5 }}>
+          <span style={{ color: COL.sitio }}>🛡 Sitio</span>
+          <select value={sitioFoco} onChange={(e) => { const id = e.target.value; setSitioFoco(id); const s = sitios.find((x) => x.id === id); if (s) irASitio(s); }} style={{ background: "var(--sc-content)", color: "var(--sc-text)", border: "1px solid var(--sc-card-line)", borderRadius: 6, padding: "3px 6px", fontSize: 12.5, cursor: "pointer", maxWidth: 180 }}>
+            <option value="">— Ir a sitio —</option>
+            {[...sitios].sort((a, b) => (a.nombre ?? "").localeCompare(b.nombre ?? "", "es")).map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
           </select>
         </label>
         <span style={{ width: 1, alignSelf: "stretch", background: "var(--sc-card-line)", margin: "0 4px" }} />
