@@ -86,9 +86,11 @@ export default function SesionesRondinPage() {
   useEffect(() => { cargar(); }, [cargar]);
   useEffect(() => {
     const onFoco = () => { if (!document.hidden) cargar(); };
+    // Auto-refresco (supervisión de sesiones en curso) cada 30 s en primer plano.
+    const t = setInterval(() => { if (!document.hidden) cargar(); }, 30000);
     window.addEventListener("focus", cargar);
     document.addEventListener("visibilitychange", onFoco);
-    return () => { window.removeEventListener("focus", cargar); document.removeEventListener("visibilitychange", onFoco); };
+    return () => { clearInterval(t); window.removeEventListener("focus", cargar); document.removeEventListener("visibilitychange", onFoco); };
   }, [cargar]);
 
   // Detalle de la sesión seleccionada: traza + checks.
