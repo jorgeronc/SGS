@@ -13,6 +13,52 @@ import { getMiOficial, getMiCrp } from "./oficial";
 const TASK = "sgs-gps-guardia";
 const IDENT_KEY = "sgs_gps_ident";
 const EST_KEY = "sgs_estatus_servicio";
+const COLA_KEY = "sgs_gps_cola";   // buffer offline de puntos de recorrido_gps
+const MAX_COLA = 5000;             // tope del buffer (se descartan los más viejos)
+
+// UUID v4 (id de cliente para deduplicar al reintentar/sincronizar).
+function uuidv4(): string {
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
+  });
+}
+
+type PuntoRecorrido = {
+  id: string; personal_id: string; user_id: string;
+  latitud: number; longitud: number;
+  precision_m: number | null; rumbo: number | null; velocidad: number | null; fecha_hora: string;
+};
+
+// Guarda un punto en el buffer local (para sincronizar cuando vuelva la red).
+async function encolarRecorrido(row: PuntoRecorrido): Promise<void> {
+  try {
+    const raw = await AsyncStorage.getItem(COLA_KEY);
+    const cola: PuntoRecorrido[] = raw ? JSON.parse(raw) : [];
+    cola.push(row);
+    await AsyncStorage.setItem(COLA_KEY, JSON.stringify(cola.slice(-MAX_COLA)));
+  } catch { /* ignore */ }
+}
+
+// Sincroniza el buffer local. upsert con onConflict=id (idempotente: reenviar un
+// punto ya insertado no duplica). Si falla, se conserva para el próximo intento.
+async function vaciarColaRecorrido(): Promise<void> {
+  try {
+    const raw = await AsyncStorage.getItem(COLA_KEY);
+    const cola: PuntoRecorrido[] = raw ? JSON.parse(raw) : [];
+    if (cola.length === 0) return;
+    const { error } = await supabase.from("recorrido_gps").upsert(cola, { onConflict: "id", ignoreDuplicates: true });
+    if (!error) await AsyncStorage.removeItem(COLA_KEY);
+  } catch { /* sin red: se reintenta luego */ }
+}
+
+// Inserta un punto de recorrido; si no hay red, lo encola.
+async function insertarRecorrido(row: PuntoRecorrido): Promise<void> {
+  try {
+    const { error } = await supabase.from("recorrido_gps").upsert(row, { onConflict: "id", ignoreDuplicates: true });
+    if (error) await encolarRecorrido(row);
+  } catch { await encolarRecorrido(row); }
+}
 
 export type EstatusServicio = "en_servicio" | "en_rondin" | "en_pausa";
 
@@ -72,7 +118,12 @@ async function reportar(loc: Location.LocationObject): Promise<void> {
     { onConflict: "personal_id" }
   );
   // Historial acumulado (trayecto) para supervisar el recorrido del rondín.
-  await supabase.from("recorrido_gps").insert({
+  // Con buffer offline: id de cliente + fecha del dispositivo; se sincroniza al
+  // volver la red (así no se pierden puntos sin conexión). La sesión se sella en
+  // el servidor por la fecha_hora del punto (trigger fn_recorrido_sesion).
+  await vaciarColaRecorrido();
+  await insertarRecorrido({
+    id: uuidv4(),
     personal_id: id.personalId,
     user_id: id.userId,
     latitud: loc.coords.latitude,
@@ -80,7 +131,8 @@ async function reportar(loc: Location.LocationObject): Promise<void> {
     precision_m: loc.coords.accuracy ?? null,
     rumbo: loc.coords.heading ?? null,
     velocidad: loc.coords.speed ?? null,
-  }).then(() => {}, () => {});
+    fecha_hora: new Date(loc.timestamp || Date.now()).toISOString(),
+  });
 }
 
 // Tarea de fondo (debe definirse a nivel de módulo, no dentro de un componente).
