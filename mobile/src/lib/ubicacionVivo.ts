@@ -98,8 +98,10 @@ async function reportar(loc: Location.LocationObject): Promise<void> {
   if (!raw) return;
   const id = JSON.parse(raw) as Ident;
   const est = await getEstatusServicio();
-  // Última posición viva (upsert) para el mapa de monitoreo.
-  await supabase.from("ubicaciones_guardias").upsert(
+  // Última posición viva (upsert) para el mapa de monitoreo. actualizado_en lo
+  // sella el servidor (trigger 0097), así el reloj del teléfono no afecta la
+  // frescura "en línea".
+  const { error: eUp } = await supabase.from("ubicaciones_guardias").upsert(
     {
       personal_id: id.personalId,
       user_id: id.userId,
@@ -113,11 +115,10 @@ async function reportar(loc: Location.LocationObject): Promise<void> {
       en_linea: true,
       estatus_servicio: est.estatus,
       motivo_pausa: est.motivo,
-      actualizado_en: new Date().toISOString(),
     },
     { onConflict: "personal_id" }
   );
-  ultimoReporte = Date.now(); // marca de "última telemetría enviada" (para el estado en Perfil)
+  if (eUp) { ultimoError = eUp.message; } else { ultimoReporte = Date.now(); ultimoError = null; }
   // Historial acumulado (trayecto) para supervisar el recorrido del rondín.
   // Con buffer offline: id de cliente + fecha del dispositivo; se sincroniza al
   // volver la red (así no se pierden puntos sin conexión). La sesión se sella en
@@ -157,6 +158,7 @@ let rastreando = false;
 let intervaloSeg = 60;
 let fgSub: Location.LocationSubscription | null = null;
 let ultimoReporte = 0;                    // ms del último reporte exitoso
+let ultimoError: string | null = null;    // último error al enviar la posición (RLS/red)
 let permisoFg: boolean | null = null;     // último estado conocido del permiso en uso
 let permisoBg: boolean | null = null;     // último estado conocido del permiso "siempre"
 // Cuando hay una transmisión en vivo (alerta), se FUERZA el foreground-service
@@ -287,12 +289,12 @@ export async function iniciarRastreo(): Promise<void> {
 // Estado de la ubicación para mostrarlo en Perfil (diagnóstico por teléfono):
 // permiso en uso, permiso "siempre", rastreo activo y hace cuánto se envió la
 // última posición. Lee los permisos sin volver a pedirlos.
-export async function estadoUbicacion(): Promise<{ fg: boolean; bg: boolean; activo: boolean; ultimoReporteSeg: number | null }> {
+export async function estadoUbicacion(): Promise<{ fg: boolean; bg: boolean; activo: boolean; ultimoReporteSeg: number | null; error: string | null }> {
   let fg = permisoFg ?? false, bg = permisoBg ?? false, activo = rastreando;
   try { fg = (await Location.getForegroundPermissionsAsync()).status === "granted"; } catch { /* usa el último conocido */ }
   try { bg = (await Location.getBackgroundPermissionsAsync()).status === "granted"; } catch { /* usa el último conocido */ }
   try { activo = rastreando || (await Location.hasStartedLocationUpdatesAsync(TASK).catch(() => false)); } catch { /* */ }
-  return { fg, bg, activo, ultimoReporteSeg: ultimoReporte ? Math.round((Date.now() - ultimoReporte) / 1000) : null };
+  return { fg, bg, activo, ultimoReporteSeg: ultimoReporte ? Math.round((Date.now() - ultimoReporte) / 1000) : null, error: ultimoError };
 }
 
 // Pide (o re-pide) los permisos de ubicación y arranca el rastreo. Devuelve el

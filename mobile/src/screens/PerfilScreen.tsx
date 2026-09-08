@@ -55,7 +55,7 @@ export default function PerfilScreen() {
   const [recordHora, setRecordHora] = useState(""); // "HH:MM" de la alarma (obligatoria)
 
   const [aviso, setAviso] = useState<string | null>(null);
-  const [gps, setGps] = useState<{ fg: boolean; bg: boolean; activo: boolean; ultimoReporteSeg: number | null } | null>(null);
+  const [gps, setGps] = useState<{ fg: boolean; bg: boolean; activo: boolean; ultimoReporteSeg: number | null; error: string | null } | null>(null);
 
   // Scroll: para llevar a la sección de bodycam al iniciar descarga desde Inicio.
   const scrollRef = useRef<any>(null);
@@ -310,6 +310,12 @@ export default function PerfilScreen() {
                   <Ionicons name="settings-outline" size={20} color={T.accent} style={{ width: 28 }} />
                   <Text style={[styles.l, { color: T.accent, flex: 1 }]}>{gps.fg ? "Permitir ubicación 'todo el tiempo'" : "Conceder permiso de ubicación"}</Text>
                 </TouchableOpacity>
+              )}
+              {gps?.error && (
+                <View style={[styles.row, styles.rowBorder]}>
+                  <Ionicons name="warning-outline" size={20} color={T.danger} style={{ width: 28 }} />
+                  <Text style={[styles.l, { color: T.danger, flex: 1 }]} numberOfLines={2}>Error al enviar: {gps.error}</Text>
+                </View>
               )}
             </View>
           </>
