@@ -20,6 +20,7 @@ export default function DireccionGeocode({
   size,
   sinBoton = false,
   sinCoords = false,
+  placeholder,
 }: {
   direccion: string;
   lat: string;
@@ -33,6 +34,7 @@ export default function DireccionGeocode({
   size?: number;      // ancho en caracteres del campo de dirección
   sinBoton?: boolean; // oculta el botón "Buscar" (Enter sigue buscando)
   sinCoords?: boolean; // oculta la línea de coordenadas (para no duplicarla)
+  placeholder?: string; // texto del campo (por defecto habla de "incidente")
 }) {
   const [resultados, setResultados] = useState<Resultado[]>([]);
   const [buscando, setBuscando] = useState(false);
@@ -68,7 +70,7 @@ export default function DireccionGeocode({
     <div className="geo-wrap">
       <div className="form-fila" style={{ alignItems: "center" }}>
         <input
-          placeholder={sinBoton ? "Domicilio o dirección — Enter para buscar" : "Domicilio o dirección del incidente"}
+          placeholder={placeholder ?? (sinBoton ? "Domicilio o dirección — Enter para buscar" : "Domicilio o dirección del incidente")}
           value={direccion}
           disabled={disabled}
           onChange={(e) => onDireccion(e.target.value)}

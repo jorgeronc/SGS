@@ -63,7 +63,7 @@ function NuevoSitio({ onCreado }: { onCreado: () => void }) {
       <label className="dash-sub" style={{ display: "block", marginTop: 6 }}>Ubicación del sitio (búscala en el mapa para georreferenciarla)</label>
       <DireccionGeocode direccion={f.direccion} lat={f.lat} lng={f.lng}
         onDireccion={(v) => set("direccion", v)} onCoords={(la, lo) => setF((p) => ({ ...p, lat: la, lng: lo }))}
-        jurisdiccion={jur} pais={paisJur} size={80} />
+        jurisdiccion={jur} pais={paisJur} size={80} placeholder="Ubicación o dirección del sitio" />
       <div className="form-fila" style={{ marginTop: 6 }}>
         <input placeholder="No. de guardias" type="number" min={0} value={f.num_guardias} onChange={(e) => set("num_guardias", e.target.value)} />
         <input placeholder="Horario (ej. 24/7)" value={f.horario} onChange={(e) => set("horario", e.target.value)} />

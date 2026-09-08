@@ -1,74 +1,134 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { tileConfig } from "@/lib/geo";
-
-let leafletPromise: Promise<any> | null = null;
-function cargarLeaflet(): Promise<any> {
-  if (typeof window === "undefined") return Promise.reject();
-  if ((window as any).L) return Promise.resolve((window as any).L);
-  if (leafletPromise) return leafletPromise;
-  leafletPromise = new Promise((resolve, reject) => {
-    const css = document.createElement("link"); css.rel = "stylesheet"; css.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"; document.head.appendChild(css);
-    const s = document.createElement("script"); s.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"; s.async = true;
-    s.onload = () => resolve((window as any).L); s.onerror = reject; document.head.appendChild(s);
-  });
-  return leafletPromise;
-}
+import "maplibre-gl/dist/maplibre-gl.css";
+import { estiloMapaPorId } from "@/lib/mapStyle";
 
 // Mapa para SEÑALAR una ubicación: clic (o arrastre del marcador) fija las
-// coordenadas y las devuelve por onPick. Se usa para georreferenciar el punto
-// de control colocándolo directamente en el mapa.
+// coordenadas y las devuelve por onPick. Se usa para georreferenciar puntos de
+// control / sitios colocándolos directamente en el mapa.
+//
+// Base SIEMPRE "Calles (Liberty)" (MapLibre), sin opción a cambiar. Si se pasa
+// `centro` + `radioGeocerca` (p. ej. al elegir el sitio), el mapa VUELA a esa
+// ubicación con el zoom necesario para ver la geocerca (círculo) del sitio.
+
+const NARANJA = "#f4820a";
+
+// Anillo (polígono) de un círculo en coordenadas [lng, lat].
+function circulo(lng: number, lat: number, radioM: number, n = 64): [number, number][] {
+  const dLat = radioM / 111320;
+  const dLng = radioM / (111320 * Math.cos((lat * Math.PI) / 180));
+  const ring: [number, number][] = [];
+  for (let i = 0; i <= n; i++) { const a = (i / n) * 2 * Math.PI; ring.push([lng + dLng * Math.cos(a), lat + dLat * Math.sin(a)]); }
+  return ring;
+}
+
+function cuandoEstiloListo(map: any, fn: () => void) {
+  if (map.isStyleLoaded()) { fn(); return; }
+  const h = () => { if (map.isStyleLoaded()) { map.off("styledata", h); fn(); } };
+  map.on("styledata", h);
+}
+
 export default function MapaPicker({
-  lat, lng, onPick, className = "mapbox",
+  lat, lng, onPick, centro, radioGeocerca, className = "mapbox",
 }: {
   lat: number | null; lng: number | null;
   onPick: (lat: number, lng: number) => void;
+  centro?: { lat: number; lng: number } | null; // centro del sitio (para volar + geocerca)
+  radioGeocerca?: number | null;                // radio de la geocerca del sitio (m)
   className?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
+  const mlRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
   const onPickRef = useRef(onPick);
   onPickRef.current = onPick;
 
   useEffect(() => {
     let cancelado = false;
-    cargarLeaflet().then((L) => {
-      if (cancelado || !ref.current || mapRef.current) return;
-      const centro: [number, number] = lat != null && lng != null ? [lat, lng] : [25.6714, -100.309];
-      const map = L.map(ref.current).setView(centro, lat != null ? 16 : 12);
-      mapRef.current = map;
-      const t = tileConfig(); L.tileLayer(t.url, t.opts).addTo(map);
+    (async () => {
+      try {
+        const mod = await import("maplibre-gl");
+        const maplibre: any = (mod as any).default ?? mod;
+        if (cancelado || !ref.current || mapRef.current) return;
+        mlRef.current = maplibre;
+        const c0: [number, number] = lat != null && lng != null
+          ? [lng, lat]
+          : centro ? [centro.lng, centro.lat] : [-100.309, 25.6714];
+        const map = new maplibre.Map({
+          container: ref.current,
+          style: estiloMapaPorId("liberty", false), // Calles (Liberty) siempre
+          center: c0,
+          zoom: lat != null || centro ? 16 : 12,
+          attributionControl: { compact: true },
+        });
+        mapRef.current = map;
+        map.on("error", (e: any) => console.error("MapaPicker/MapLibre:", e?.error ?? e));
 
-      function poner(la: number, lo: number) {
-        if (!markerRef.current) {
-          markerRef.current = L.marker([la, lo], { draggable: true }).addTo(map);
-          markerRef.current.on("dragend", () => { const p = markerRef.current.getLatLng(); onPickRef.current(Number(p.lat.toFixed(6)), Number(p.lng.toFixed(6))); });
-        } else markerRef.current.setLatLng([la, lo]);
+        const poner = (la: number, lo: number) => {
+          if (!markerRef.current) {
+            markerRef.current = new maplibre.Marker({ draggable: true, color: "#e23b53" }).setLngLat([lo, la]).addTo(map);
+            markerRef.current.on("dragend", () => {
+              const p = markerRef.current.getLngLat();
+              onPickRef.current(Number(p.lat.toFixed(6)), Number(p.lng.toFixed(6)));
+            });
+          } else markerRef.current.setLngLat([lo, la]);
+        };
+
+        map.on("load", () => {
+          if (lat != null && lng != null) poner(lat, lng);
+          dibujarGeocerca();
+        });
+        map.on("click", (e: any) => {
+          poner(e.lngLat.lat, e.lngLat.lng);
+          onPickRef.current(Number(e.lngLat.lat.toFixed(6)), Number(e.lngLat.lng.toFixed(6)));
+        });
+        setTimeout(() => map.resize(), 120);
+      } catch (e) {
+        console.error("MapaPicker: no se pudo iniciar el mapa", e);
       }
-      if (lat != null && lng != null) poner(lat, lng);
-
-      map.on("click", (e: any) => {
-        poner(e.latlng.lat, e.latlng.lng);
-        onPickRef.current(Number(e.latlng.lat.toFixed(6)), Number(e.latlng.lng.toFixed(6)));
-      });
-      setTimeout(() => map.invalidateSize(), 120);
-    }).catch(() => {});
+    })();
     return () => { cancelado = true; if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; markerRef.current = null; } };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Si las coordenadas cambian desde fuera (p. ej. búsqueda por dirección), mover el marcador.
+  // Marcador desde fuera (búsqueda por dirección o coordenadas escritas).
   useEffect(() => {
-    const L = (window as any).L;
-    if (!L || !mapRef.current || lat == null || lng == null) return;
+    const map = mapRef.current, maplibre = mlRef.current;
+    if (!map || !maplibre || lat == null || lng == null) return;
     if (!markerRef.current) {
-      markerRef.current = L.marker([lat, lng], { draggable: true }).addTo(mapRef.current);
-      markerRef.current.on("dragend", () => { const p = markerRef.current.getLatLng(); onPickRef.current(Number(p.lat.toFixed(6)), Number(p.lng.toFixed(6))); });
-    } else markerRef.current.setLatLng([lat, lng]);
-    mapRef.current.setView([lat, lng]);
+      markerRef.current = new maplibre.Marker({ draggable: true, color: "#e23b53" }).setLngLat([lng, lat]).addTo(map);
+      markerRef.current.on("dragend", () => {
+        const p = markerRef.current.getLngLat();
+        onPickRef.current(Number(p.lat.toFixed(6)), Number(p.lng.toFixed(6)));
+      });
+    } else markerRef.current.setLngLat([lng, lat]);
   }, [lat, lng]);
+
+  // Geocerca del sitio: al elegir sitio, vuela a su ubicación con zoom para verla.
+  function dibujarGeocerca() {
+    const map = mapRef.current;
+    if (!map || !centro) return;
+    const radio = radioGeocerca && radioGeocerca > 0 ? radioGeocerca : 150;
+    const ring = circulo(centro.lng, centro.lat, radio);
+    const fc = { type: "FeatureCollection", features: [{ type: "Feature", properties: {}, geometry: { type: "Polygon", coordinates: [ring] } }] };
+    cuandoEstiloListo(map, () => {
+      if (!map.getSource("geocerca-sitio")) {
+        map.addSource("geocerca-sitio", { type: "geojson", data: fc as any });
+        map.addLayer({ id: "geoc-sitio-f", type: "fill", source: "geocerca-sitio", paint: { "fill-color": NARANJA, "fill-opacity": 0.12 } });
+        map.addLayer({ id: "geoc-sitio-l", type: "line", source: "geocerca-sitio", paint: { "line-color": NARANJA, "line-width": 2 } });
+      } else { map.getSource("geocerca-sitio").setData(fc as any); }
+    });
+    const ml = mlRef.current;
+    const b = ring.reduce((bb: any, c: [number, number]) => bb.extend(c), new ml.LngLatBounds(ring[0], ring[0]));
+    map.fitBounds(b, { padding: 40, maxZoom: 18, duration: 700 });
+  }
+
+  useEffect(() => {
+    dibujarGeocerca();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [centro?.lat, centro?.lng, radioGeocerca]);
 
   return <div ref={ref} className={className} style={{ cursor: "crosshair" }} />;
 }

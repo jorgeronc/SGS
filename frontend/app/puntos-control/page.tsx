@@ -33,7 +33,7 @@ function NuevoPunto({ onCreado }: { onCreado: () => void }) {
   }
 
   useEffect(() => {
-    supabase.from("sitios").select("id, nombre, cliente:clientes(razon_social)").eq("estatus", "activo").order("nombre")
+    supabase.from("sitios").select("id, nombre, latitud, longitud, radio_geofence_m, cliente:clientes(razon_social)").eq("estatus", "activo").order("nombre")
       .then(({ data }) => setSitios((data as any[]) ?? []));
     getConfig().then((c) => { if (c) { setJur(c.jurisdiccion ?? ""); setPaisJur(c.jurisdiccion_pais ?? ""); } });
     set("codigo", `PC-${(crypto.randomUUID().replace(/-/g, "").slice(0, 8)).toUpperCase()}`);
@@ -58,6 +58,9 @@ function NuevoPunto({ onCreado }: { onCreado: () => void }) {
     if (error) { setError(error.message); return; }
     onCreado();
   }
+
+  // Sitio elegido (para centrar el mapa en su geocerca).
+  const sitioSel = sitios.find((s) => s.id === f.sitio_id) ?? null;
 
   return (
     <form onSubmit={crear}>
@@ -103,11 +106,13 @@ function NuevoPunto({ onCreado }: { onCreado: () => void }) {
         </div>
         <div className="dash-sub" style={{ fontSize: 12 }}>Este es el valor que valida el sistema al leer la etiqueta.</div>
       </div>
-      <label className="dash-sub" style={{ display: "block", marginTop: 8 }}>Ubicación en el mapa — haz clic o arrastra el marcador para señalar el punto (obtiene domicilio y coordenadas):</label>
+      <label className="dash-sub" style={{ display: "block", marginTop: 8 }}>Ubicación en el mapa — al elegir el sitio el mapa se centra en su geocerca; haz clic o arrastra el marcador para señalar el punto exacto:</label>
       <DireccionGeocode direccion={f.buscarDir} lat={f.lat} lng={f.lng}
         onDireccion={(v) => set("buscarDir", v)} onCoords={(la, lo) => pickEnMapa(Number(la), Number(lo))}
-        jurisdiccion={jur} pais={paisJur} size={80} />
-      <MapaPicker lat={f.lat ? Number(f.lat) : null} lng={f.lng ? Number(f.lng) : null} onPick={pickEnMapa} className="mapbox" />
+        jurisdiccion={jur} pais={paisJur} size={80} placeholder="Ubicación o dirección del punto de control" />
+      <MapaPicker lat={f.lat ? Number(f.lat) : null} lng={f.lng ? Number(f.lng) : null} onPick={pickEnMapa}
+        centro={sitioSel && sitioSel.latitud != null ? { lat: Number(sitioSel.latitud), lng: Number(sitioSel.longitud) } : null}
+        radioGeocerca={sitioSel?.radio_geofence_m ?? null} className="mapbox" />
       {sitios.length === 0 && <p className="dash-sub">Primero registra un sitio.</p>}
       {error && <p style={{ color: "#b00020" }}>{error}</p>}
       <p style={{ marginTop: 8 }}>
