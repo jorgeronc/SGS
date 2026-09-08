@@ -39,11 +39,15 @@ const NARANJA = "#f4820a";
 function dibujarFoco(map: any, lng: number, lat: number): number[][] {
   const ring = circulo(lng, lat, FOCO_RADIO_M);
   const fc = { type: "FeatureCollection", features: [{ type: "Feature", properties: {}, geometry: { type: "Polygon", coordinates: [ring] } }] };
-  if (!map.getSource("foco-radio")) {
-    map.addSource("foco-radio", { type: "geojson", data: fc as any });
-    map.addLayer({ id: "foco-f", type: "fill", source: "foco-radio", paint: { "fill-color": NARANJA, "fill-opacity": 0.12 } });
-    map.addLayer({ id: "foco-l", type: "line", source: "foco-radio", paint: { "line-color": NARANJA, "line-width": 2.5 } });
-  } else { map.getSource("foco-radio").setData(fc as any); }
+  // La capa (addSource/addLayer) espera a que el estilo esté cargado; el anillo se
+  // devuelve siempre para poder encuadrar (fitBounds es seguro sin estilo cargado).
+  cuandoEstiloListo(map, () => {
+    if (!map.getSource("foco-radio")) {
+      map.addSource("foco-radio", { type: "geojson", data: fc as any });
+      map.addLayer({ id: "foco-f", type: "fill", source: "foco-radio", paint: { "fill-color": NARANJA, "fill-opacity": 0.12 } });
+      map.addLayer({ id: "foco-l", type: "line", source: "foco-radio", paint: { "line-color": NARANJA, "line-width": 2.5 } });
+    } else { map.getSource("foco-radio").setData(fc as any); }
+  });
   return ring;
 }
 
@@ -275,12 +279,10 @@ export default function MapaOperacionalPage() {
     setSelInc(it);
     const map = mapRef.current, ml = mlRef.current;
     if (!map || !ml || it.latitud == null) return;
-    cuandoEstiloListo(map, () => {
-      const lng = Number(it.longitud), lat = Number(it.latitud);
-      const ring = dibujarFoco(map, lng, lat);
-      const b = ring.reduce((bb: any, c: number[]) => bb.extend(c as [number, number]), new ml.LngLatBounds(ring[0] as [number, number], ring[0] as [number, number]));
-      map.fitBounds(b, { padding: 60, maxZoom: 16, duration: 800 });
-    });
+    const lng = Number(it.longitud), lat = Number(it.latitud);
+    const ring = dibujarFoco(map, lng, lat);
+    const b = ring.reduce((bb: any, c: number[]) => bb.extend(c as [number, number]), new ml.LngLatBounds(ring[0] as [number, number], ring[0] as [number, number]));
+    map.fitBounds(b, { padding: 60, maxZoom: 16, duration: 800 });
   }, []);
 
   // Centra el mapa en un sitio SIN cerrar las ventanas abiertas (chat/cámara/incidente).
@@ -336,7 +338,7 @@ export default function MapaOperacionalPage() {
     if (f.incidente || f.fit) return; // el foco desde CAD manda
     const e = getEstadoMapa();
     if (e.view) map.jumpTo({ center: e.view.center, zoom: e.view.zoom });
-    if (e.selInc && e.selInc.latitud != null) cuandoEstiloListo(map, () => dibujarFoco(map, Number(e.selInc.longitud), Number(e.selInc.latitud)));
+    if (e.selInc && e.selInc.latitud != null) dibujarFoco(map, Number(e.selInc.longitud), Number(e.selInc.latitud));
   }
 
   function onReady(map: any) { mapRef.current = map; setMapListo(true); ensureGeocercas(map); pintar(); centrarFoco(); restaurarEstado(map); }
