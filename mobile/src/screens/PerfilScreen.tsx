@@ -143,7 +143,14 @@ export default function PerfilScreen() {
   // Refresca sitio/unidad/turno al volver a la pantalla (refleja cambios del rol
   // de servicio sin cerrar sesión).
   useEffect(() => {
-    const unsub = nav.addListener("focus", () => { if (miOficialId) cargarUnidadYTurno(miOficialId); });
+    const unsub = nav.addListener("focus", () => {
+      pendientesBodycam().then(setPendientesBc);          // videos por descargar
+      if (miOficialId) {
+        cargarUnidadYTurno(miOficialId);                   // sitio / unidad / turno (inicio–fin)
+        cargarDatosGuardia(miOficialId);                   // nombre / # guardia
+        cargarMiFoto(miOficialId);                         // foto
+      }
+    });
     return unsub;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [miOficialId]);
@@ -266,18 +273,17 @@ export default function PerfilScreen() {
               : <Ionicons name="person" size={44} color={T.accent} />}
             <View style={styles.avatarCam}><Ionicons name="camera" size={14} color={T.white} /></View>
           </TouchableOpacity>
-          <Text style={styles.nombre} numberOfLines={1}>{nombreGuardia || miOficialEtq || correo || "Elemento en campo"}</Text>
           <Text style={styles.rol}>Toca la foto para cambiarla (mantén para galería)</Text>
 
           {/* Mi elemento (identidad), dentro de la sección de la fotografía. */}
           {miOficialId ? (
             <View style={styles.idBox}>
-              <View style={styles.idRow}><Ionicons name="id-card-outline" size={16} color={T.accent} style={styles.idIco} /><Text style={styles.idLbl}>Nombre</Text><Text style={styles.idVal} numberOfLines={1}>{nombreGuardia || miOficialEtq || "—"}</Text></View>
-              <View style={styles.idRow}><Ionicons name="pricetag-outline" size={16} color={T.accent} style={styles.idIco} /><Text style={styles.idLbl}># Guardia</Text><Text style={styles.idVal} numberOfLines={1}>{numGuardia || "—"}</Text></View>
-              <View style={styles.idRow}><Ionicons name="business-outline" size={16} color={T.accent} style={styles.idIco} /><Text style={styles.idLbl}>Sitio</Text><Text style={styles.idVal} numberOfLines={1}>{sitio || "sin sitio"}</Text></View>
-              <View style={styles.idRow}><Ionicons name="car-outline" size={16} color={T.accent} style={styles.idIco} /><Text style={styles.idLbl}>Unidad</Text><Text style={styles.idVal} numberOfLines={1}>{unidadNum || "Sin unidad"}</Text></View>
-              <View style={styles.idRow}><Ionicons name="videocam-outline" size={16} color={T.accent} style={styles.idIco} /><Text style={styles.idLbl}>Bodycam</Text><Text style={styles.idVal} numberOfLines={1}>{miBodycam || "sin bodycam"}</Text></View>
-              <View style={styles.idRow}><Ionicons name="time-outline" size={16} color={T.accent} style={styles.idIco} /><Text style={styles.idLbl}>Turno</Text><Text style={styles.idVal} numberOfLines={1}>{turno ? `${turno.fecha} · ${hhmm(turno.horaInicio)}–${hhmm(turno.horaFin)}` : "Sin turno activo"}</Text></View>
+              <View style={styles.idRow}><Ionicons name="id-card-outline" size={15} color={T.accent} style={styles.idIco} /><Text style={styles.idLbl}>Nombre</Text><Text style={styles.idVal} numberOfLines={2}>{nombreGuardia || miOficialEtq || "—"}</Text></View>
+              <View style={styles.idRow}><Ionicons name="pricetag-outline" size={15} color={T.accent} style={styles.idIco} /><Text style={styles.idLbl}># Guardia</Text><Text style={styles.idVal} numberOfLines={1}>{numGuardia || "—"}</Text></View>
+              <View style={styles.idRow}><Ionicons name="business-outline" size={15} color={T.accent} style={styles.idIco} /><Text style={styles.idLbl}>Sitio</Text><Text style={styles.idVal} numberOfLines={2}>{sitio || "sin sitio"}</Text></View>
+              <View style={styles.idRow}><Ionicons name="car-outline" size={15} color={T.accent} style={styles.idIco} /><Text style={styles.idLbl}>Unidad</Text><Text style={styles.idVal} numberOfLines={1}>{unidadNum || "Sin unidad"}</Text></View>
+              <View style={styles.idRow}><Ionicons name="videocam-outline" size={15} color={T.accent} style={styles.idIco} /><Text style={styles.idLbl}>Bodycam</Text><Text style={styles.idVal} numberOfLines={1}>{miBodycam || "sin bodycam"}</Text></View>
+              <View style={styles.idRow}><Ionicons name="time-outline" size={15} color={T.accent} style={styles.idIco} /><Text style={styles.idLbl}>Turno</Text><Text style={styles.idVal} numberOfLines={2}>{turno ? `${turno.fecha} · ${hhmm(turno.horaInicio)}–${hhmm(turno.horaFin)}` : "Sin turno activo"}</Text></View>
             </View>
           ) : (
             <Text style={styles.avisoHero}>Sin elemento: tu cuenta no está ligada a un guardia. Pide al administrador que asigne tu elemento.</Text>
@@ -406,11 +412,11 @@ const styles = StyleSheet.create({
   avatarCam: { position: "absolute", right: 2, bottom: 2, width: 30, height: 30, borderRadius: 15, backgroundColor: T.accent, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: T.surface },
   nombre: { color: T.text, fontSize: 19, fontWeight: "800", marginTop: 14, maxWidth: "100%", letterSpacing: -0.2 },
   rol: { color: T.textMute, fontSize: 12, marginTop: 3, textAlign: "center" },
-  idBox: { alignSelf: "stretch", marginTop: 16, borderTopWidth: 1, borderTopColor: T.border, paddingTop: 10, gap: 8 },
-  idRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  idIco: { width: 22 },
-  idLbl: { color: T.textMute, fontSize: 13, width: 82 },
-  idVal: { color: T.text, fontSize: 14, fontWeight: "800", flex: 1, textAlign: "right" },
+  idBox: { alignSelf: "stretch", marginTop: 14, borderTopWidth: 1, borderTopColor: T.border, paddingTop: 10, gap: 6 },
+  idRow: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
+  idIco: { width: 20, marginTop: 1 },
+  idLbl: { color: T.textMute, fontSize: 12, width: 70, marginTop: 1 },
+  idVal: { color: T.text, fontSize: 13, fontWeight: "700", flex: 1, textAlign: "right", lineHeight: 17 },
   avisoHero: { color: T.accent, fontSize: 12.5, textAlign: "center", marginTop: 14 },
   card: { alignSelf: "stretch", backgroundColor: T.surface, borderRadius: UI.radius, borderWidth: 1, borderColor: T.border, paddingHorizontal: 14, marginTop: 10 },
   row: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 52 },
