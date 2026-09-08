@@ -117,6 +117,7 @@ async function reportar(loc: Location.LocationObject): Promise<void> {
     },
     { onConflict: "personal_id" }
   );
+  ultimoReporte = Date.now(); // marca de "última telemetría enviada" (para el estado en Perfil)
   // Historial acumulado (trayecto) para supervisar el recorrido del rondín.
   // Con buffer offline: id de cliente + fecha del dispositivo; se sincroniza al
   // volver la red (así no se pierden puntos sin conexión). La sesión se sella en
@@ -155,6 +156,9 @@ TaskManager.defineTask(TASK, async ({ data, error }) => {
 let rastreando = false;
 let intervaloSeg = 60;
 let fgSub: Location.LocationSubscription | null = null;
+let ultimoReporte = 0;                    // ms del último reporte exitoso
+let permisoFg: boolean | null = null;     // último estado conocido del permiso en uso
+let permisoBg: boolean | null = null;     // último estado conocido del permiso "siempre"
 // Cuando hay una transmisión en vivo (alerta), se FUERZA el foreground-service
 // aunque la app esté en primer plano, para que el proceso —y la cámara ya
 // abierta por WebRTC— sigan vivos al bloquear la pantalla (si no, el video se
@@ -250,8 +254,10 @@ export async function iniciarRastreo(): Promise<void> {
 
     // Permisos: primero en uso; luego segundo plano (para pantalla bloqueada).
     const fg = await Location.requestForegroundPermissionsAsync();
-    if (fg.status !== "granted") return;
-    await Location.requestBackgroundPermissionsAsync().catch(() => null);
+    permisoFg = fg.status === "granted";
+    if (!permisoFg) return;
+    const bg = await Location.requestBackgroundPermissionsAsync().catch(() => null);
+    permisoBg = bg?.status === "granted";
 
     // Guarda la identidad para la tarea de fondo.
     const unidad = await getMiCrp().catch(() => null);
@@ -269,9 +275,36 @@ export async function iniciarRastreo(): Promise<void> {
     await detenerServicioBg();
     detenerWatcherFg();
     await iniciarWatcherFg();
+    // Reporte inmediato: el guardia aparece al instante en el mapa y confirma que
+    // el permiso y la ubicación del teléfono funcionan (sin esperar al intervalo).
+    Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
+      .then((l) => reportar(l)).catch(() => {});
   } catch {
     /* si algo falla, la app sigue operando normalmente */
   }
+}
+
+// Estado de la ubicación para mostrarlo en Perfil (diagnóstico por teléfono):
+// permiso en uso, permiso "siempre", rastreo activo y hace cuánto se envió la
+// última posición. Lee los permisos sin volver a pedirlos.
+export async function estadoUbicacion(): Promise<{ fg: boolean; bg: boolean; activo: boolean; ultimoReporteSeg: number | null }> {
+  let fg = permisoFg ?? false, bg = permisoBg ?? false, activo = rastreando;
+  try { fg = (await Location.getForegroundPermissionsAsync()).status === "granted"; } catch { /* usa el último conocido */ }
+  try { bg = (await Location.getBackgroundPermissionsAsync()).status === "granted"; } catch { /* usa el último conocido */ }
+  try { activo = rastreando || (await Location.hasStartedLocationUpdatesAsync(TASK).catch(() => false)); } catch { /* */ }
+  return { fg, bg, activo, ultimoReporteSeg: ultimoReporte ? Math.round((Date.now() - ultimoReporte) / 1000) : null };
+}
+
+// Pide (o re-pide) los permisos de ubicación y arranca el rastreo. Devuelve el
+// resultado para que la UI guíe al usuario a "Permitir todo el tiempo" si falta.
+export async function pedirPermisoUbicacion(): Promise<{ fg: boolean; bg: boolean }> {
+  const fgp = await Location.requestForegroundPermissionsAsync().catch(() => null);
+  const fg = fgp?.status === "granted";
+  let bg = false;
+  if (fg) { const bgp = await Location.requestBackgroundPermissionsAsync().catch(() => null); bg = bgp?.status === "granted"; }
+  permisoFg = fg; permisoBg = bg;
+  if (fg) await iniciarRastreo();
+  return { fg, bg };
 }
 
 // Detiene el rastreo y marca la última posición como fuera de línea.

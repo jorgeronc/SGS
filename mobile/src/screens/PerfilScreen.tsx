@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Image, Alert, ActivityIndicator, Modal, TextInput } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Image, Alert, ActivityIndicator, Modal, TextInput, Linking } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -12,7 +12,7 @@ import { getUnidadDelSistema, getTurnoVigente, type TurnoVigente } from "../lib/
 import { getMiCrp, sincronizarMiElemento } from "../lib/oficial";
 import { actualizarPersonalPush } from "../lib/push";
 import { validarBodycam, getMiBodycam } from "../lib/bodycam";
-import { iniciarRastreo, detenerRastreo } from "../lib/ubicacionVivo";
+import { iniciarRastreo, detenerRastreo, estadoUbicacion, pedirPermisoUbicacion } from "../lib/ubicacionVivo";
 import { iniciarGeocercas, detenerGeocercas } from "../lib/geocercas";
 import { pendientesBodycam, descargarPendientes, bodycamDisponible } from "../lib/bodycamHd";
 import { recordatoriosVigentes, agregarRecordatorio, quitarRecordatorio, ventanaTurno, Recordatorio } from "../lib/recordatorios";
@@ -55,6 +55,7 @@ export default function PerfilScreen() {
   const [recordHora, setRecordHora] = useState(""); // "HH:MM" de la alarma (obligatoria)
 
   const [aviso, setAviso] = useState<string | null>(null);
+  const [gps, setGps] = useState<{ fg: boolean; bg: boolean; activo: boolean; ultimoReporteSeg: number | null } | null>(null);
 
   // Scroll: para llevar a la sección de bodycam al iniciar descarga desde Inicio.
   const scrollRef = useRef<any>(null);
@@ -103,12 +104,40 @@ export default function PerfilScreen() {
     }
   }
 
+  const refrescarGps = () => estadoUbicacion().then(setGps).catch(() => {});
+
+  // Revisa/solicita permisos de ubicación y guía a "Permitir todo el tiempo" si
+  // falta el permiso en segundo plano (clave para que la posición siga con la
+  // pantalla bloqueada / la app en segundo plano).
+  async function arreglarGps() {
+    const r = await pedirPermisoUbicacion();
+    await refrescarGps();
+    if (!r.fg) {
+      Alert.alert("Permiso de ubicación",
+        "SGS necesita acceso a tu ubicación para mostrarte en el mapa operativo. Actívalo en Ajustes → Aplicaciones → SGS Móvil → Permisos → Ubicación.",
+        [{ text: "Abrir ajustes", onPress: () => Linking.openSettings() }, { text: "Cerrar", style: "cancel" }]);
+    } else if (!r.bg) {
+      Alert.alert("Ubicación en segundo plano",
+        "Para compartir tu ubicación con la pantalla bloqueada o la app en segundo plano, elige 'Permitir todo el tiempo' en Ajustes → Permisos → Ubicación.",
+        [{ text: "Abrir ajustes", onPress: () => Linking.openSettings() }, { text: "Cerrar", style: "cancel" }]);
+    }
+  }
+
   useEffect(() => {
     cargarCuenta();
     getMiBodycam().then((b) => setMiBodycamState(b?.folio ?? null));
     pendientesBodycam().then(setPendientesBc);
     cargarRecordatorios();
     resolverElemento();
+  }, []);
+
+  // Estado de GPS/permisos (diagnóstico), refrescado en pantalla y al enfocar.
+  useEffect(() => {
+    refrescarGps();
+    const t = setInterval(refrescarGps, 15000);
+    const unsub = nav.addListener("focus", refrescarGps);
+    return () => { clearInterval(t); unsub(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Refresca sitio/unidad/turno al volver a la pantalla (refleja cambios del rol
@@ -254,6 +283,31 @@ export default function PerfilScreen() {
             <Text style={styles.avisoHero}>Sin elemento: tu cuenta no está ligada a un guardia. Pide al administrador que asigne tu elemento.</Text>
           )}
         </View>
+
+        {/* Ubicación (GPS): diagnóstico y permisos, por teléfono */}
+        {miOficialId && (
+          <>
+            <Text style={styles.seccion}>Ubicación (GPS)</Text>
+            <View style={styles.card}>
+              <View style={styles.row}>
+                <Ionicons name={gps?.activo ? "navigate" : "navigate-outline"} size={20} color={gps?.activo ? "#2fb457" : T.textMute} style={{ width: 28 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.l, { color: T.text }]}>{gps?.activo ? "Compartiendo ubicación" : "Ubicación inactiva"}</Text>
+                  <Text style={{ color: T.textMute, fontSize: 12 }}>
+                    {gps ? (!gps.fg ? "Permiso denegado" : gps.bg ? "Permiso: todo el tiempo" : "Permiso: solo con la app abierta") : "Revisando…"}
+                    {gps?.ultimoReporteSeg != null ? ` · último envío hace ${gps.ultimoReporteSeg < 120 ? `${gps.ultimoReporteSeg}s` : `${Math.round(gps.ultimoReporteSeg / 60)} min`}` : " · sin envíos aún"}
+                  </Text>
+                </View>
+              </View>
+              {gps && (!gps.fg || !gps.bg) && (
+                <TouchableOpacity style={[styles.row, styles.rowBorder]} onPress={arreglarGps}>
+                  <Ionicons name="settings-outline" size={20} color={T.accent} style={{ width: 28 }} />
+                  <Text style={[styles.l, { color: T.accent, flex: 1 }]}>{gps.fg ? "Permitir ubicación 'todo el tiempo'" : "Conceder permiso de ubicación"}</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </>
+        )}
 
         {/* Recordatorios del turno (expiran al finalizar el turno) */}
         <Text style={styles.seccion}>Recordatorios del turno</Text>
