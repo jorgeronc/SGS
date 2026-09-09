@@ -17,11 +17,15 @@ function cuandoEstiloListo(map: any, fn: () => void) {
   map.on("styledata", h);
 }
 
+export interface PuntoMapa { latitud: number; longitud: number; titulo: string }
+
 export default function MapaTrazaLiberty({
-  reportes, ruta, className = "mapbox",
+  reportes, ruta, paradas = [], guardia = null, className = "mapbox",
 }: {
   reportes: ReporteMapa[];
   ruta: [number, number][]; // [lat, lng] en orden temporal
+  paradas?: PuntoMapa[];    // permanencias prolongadas (LONG_STOP)
+  guardia?: PuntoMapa | null; // posición actual del guardia (sesión en curso)
   className?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -77,15 +81,37 @@ export default function MapaTrazaLiberty({
       mk.setPopup(new maplibre.Popup({ offset: 14, closeButton: false }).setHTML(`<div style="font-size:12px;color:#111">${r.titulo}</div>`));
       mk.addTo(map); marks.current.push(mk);
     });
-    // Encuadre a traza + checks.
-    const pts: [number, number][] = [...linea as [number, number][], ...reportes.filter((r) => r.latitud != null).map((r) => [Number(r.longitud), Number(r.latitud)] as [number, number])];
+    // Paradas (LONG_STOP): rombo ámbar.
+    paradas.forEach((p) => {
+      if (p.latitud == null || p.longitud == null) return;
+      const el = document.createElement("div");
+      el.style.cssText = "width:14px;height:14px;background:#d98a2b;border:2px solid #fff;transform:rotate(45deg);box-shadow:0 1px 4px #0006;cursor:pointer";
+      const mk = new maplibre.Marker({ element: el, anchor: "center" }).setLngLat([Number(p.longitud), Number(p.latitud)])
+        .setPopup(new maplibre.Popup({ offset: 12, closeButton: false }).setHTML(`<div style="font-size:12px;color:#111">${p.titulo}</div>`)).addTo(map);
+      marks.current.push(mk);
+    });
+    // Guardia en vivo (sesión en curso): punto azul con anillo, tamaño mayor.
+    if (guardia && guardia.latitud != null && guardia.longitud != null) {
+      const el = document.createElement("div");
+      el.style.cssText = "width:20px;height:20px;border-radius:50%;background:#1e88e5;border:3px solid #fff;box-shadow:0 0 0 4px #1e88e555,0 1px 4px #0006;cursor:pointer";
+      const mk = new maplibre.Marker({ element: el, anchor: "center" }).setLngLat([Number(guardia.longitud), Number(guardia.latitud)])
+        .setPopup(new maplibre.Popup({ offset: 14, closeButton: false }).setHTML(`<div style="font-size:12px;color:#111">${guardia.titulo}</div>`)).addTo(map);
+      marks.current.push(mk);
+    }
+    // Encuadre a traza + checks + paradas + guardia.
+    const pts: [number, number][] = [
+      ...linea as [number, number][],
+      ...reportes.filter((r) => r.latitud != null).map((r) => [Number(r.longitud), Number(r.latitud)] as [number, number]),
+      ...paradas.filter((p) => p.latitud != null).map((p) => [Number(p.longitud), Number(p.latitud)] as [number, number]),
+      ...(guardia && guardia.latitud != null ? [[Number(guardia.longitud), Number(guardia.latitud)] as [number, number]] : []),
+    ];
     if (pts.length) {
       const b = pts.reduce((bb: any, c) => bb.extend(c), new maplibre.LngLatBounds(pts[0], pts[0]));
       map.fitBounds(b, { padding: 46, maxZoom: 16, duration: 500 });
     }
   }
 
-  useEffect(() => { if (mapRef.current) pintar(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [reportes, ruta]);
+  useEffect(() => { if (mapRef.current) pintar(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [reportes, ruta, paradas, guardia]);
 
   return <div ref={ref} className={className} />;
 }

@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
-import MapaTrazaLiberty from "@/app/components/MapaTrazaLiberty";
+import MapaTrazaLiberty, { type PuntoMapa } from "@/app/components/MapaTrazaLiberty";
 import { type ReporteMapa } from "@/app/components/MapaReportes";
 
 // Sesiones de rondín (trazabilidad, Fase 1A). Lista histórica con filtros y, al
@@ -25,11 +25,36 @@ const EST: Record<string, { t: string; c: string }> = {
   cancelado: { t: "Cancelado", c: "#9aa4b2" },
 };
 const hhmm = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—");
+const hace = (iso?: string | null): string => {
+  if (!iso) return "—";
+  const s = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
+  return s < 60 ? `${s} s` : s < 3600 ? `${Math.round(s / 60)} min` : `${Math.round(s / 3600)} h`;
+};
+
+// Distancia Haversine (m) y detección de PARADAS (permanencia > minMin dentro de radioM).
+function distM(aLat: number, aLng: number, bLat: number, bLng: number): number {
+  const R = 6371000, toR = (d: number) => (d * Math.PI) / 180;
+  const dLat = toR(bLat - aLat), dLng = toR(bLng - aLng);
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos(toR(aLat)) * Math.cos(toR(bLat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(s));
+}
+interface Parada { lat: number; lng: number; durMin: number; desde: string }
+function detectarParadas(pts: { lat: number; lng: number; t: string }[], radioM = 25, minMin = 5): Parada[] {
+  const out: Parada[] = []; let i = 0;
+  while (i < pts.length) {
+    let j = i + 1;
+    while (j < pts.length && distM(pts[i].lat, pts[i].lng, pts[j].lat, pts[j].lng) <= radioM) j++;
+    const durMin = (new Date(pts[j - 1].t).getTime() - new Date(pts[i].t).getTime()) / 60000;
+    if (durMin >= minMin) { out.push({ lat: pts[i].lat, lng: pts[i].lng, durMin: Math.round(durMin), desde: pts[i].t }); i = j; }
+    else i++;
+  }
+  return out;
+}
 
 interface Sesion {
   id: string; folio: string | null; estado: string; iniciada_en: string; finalizada_en: string | null;
   cumplimiento_pct: number | null; checkpoints_esperados: number; checkpoints_visitados: number;
-  distancia_m: number | null; duracion_min: number | null; sitio: string; guardia: string;
+  distancia_m: number | null; duracion_min: number | null; sitio: string; guardia: string; personal_id: string | null;
 }
 
 export default function SesionesRondinPage() {
@@ -44,8 +69,11 @@ export default function SesionesRondinPage() {
   const [sesiones, setSesiones] = useState<Sesion[]>([]);
   const [sel, setSel] = useState<Sesion | null>(null);
   const [ruta, setRuta] = useState<[number, number][]>([]);
+  const [recorrido, setRecorrido] = useState<{ lat: number; lng: number; t: string }[]>([]);
   const [checks, setChecks] = useState<any[]>([]);
+  const [guardiaVivo, setGuardiaVivo] = useState<{ latitud: number; longitud: number; actualizado_en: string | null } | null>(null);
   const [cargando, setCargando] = useState(false);
+  const canalVivo = useRef<any>(null);
 
   useEffect(() => {
     supabase.from("clientes").select("id, razon_social").eq("estatus", "activo").order("razon_social")
@@ -68,7 +96,7 @@ export default function SesionesRondinPage() {
     await supabase.rpc("rpc_rondin_barrer_vencidas").then(() => undefined, () => undefined);
     const desde = `${fecha}T00:00:00`, hasta = `${fecha}T23:59:59.999`;
     let q = supabase.from("sesiones_rondin")
-      .select("id, folio, estado, iniciada_en, finalizada_en, cumplimiento_pct, checkpoints_esperados, checkpoints_visitados, distancia_m, duracion_min, sitio:sitios(nombre), guardia:personal(persona:personas(nombre, apellido_paterno, apellido_materno))")
+      .select("id, folio, estado, iniciada_en, finalizada_en, cumplimiento_pct, checkpoints_esperados, checkpoints_visitados, distancia_m, duracion_min, personal_id, sitio:sitios(nombre), guardia:personal(persona:personas(nombre, apellido_paterno, apellido_materno))")
       .eq("estatus", "activo").gte("iniciada_en", desde).lte("iniciada_en", hasta)
       .order("iniciada_en", { ascending: false });
     if (sitioId) q = q.eq("sitio_id", sitioId);
@@ -79,7 +107,7 @@ export default function SesionesRondinPage() {
     setSesiones(((data as any[]) ?? []).map((s) => ({
       id: s.id, folio: s.folio, estado: s.estado, iniciada_en: s.iniciada_en, finalizada_en: s.finalizada_en,
       cumplimiento_pct: s.cumplimiento_pct, checkpoints_esperados: s.checkpoints_esperados, checkpoints_visitados: s.checkpoints_visitados,
-      distancia_m: s.distancia_m, duracion_min: s.duracion_min, sitio: s.sitio?.nombre ?? "—", guardia: nombreGuardia(s.guardia),
+      distancia_m: s.distancia_m, duracion_min: s.duracion_min, personal_id: s.personal_id ?? null, sitio: s.sitio?.nombre ?? "—", guardia: nombreGuardia(s.guardia),
     })));
     setCargando(false);
   }, [fecha, clienteId, sitioId, guardiaId, estado, sitios]);
@@ -94,17 +122,40 @@ export default function SesionesRondinPage() {
     return () => { clearInterval(t); window.removeEventListener("focus", cargar); document.removeEventListener("visibilitychange", onFoco); };
   }, [cargar]);
 
-  // Detalle de la sesión seleccionada: traza + checks.
+  // Detalle de la sesión seleccionada: traza + checks (+ guardia en vivo si está en curso).
   const abrir = useCallback(async (s: Sesion) => {
-    setSel(s); setRuta([]); setChecks([]);
+    setSel(s); setRuta([]); setRecorrido([]); setChecks([]); setGuardiaVivo(null);
+    if (canalVivo.current) { supabase.removeChannel(canalVivo.current); canalVivo.current = null; }
     const [{ data: rec }, { data: chk }] = await Promise.all([
       supabase.from("recorrido_gps").select("latitud, longitud, fecha_hora").eq("sesion_id", s.id).order("fecha_hora", { ascending: true }),
       supabase.from("rondines").select("id, fecha_hora, latitud, longitud, novedad, dentro_geocerca, distancia_m, metodo, punto:puntos_control(nombre)")
         .eq("sesion_id", s.id).eq("estatus", "activo").order("fecha_hora", { ascending: true }),
     ]);
-    setRuta(((rec as any[]) ?? []).filter((p) => p.latitud != null && p.longitud != null).map((p) => [Number(p.latitud), Number(p.longitud)] as [number, number]));
+    const pts = ((rec as any[]) ?? []).filter((p) => p.latitud != null && p.longitud != null);
+    setRuta(pts.map((p) => [Number(p.latitud), Number(p.longitud)] as [number, number]));
+    setRecorrido(pts.map((p) => ({ lat: Number(p.latitud), lng: Number(p.longitud), t: p.fecha_hora })));
     setChecks((chk as any[]) ?? []);
+
+    // Supervisión en vivo: posición actual del guardia + Realtime (solo en curso).
+    if (s.estado === "en_progreso" && s.personal_id) {
+      const { data: u } = await supabase.from("ubicaciones_guardias")
+        .select("latitud, longitud, actualizado_en").eq("personal_id", s.personal_id).maybeSingle();
+      if (u) setGuardiaVivo(u as any);
+      canalVivo.current = supabase.channel(`sesion-vivo:${s.personal_id}`)
+        .on("postgres_changes", { event: "*", schema: "public", table: "ubicaciones_guardias", filter: `personal_id=eq.${s.personal_id}` },
+          (payload: any) => { const n = payload.new; if (n) setGuardiaVivo({ latitud: n.latitud, longitud: n.longitud, actualizado_en: n.actualizado_en }); })
+        .subscribe();
+    }
   }, []);
+
+  // Limpia el canal Realtime al desmontar.
+  useEffect(() => () => { if (canalVivo.current) { supabase.removeChannel(canalVivo.current); canalVivo.current = null; } }, []);
+
+  const paradas = useMemo<Parada[]>(() => detectarParadas(recorrido), [recorrido]);
+  const paradasMapa = useMemo<PuntoMapa[]>(() => paradas.map((p) => ({ latitud: p.lat, longitud: p.lng, titulo: `⏸ Parada ${p.durMin} min · desde ${hhmm(p.desde)}` })), [paradas]);
+  const guardiaMapa = useMemo<PuntoMapa | null>(() => (guardiaVivo && guardiaVivo.latitud != null
+    ? { latitud: Number(guardiaVivo.latitud), longitud: Number(guardiaVivo.longitud), titulo: `👷 ${sel?.guardia ?? "Guardia"} · GPS hace ${hace(guardiaVivo.actualizado_en)}` }
+    : null), [guardiaVivo, sel]);
 
   const reportes = useMemo<ReporteMapa[]>(() => checks.filter((p) => p.latitud != null && p.longitud != null).map((p, i) => ({
     id: p.id, folio: `#${i + 1}`,
@@ -190,17 +241,26 @@ export default function SesionesRondinPage() {
             <p className="dash-sub">Selecciona una sesión para ver su recorrido en el mapa.</p>
           ) : (
             <>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10, marginBottom: 12 }}>
+              {sel.estado === "en_progreso" && (
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "7px 12px", border: "1px solid #2f6bff55", background: "#2f6bff14", borderRadius: 10, color: "#2f6bff", fontWeight: 700, fontSize: 13 }}>
+                  <span style={{ width: 9, height: 9, borderRadius: "50%", background: "#2f6bff" }} /> En vivo
+                  <span style={{ fontWeight: 400, color: "var(--sc-text-soft)" }}>
+                    {guardiaVivo ? `· último GPS hace ${hace(guardiaVivo.actualizado_en)}` : "· esperando posición del guardia…"}
+                  </span>
+                </div>
+              )}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 10, marginBottom: 12 }}>
                 <Caja t="Cumplimiento" v={sel.cumplimiento_pct != null ? `${sel.cumplimiento_pct}%` : "—"} c={(EST[sel.estado] ?? EST.en_progreso).c} />
                 <Caja t="Checkpoints" v={`${sel.checkpoints_visitados}/${sel.checkpoints_esperados}`} />
                 <Caja t="Distancia" v={km(sel.distancia_m)} />
                 <Caja t="Duración" v={sel.duracion_min != null ? `${sel.duracion_min} min` : "—"} />
+                <Caja t="Paradas >5min" v={`${paradas.length}`} c={paradas.length ? "#d98a2b" : undefined} />
               </div>
               <div className="mapcard">
-                <MapaTrazaLiberty reportes={reportes} ruta={ruta} className="mapbox-dash" />
+                <MapaTrazaLiberty reportes={reportes} ruta={ruta} paradas={paradasMapa} guardia={guardiaMapa} className="mapbox-dash" />
               </div>
               <div style={{ fontSize: 12, color: "var(--sc-text-soft)", margin: "8px 0" }}>
-                <b>{ruta.length}</b> puntos GPS · <b>{checks.length}</b> checks · inicio {new Date(sel.iniciada_en).toLocaleString()}{sel.finalizada_en ? ` · fin ${new Date(sel.finalizada_en).toLocaleString()}` : " · en curso"}
+                <b>{ruta.length}</b> puntos GPS · <b>{checks.length}</b> checks · <b>{paradas.length}</b> parada(s) · inicio {new Date(sel.iniciada_en).toLocaleString()}{sel.finalizada_en ? ` · fin ${new Date(sel.finalizada_en).toLocaleString()}` : " · en curso"}
               </div>
               {checks.length > 0 && (
                 <ol className="cad-timeline" style={{ padding: "6px 4px" }}>
