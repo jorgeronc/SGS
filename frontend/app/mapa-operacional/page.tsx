@@ -11,7 +11,6 @@ import CameraDetailDrawer from "@/app/components/CameraDetailDrawer";
 import ChatIncidente from "@/app/components/ChatIncidente";
 import VisorTransmision from "@/app/components/VisorTransmision";
 import { useGuardiasEnLinea } from "@/lib/guardiasVivo";
-import { computeReporteSla } from "@/lib/sla";
 import { getEstadoMapa, setVistaMapa, setVentanasMapa, limpiarAlCerrarSesion } from "@/lib/mapaOperacionalEstado";
 
 const CENTER: [number, number] = [-100.309, 25.6714];
@@ -92,8 +91,6 @@ export default function MapaOperacionalPage() {
   const [camaras, setCamaras] = useState<any[]>([]);
   const [sitios, setSitios] = useState<any[]>([]);
   const [puntos, setPuntos] = useState<any[]>([]);
-  const [dentro, setDentro] = useState({ personas: 0, vehiculos: 0, rechazos: 0 });
-  const [indice, setIndice] = useState<number | null>(null);
   const [ultima, setUltima] = useState<Date | null>(null); // null hasta montar (evita mismatch de hidratación)
   // Ventanas abiertas: se restauran del estado que sobrevive la navegación.
   const est0 = getEstadoMapa();
@@ -206,7 +203,6 @@ export default function MapaOperacionalPage() {
   }, [mapListo, txId, incidentes]);
 
   const cargar = useCallback(async () => {
-    const hoy = new Date(); hoy.setHours(0, 0, 0, 0); const desdeHoy = hoy.toISOString();
     const f = filtro.current;
     // Incidentes: por defecto los abiertos; con ?incidente=<id> solo ese (aunque
     // esté cerrado); con filtros de la lista de CAD, esos.
@@ -234,15 +230,6 @@ export default function MapaOperacionalPage() {
     setCamaras((cam as any[]) ?? []);
     setSitios((sit as any[]) ?? []);
     setPuntos((pts as any[]) ?? []);
-    const [{ count: pd }, { count: vd }, { count: ar }] = await Promise.all([
-      supabase.from("v_personas_dentro").select("*", { count: "exact", head: true }),
-      supabase.from("v_vehiculos_dentro").select("*", { count: "exact", head: true }),
-      supabase.from("accesos").select("*", { count: "exact", head: true }).eq("estatus", "activo").eq("resultado", "rechazado").gte("fecha_evento", desdeHoy),
-    ]);
-    setDentro({ personas: pd ?? 0, vehiculos: vd ?? 0, rechazos: ar ?? 0 });
-    // Índice de cumplimiento: también en cada recarga (antes solo al montar).
-    const mes = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
-    computeReporteSla(null, mes, new Date().toISOString()).then((r) => setIndice(r.index)).catch(() => {});
     setUltima(new Date());
   }, []);
 
@@ -365,16 +352,8 @@ export default function MapaOperacionalPage() {
       <MapaBase center={CENTER} zoom={12.5} className="mo-map" onReady={onReady} />
       <style>{`.mo-map{position:absolute;inset:0}.mo-hoverlabel{display:none}.mo-pin:hover .mo-hoverlabel{display:block}`}</style>
 
-      {/* Barra de Capas (horizontal). Los conteos ya viven en la barra inferior. */}
-      <div style={{ position: "absolute", top: 14, left: "50%", transform: "translateX(-50%)", display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap", maxWidth: "calc(100vw - 28px)", padding: "5px 10px", zIndex: 5, ...cssObj(panel) }}>
-        <span style={{ fontSize: 11, letterSpacing: ".08em", color: "var(--sc-text-faint)", textTransform: "uppercase", marginRight: 2 }}>Capas</span>
-        {([["guardias", COL.guardia, "Guardias"], ["incidentes", COL.incidente, "Incidentes"], ["camaras", COL.camara, "Cámaras"], ["sitios", COL.sitio, "Sitios"], ["puntos", COL.punto, "Puntos de control"], ["geofences", COL.geof, "Geocercas"]] as const).map(([k, c, l]) => (
-          <label key={k} style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, padding: "4px 8px", cursor: "pointer" }}>
-            <input type="checkbox" checked={capas[k]} onChange={() => toggle(k)} />
-            <span style={{ width: 8, height: 8, borderRadius: "50%", background: c }} /> {l}
-          </label>
-        ))}
-        <span style={{ width: 1, alignSelf: "stretch", background: "var(--sc-card-line)", margin: "0 4px" }} />
+      {/* Barra superior: selección del mapa e "Ir a sitio" */}
+      <div style={{ position: "absolute", top: 14, left: "50%", transform: "translateX(-50%)", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", maxWidth: "calc(100vw - 28px)", padding: "6px 12px", zIndex: 5, ...cssObj(panel) }}>
         <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5 }}>
           <span style={{ color: "var(--sc-text-faint)" }}>🗺 Mapa</span>
           <select value={estiloId} onChange={(e) => cambiarEstilo(e.target.value as EstiloMapaId)} style={{ background: "var(--sc-content)", color: "var(--sc-text)", border: "1px solid var(--sc-card-line)", borderRadius: 6, padding: "3px 6px", fontSize: 12.5, cursor: "pointer" }}>
@@ -383,14 +362,11 @@ export default function MapaOperacionalPage() {
         </label>
         <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5 }}>
           <span style={{ color: COL.sitio }}>🛡 Sitio</span>
-          <select value={sitioFoco} onChange={(e) => { const id = e.target.value; setSitioFoco(id); const s = sitios.find((x) => x.id === id); if (s) irASitio(s); }} style={{ background: "var(--sc-content)", color: "var(--sc-text)", border: "1px solid var(--sc-card-line)", borderRadius: 6, padding: "3px 6px", fontSize: 12.5, cursor: "pointer", maxWidth: 180 }}>
+          <select value={sitioFoco} onChange={(e) => { const id = e.target.value; setSitioFoco(id); const s = sitios.find((x) => x.id === id); if (s) irASitio(s); }} style={{ background: "var(--sc-content)", color: "var(--sc-text)", border: "1px solid var(--sc-card-line)", borderRadius: 6, padding: "3px 6px", fontSize: 12.5, cursor: "pointer", maxWidth: 200 }}>
             <option value="">— Ir a sitio —</option>
             {[...sitios].sort((a, b) => (a.nombre ?? "").localeCompare(b.nombre ?? "", "es")).map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
           </select>
         </label>
-        <span style={{ width: 1, alignSelf: "stretch", background: "var(--sc-card-line)", margin: "0 4px" }} />
-        <span style={{ fontSize: 10, color: "var(--sc-text-faint)", whiteSpace: "nowrap" }}>Actualizado {ultima ? ultima.toLocaleTimeString() : "—"}</span>
-        <button onClick={() => cargar()} title="Actualizar ahora" style={{ background: "transparent", border: "1px solid var(--sc-card-line)", color: "var(--sc-text-soft)", borderRadius: 6, padding: "2px 8px", fontSize: 11, cursor: "pointer" }}>⟳</button>
       </div>
 
       {/* Ventana de incidente: lado derecho */}
@@ -443,19 +419,18 @@ export default function MapaOperacionalPage() {
         </div>
       )}
 
-      {/* Barra inferior de KPIs */}
-      <div style={{ position: "absolute", left: 14, right: 14, bottom: 14, display: "flex", alignItems: "center", gap: 18, padding: "10px 16px", zIndex: 5, ...cssObj(panel) }}>
-        <Link href="/reporte-sla" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: "var(--sc-text)" }}>
-          <span style={{ fontSize: 30, fontWeight: 900, color: indice == null ? "var(--sc-text-faint)" : indice >= 90 ? COL.guardia : indice >= 75 ? "#d98a2b" : COL.incidente }}>{indice ?? "—"}</span>
-          <span style={{ fontSize: 12, color: "var(--sc-text-soft)" }}>Índice de<br />cumplimiento</span>
-        </Link>
-        <div style={{ flex: 1 }} />
-        {[["Guardias en línea", guardias.length], ["Incidentes abiertos", incidentes.length], ["Personas dentro", dentro.personas], ["Vehículos dentro", dentro.vehiculos], ["Accesos rechazados (hoy)", dentro.rechazos]].map(([l, n], i) => (
-          <div key={i} style={{ textAlign: "center", padding: "0 10px" }}>
-            <div style={{ fontWeight: 800, fontSize: 20, fontVariantNumeric: "tabular-nums" }}>{n as number}</div>
-            <div style={{ fontSize: 10.5, color: "var(--sc-text-soft)" }}>{l as string}</div>
-          </div>
+      {/* Barra inferior: capas del mapa */}
+      <div style={{ position: "absolute", left: "50%", bottom: 14, transform: "translateX(-50%)", display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap", justifyContent: "center", maxWidth: "calc(100vw - 28px)", padding: "5px 10px", zIndex: 5, ...cssObj(panel) }}>
+        <span style={{ fontSize: 11, letterSpacing: ".08em", color: "var(--sc-text-faint)", textTransform: "uppercase", marginRight: 2 }}>Capas</span>
+        {([["guardias", COL.guardia, "Guardias"], ["incidentes", COL.incidente, "Incidentes"], ["camaras", COL.camara, "Cámaras"], ["sitios", COL.sitio, "Sitios"], ["puntos", COL.punto, "Puntos de control"], ["geofences", COL.geof, "Geocercas"]] as const).map(([k, c, l]) => (
+          <label key={k} style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, padding: "4px 8px", cursor: "pointer" }}>
+            <input type="checkbox" checked={capas[k]} onChange={() => toggle(k)} />
+            <span style={{ width: 8, height: 8, borderRadius: "50%", background: c }} /> {l}
+          </label>
         ))}
+        <span style={{ width: 1, alignSelf: "stretch", background: "var(--sc-card-line)", margin: "0 4px" }} />
+        <span style={{ fontSize: 10, color: "var(--sc-text-faint)", whiteSpace: "nowrap" }}>Actualizado {ultima ? ultima.toLocaleTimeString() : "—"}</span>
+        <button onClick={() => cargar()} title="Actualizar ahora" style={{ background: "transparent", border: "1px solid var(--sc-card-line)", color: "var(--sc-text-soft)", borderRadius: 6, padding: "2px 8px", fontSize: 11, cursor: "pointer" }}>⟳</button>
       </div>
     </div>
   );
