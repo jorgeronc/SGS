@@ -123,6 +123,8 @@ export default function SesionesRondinPage() {
   const [recorrido, setRecorrido] = useState<{ lat: number; lng: number; t: string }[]>([]);
   const [rutaEsperada, setRutaEsperada] = useState<[number, number][]>([]);
   const [checks, setChecks] = useState<any[]>([]);
+  const [incSes, setIncSes] = useState<any[]>([]);
+  const [evSes, setEvSes] = useState<any[]>([]);
   const [guardiaVivo, setGuardiaVivo] = useState<{ latitud: number; longitud: number; actualizado_en: string | null } | null>(null);
   const [cargando, setCargando] = useState(false);
   const canalVivo = useRef<any>(null);
@@ -176,8 +178,13 @@ export default function SesionesRondinPage() {
 
   // Detalle de la sesión seleccionada: traza + checks (+ guardia en vivo si está en curso).
   const abrir = useCallback(async (s: Sesion) => {
-    setSel(s); setRuta([]); setRecorrido([]); setChecks([]); setGuardiaVivo(null); setRutaEsperada([]);
+    setSel(s); setRuta([]); setRecorrido([]); setChecks([]); setGuardiaVivo(null); setRutaEsperada([]); setIncSes([]); setEvSes([]);
     if (canalVivo.current) { supabase.removeChannel(canalVivo.current); canalVivo.current = null; }
+    // Incidentes y evidencias ligados a la sesión (creados durante el rondín).
+    supabase.from("llamadas_cad").select("id, folio, tipo, prioridad, direccion, latitud, longitud").eq("sesion_id", s.id)
+      .then(({ data }) => setIncSes((data as any[]) ?? []));
+    supabase.from("evidencias").select("id, folio, tipo, descripcion").eq("sesion_id", s.id).order("creado_en", { ascending: true })
+      .then(({ data }) => setEvSes((data as any[]) ?? []));
     // Ruta esperada = puntos de control activos del sitio, en su orden.
     if (s.sitio_id) {
       supabase.from("puntos_control").select("latitud, longitud, orden, creado_en")
@@ -217,12 +224,20 @@ export default function SesionesRondinPage() {
     : null), [guardiaVivo, sel]);
   const mr = useMemo(() => metricasRuta(recorrido, rutaEsperada, sel?.corredor_m ?? 30), [recorrido, rutaEsperada, sel]);
 
-  const reportes = useMemo<ReporteMapa[]>(() => checks.filter((p) => p.latitud != null && p.longitud != null).map((p, i) => ({
-    id: p.id, folio: `#${i + 1}`,
-    titulo: `${p.punto?.nombre ?? "Punto"} · ${new Date(p.fecha_hora).toLocaleString()}${conNovedad(p.novedad) ? `<br>⚠ ${p.novedad}` : ""}${p.dentro_geocerca === false ? `<br>⚠ Fuera de rango (${p.distancia_m ?? "?"} m)` : ""}`,
-    latitud: Number(p.latitud), longitud: Number(p.longitud), href: `/rondines/${p.id}`,
-    color: (conNovedad(p.novedad) || p.dentro_geocerca === false) ? "#d32f2f" : "#1f9d5c",
-  })), [checks]);
+  const reportes = useMemo<ReporteMapa[]>(() => [
+    ...checks.filter((p) => p.latitud != null && p.longitud != null).map((p, i) => ({
+      id: p.id, folio: `#${i + 1}`,
+      titulo: `${p.punto?.nombre ?? "Punto"} · ${new Date(p.fecha_hora).toLocaleString()}${conNovedad(p.novedad) ? `<br>⚠ ${p.novedad}` : ""}${p.dentro_geocerca === false ? `<br>⚠ Fuera de rango (${p.distancia_m ?? "?"} m)` : ""}`,
+      latitud: Number(p.latitud), longitud: Number(p.longitud), href: `/rondines/${p.id}`,
+      color: (conNovedad(p.novedad) || p.dentro_geocerca === false) ? "#d32f2f" : "#1f9d5c",
+    })),
+    ...incSes.filter((it) => it.latitud != null && it.longitud != null).map((it) => ({
+      id: `inc-${it.id}`, folio: it.folio ?? null,
+      titulo: `🚨 ${it.tipo ?? "Incidente"}${it.direccion ? `<br>${it.direccion}` : ""}`,
+      latitud: Number(it.latitud), longitud: Number(it.longitud), href: `/cad/${it.id}`,
+      color: "#e23b53",
+    })),
+  ], [checks, incSes]);
 
   const km = (m: number | null) => (m == null ? "—" : m >= 1000 ? `${(m / 1000).toFixed(2)} km` : `${Math.round(m)} m`);
 
@@ -348,6 +363,31 @@ export default function SesionesRondinPage() {
                     </li>
                   ))}
                 </ol>
+              )}
+
+              {(incSes.length > 0 || evSes.length > 0) && (
+                <div style={{ marginTop: 10 }}>
+                  {incSes.length > 0 && (
+                    <>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "#e23b53", margin: "4px 0" }}>🚨 Incidentes de la sesión ({incSes.length})</div>
+                      {incSes.map((it) => (
+                        <div key={it.id} style={{ fontSize: 12.5, padding: "3px 0" }}>
+                          <Link href={`/cad/${it.id}`}>{it.folio ?? "s/folio"}</Link> · {it.tipo ?? "Incidente"}{it.prioridad ? ` · prioridad ${it.prioridad}` : ""}{it.direccion ? ` · ${it.direccion}` : ""}
+                        </div>
+                      ))}
+                    </>
+                  )}
+                  {evSes.length > 0 && (
+                    <>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "#0e8f86", margin: "8px 0 4px" }}>📷 Evidencias de la sesión ({evSes.length})</div>
+                      {evSes.map((ev) => (
+                        <div key={ev.id} style={{ fontSize: 12.5, padding: "3px 0" }}>
+                          <Link href="/evidencias">{ev.folio ?? "s/folio"}</Link> · {ev.tipo ?? "Evidencia"}{ev.descripcion ? ` · ${ev.descripcion}` : ""}
+                        </div>
+                      ))}
+                    </>
+                  )}
+                </div>
               )}
             </>
           )}
