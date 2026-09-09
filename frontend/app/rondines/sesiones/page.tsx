@@ -51,10 +51,61 @@ function detectarParadas(pts: { lat: number; lng: number; t: string }[], radioM 
   return out;
 }
 
+// --- Ruta esperada vs real (opción A: ruta = puntos de control en orden) ---
+// Distancia (m) de un punto a la polilínea de la ruta, con proyección local plana.
+function distARutaM(pLat: number, pLng: number, ruta: [number, number][], lat0: number): number {
+  if (ruta.length === 0) return Infinity;
+  if (ruta.length === 1) return distM(pLat, pLng, ruta[0][0], ruta[0][1]);
+  const kx = Math.cos((lat0 * Math.PI) / 180) * 111320, ky = 111320;
+  const px = pLng * kx, py = pLat * ky;
+  let min = Infinity;
+  for (let i = 1; i < ruta.length; i++) {
+    const ax = ruta[i - 1][1] * kx, ay = ruta[i - 1][0] * ky, bx = ruta[i][1] * kx, by = ruta[i][0] * ky;
+    const dx = bx - ax, dy = by - ay, len2 = dx * dx + dy * dy;
+    let t = len2 ? ((px - ax) * dx + (py - ay) * dy) / len2 : 0; t = Math.max(0, Math.min(1, t));
+    const d = Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+    if (d < min) min = d;
+  }
+  return min;
+}
+function muestrearRuta(ruta: [number, number][], pasoM: number): [number, number][] {
+  const out: [number, number][] = [];
+  for (let i = 1; i < ruta.length; i++) {
+    const a = ruta[i - 1], b = ruta[i], seg = distM(a[0], a[1], b[0], b[1]);
+    const n = Math.max(1, Math.round(seg / pasoM));
+    for (let j = 0; j < n; j++) { const t = j / n; out.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]); }
+  }
+  if (ruta.length) out.push(ruta[ruta.length - 1]);
+  return out;
+}
+interface MetricasRuta { cobertura: number; desvMax: number; desvProm: number; distFueraM: number; tFueraMin: number }
+function metricasRuta(recorrido: { lat: number; lng: number; t: string }[], ruta: [number, number][], corredorM: number): MetricasRuta | null {
+  if (ruta.length < 2 || recorrido.length === 0) return null;
+  const lat0 = ruta[0][0];
+  let sum = 0, max = 0, distFuera = 0, tFuera = 0;
+  recorrido.forEach((g, i) => {
+    const d = distARutaM(g.lat, g.lng, ruta, lat0);
+    sum += d; if (d > max) max = d;
+    if (d > corredorM && i > 0) {
+      tFuera += (new Date(g.t).getTime() - new Date(recorrido[i - 1].t).getTime()) / 60000;
+      distFuera += distM(recorrido[i - 1].lat, recorrido[i - 1].lng, g.lat, g.lng);
+    }
+  });
+  const muestras = muestrearRuta(ruta, Math.max(15, corredorM));
+  let cub = 0;
+  muestras.forEach((m) => { if (recorrido.some((g) => distM(g.lat, g.lng, m[0], m[1]) <= corredorM)) cub++; });
+  return {
+    cobertura: muestras.length ? Math.round((cub / muestras.length) * 100) : 0,
+    desvMax: Math.round(max), desvProm: Math.round(sum / recorrido.length),
+    distFueraM: Math.round(distFuera), tFueraMin: Math.round(tFuera),
+  };
+}
+
 interface Sesion {
   id: string; folio: string | null; estado: string; iniciada_en: string; finalizada_en: string | null;
   cumplimiento_pct: number | null; checkpoints_esperados: number; checkpoints_visitados: number;
-  distancia_m: number | null; duracion_min: number | null; sitio: string; guardia: string; personal_id: string | null;
+  distancia_m: number | null; duracion_min: number | null; sitio: string; guardia: string;
+  personal_id: string | null; sitio_id: string | null; corredor_m: number;
 }
 
 export default function SesionesRondinPage() {
@@ -70,6 +121,7 @@ export default function SesionesRondinPage() {
   const [sel, setSel] = useState<Sesion | null>(null);
   const [ruta, setRuta] = useState<[number, number][]>([]);
   const [recorrido, setRecorrido] = useState<{ lat: number; lng: number; t: string }[]>([]);
+  const [rutaEsperada, setRutaEsperada] = useState<[number, number][]>([]);
   const [checks, setChecks] = useState<any[]>([]);
   const [guardiaVivo, setGuardiaVivo] = useState<{ latitud: number; longitud: number; actualizado_en: string | null } | null>(null);
   const [cargando, setCargando] = useState(false);
@@ -96,7 +148,7 @@ export default function SesionesRondinPage() {
     await supabase.rpc("rpc_rondin_barrer_vencidas").then(() => undefined, () => undefined);
     const desde = `${fecha}T00:00:00`, hasta = `${fecha}T23:59:59.999`;
     let q = supabase.from("sesiones_rondin")
-      .select("id, folio, estado, iniciada_en, finalizada_en, cumplimiento_pct, checkpoints_esperados, checkpoints_visitados, distancia_m, duracion_min, personal_id, sitio:sitios(nombre), guardia:personal(persona:personas(nombre, apellido_paterno, apellido_materno))")
+      .select("id, folio, estado, iniciada_en, finalizada_en, cumplimiento_pct, checkpoints_esperados, checkpoints_visitados, distancia_m, duracion_min, personal_id, sitio_id, sitio:sitios(nombre, rondin_corredor_m), guardia:personal(persona:personas(nombre, apellido_paterno, apellido_materno))")
       .eq("estatus", "activo").gte("iniciada_en", desde).lte("iniciada_en", hasta)
       .order("iniciada_en", { ascending: false });
     if (sitioId) q = q.eq("sitio_id", sitioId);
@@ -107,7 +159,7 @@ export default function SesionesRondinPage() {
     setSesiones(((data as any[]) ?? []).map((s) => ({
       id: s.id, folio: s.folio, estado: s.estado, iniciada_en: s.iniciada_en, finalizada_en: s.finalizada_en,
       cumplimiento_pct: s.cumplimiento_pct, checkpoints_esperados: s.checkpoints_esperados, checkpoints_visitados: s.checkpoints_visitados,
-      distancia_m: s.distancia_m, duracion_min: s.duracion_min, personal_id: s.personal_id ?? null, sitio: s.sitio?.nombre ?? "—", guardia: nombreGuardia(s.guardia),
+      distancia_m: s.distancia_m, duracion_min: s.duracion_min, personal_id: s.personal_id ?? null, sitio_id: s.sitio_id ?? null, corredor_m: s.sitio?.rondin_corredor_m ?? 30, sitio: s.sitio?.nombre ?? "—", guardia: nombreGuardia(s.guardia),
     })));
     setCargando(false);
   }, [fecha, clienteId, sitioId, guardiaId, estado, sitios]);
@@ -124,8 +176,15 @@ export default function SesionesRondinPage() {
 
   // Detalle de la sesión seleccionada: traza + checks (+ guardia en vivo si está en curso).
   const abrir = useCallback(async (s: Sesion) => {
-    setSel(s); setRuta([]); setRecorrido([]); setChecks([]); setGuardiaVivo(null);
+    setSel(s); setRuta([]); setRecorrido([]); setChecks([]); setGuardiaVivo(null); setRutaEsperada([]);
     if (canalVivo.current) { supabase.removeChannel(canalVivo.current); canalVivo.current = null; }
+    // Ruta esperada = puntos de control activos del sitio, en su orden.
+    if (s.sitio_id) {
+      supabase.from("puntos_control").select("latitud, longitud, orden, creado_en")
+        .eq("sitio_id", s.sitio_id).eq("estatus", "activo").not("latitud", "is", null)
+        .order("orden", { ascending: true, nullsFirst: false }).order("creado_en", { ascending: true })
+        .then(({ data }) => setRutaEsperada(((data as any[]) ?? []).map((p) => [Number(p.latitud), Number(p.longitud)] as [number, number])));
+    }
     const [{ data: rec }, { data: chk }] = await Promise.all([
       supabase.from("recorrido_gps").select("latitud, longitud, fecha_hora").eq("sesion_id", s.id).order("fecha_hora", { ascending: true }),
       supabase.from("rondines").select("id, fecha_hora, latitud, longitud, novedad, dentro_geocerca, distancia_m, metodo, punto:puntos_control(nombre)")
@@ -156,6 +215,7 @@ export default function SesionesRondinPage() {
   const guardiaMapa = useMemo<PuntoMapa | null>(() => (guardiaVivo && guardiaVivo.latitud != null
     ? { latitud: Number(guardiaVivo.latitud), longitud: Number(guardiaVivo.longitud), titulo: `👷 ${sel?.guardia ?? "Guardia"} · GPS hace ${hace(guardiaVivo.actualizado_en)}` }
     : null), [guardiaVivo, sel]);
+  const mr = useMemo(() => metricasRuta(recorrido, rutaEsperada, sel?.corredor_m ?? 30), [recorrido, rutaEsperada, sel]);
 
   const reportes = useMemo<ReporteMapa[]>(() => checks.filter((p) => p.latitud != null && p.longitud != null).map((p, i) => ({
     id: p.id, folio: `#${i + 1}`,
@@ -255,10 +315,18 @@ export default function SesionesRondinPage() {
                 <Caja t="Distancia" v={km(sel.distancia_m)} />
                 <Caja t="Duración" v={sel.duracion_min != null ? `${sel.duracion_min} min` : "—"} />
                 <Caja t="Paradas >5min" v={`${paradas.length}`} c={paradas.length ? "#d98a2b" : undefined} />
+                <Caja t="Cobertura ruta" v={mr ? `${mr.cobertura}%` : "—"} c={mr ? (mr.cobertura >= 90 ? "#1f9d5c" : mr.cobertura >= 70 ? "#d98a2b" : "#d32f2f") : undefined} />
+                <Caja t="Desv. máx" v={mr ? `${mr.desvMax} m` : "—"} c={mr && mr.desvMax > (sel.corredor_m ?? 30) ? "#d98a2b" : undefined} />
+                <Caja t="Fuera de ruta" v={mr ? `${mr.tFueraMin} min · ${km(mr.distFueraM)}` : "—"} c={mr && mr.tFueraMin > 0 ? "#d98a2b" : undefined} />
               </div>
               <div className="mapcard">
-                <MapaTrazaLiberty reportes={reportes} ruta={ruta} paradas={paradasMapa} guardia={guardiaMapa} className="mapbox-dash" />
+                <MapaTrazaLiberty reportes={reportes} ruta={ruta} rutaEsperada={rutaEsperada} paradas={paradasMapa} guardia={guardiaMapa} className="mapbox-dash" />
               </div>
+              {rutaEsperada.length >= 2 && (
+                <div style={{ fontSize: 11.5, color: "var(--sc-text-soft)", marginTop: 4 }}>
+                  <span style={{ color: "#7c5cff" }}>— — ruta esperada</span> (puntos de control, corredor ±{sel.corredor_m ?? 30} m) · <span style={{ color: "#2563eb" }}>—— recorrido real</span>
+                </div>
+              )}
               <div style={{ fontSize: 12, color: "var(--sc-text-soft)", margin: "8px 0" }}>
                 <b>{ruta.length}</b> puntos GPS · <b>{checks.length}</b> checks · <b>{paradas.length}</b> parada(s) · inicio {new Date(sel.iniciada_en).toLocaleString()}{sel.finalizada_en ? ` · fin ${new Date(sel.finalizada_en).toLocaleString()}` : " · en curso"}
               </div>

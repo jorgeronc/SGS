@@ -20,10 +20,11 @@ function cuandoEstiloListo(map: any, fn: () => void) {
 export interface PuntoMapa { latitud: number; longitud: number; titulo: string }
 
 export default function MapaTrazaLiberty({
-  reportes, ruta, paradas = [], guardia = null, className = "mapbox",
+  reportes, ruta, rutaEsperada = [], paradas = [], guardia = null, className = "mapbox",
 }: {
   reportes: ReporteMapa[];
-  ruta: [number, number][]; // [lat, lng] en orden temporal
+  ruta: [number, number][];          // recorrido real [lat, lng] en orden temporal
+  rutaEsperada?: [number, number][]; // ruta programada (puntos de control) [lat, lng]
   paradas?: PuntoMapa[];    // permanencias prolongadas (LONG_STOP)
   guardia?: PuntoMapa | null; // posición actual del guardia (sesión en curso)
   className?: string;
@@ -65,7 +66,14 @@ export default function MapaTrazaLiberty({
     // Traza (línea) — capa de estilo: espera a que el estilo esté cargado.
     const linea = ruta.map(([la, lo]) => [lo, la]);
     const fc = { type: "FeatureCollection", features: linea.length >= 2 ? [{ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: linea } }] : [] };
+    // Ruta esperada (programada) — línea punteada violeta debajo de la traza real.
+    const lineaEsp = rutaEsperada.map(([la, lo]) => [lo, la]);
+    const fcEsp = { type: "FeatureCollection", features: lineaEsp.length >= 2 ? [{ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: lineaEsp } }] : [] };
     cuandoEstiloListo(map, () => {
+      if (!map.getSource("ruta-esp")) {
+        map.addSource("ruta-esp", { type: "geojson", data: fcEsp as any });
+        map.addLayer({ id: "ruta-esp-l", type: "line", source: "ruta-esp", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#7c5cff", "line-width": 3, "line-opacity": 0.9, "line-dasharray": [2, 2] } });
+      } else { map.getSource("ruta-esp").setData(fcEsp as any); }
       if (!map.getSource("traza")) {
         map.addSource("traza", { type: "geojson", data: fc as any });
         map.addLayer({ id: "traza-l", type: "line", source: "traza", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": TRAZA, "line-width": 4, "line-opacity": 0.85 } });
@@ -101,6 +109,7 @@ export default function MapaTrazaLiberty({
     // Encuadre a traza + checks + paradas + guardia.
     const pts: [number, number][] = [
       ...linea as [number, number][],
+      ...lineaEsp as [number, number][],
       ...reportes.filter((r) => r.latitud != null).map((r) => [Number(r.longitud), Number(r.latitud)] as [number, number]),
       ...paradas.filter((p) => p.latitud != null).map((p) => [Number(p.longitud), Number(p.latitud)] as [number, number]),
       ...(guardia && guardia.latitud != null ? [[Number(guardia.longitud), Number(guardia.latitud)] as [number, number]] : []),
@@ -111,7 +120,7 @@ export default function MapaTrazaLiberty({
     }
   }
 
-  useEffect(() => { if (mapRef.current) pintar(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [reportes, ruta, paradas, guardia]);
+  useEffect(() => { if (mapRef.current) pintar(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [reportes, ruta, rutaEsperada, paradas, guardia]);
 
   return <div ref={ref} className={className} />;
 }
