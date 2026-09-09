@@ -33,7 +33,7 @@ export default function MapaTrazaLiberty({
     let cancelado = false;
     (async () => {
       try {
-        const mod = await import("maplibre-gl");
+        const mod = await import("maplibre-gl" as any);
         const maplibre: any = (mod as any).default ?? mod;
         if (cancelado || !ref.current || mapRef.current) return;
         mlRef.current = maplibre;

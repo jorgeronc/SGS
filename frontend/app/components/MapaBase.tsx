@@ -2,8 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { estiloMapa, aplicarEstilo, registrarPmtiles } from "@/lib/mapStyle";
-import { temaMapa } from "@/lib/geo";
+import { estiloMapaPorId, registrarPmtiles } from "@/lib/mapStyle";
 
 // Base de mapa MapLibre (migración de Leaflet → MapLibre). Reutilizable: el
 // consumidor recibe el `map` en `onReady` para agregar sus capas/markers.
@@ -29,13 +28,13 @@ export default function MapaBase({ center = [-100.309, 25.6714], zoom = 12, clas
       try {
         // Usar el DEFAULT export (el objeto maplibregl) — el namespace no expone
         // Map/addProtocol de forma fiable bajo el bundler.
-        const mod = await import("maplibre-gl");
+        const mod = await import("maplibre-gl" as any);
         const maplibre: any = (mod as any).default ?? mod;
         await registrarPmtiles(maplibre);
         if (cancelado || !ref.current || mapRef.current) return;
         const map = new maplibre.Map({
           container: ref.current,
-          style: estiloMapa(temaMapa() === "dark"),
+          style: estiloMapaPorId("liberty", false), // Calles (Liberty) siempre
           center, zoom,
           attributionControl: { compact: true },
         });
@@ -51,11 +50,8 @@ export default function MapaBase({ center = [-100.309, 25.6714], zoom = 12, clas
       }
     })();
 
-    const onTema = () => { if (mapRef.current) aplicarEstilo(mapRef.current, temaMapa() === "dark"); };
-    window.addEventListener("sgs-theme", onTema);
     return () => {
       cancelado = true;
-      window.removeEventListener("sgs-theme", onTema);
       if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

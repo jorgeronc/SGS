@@ -82,7 +82,7 @@ export default function SitiosPage() {
       subtitulo="Puestos de servicio (por cliente); ahí se asignan guardias y turnos"
       tabla="sitios"
       modulo="sitios"
-      select="id, folio, cliente_id, nombre, tipo, direccion, referencia, latitud, longitud, num_guardias, horario, estatus, creado_en, cliente:clientes(razon_social)"
+      select="id, folio, cliente_id, nombre, tipo, direccion, referencia, latitud, longitud, radio_geofence_m, num_guardias, horario, estatus, creado_en, cliente:clientes(razon_social)"
       placeholderBuscar="Buscar sitio, cliente, dirección…"
       columnas={[
         { header: "Folio", celda: (r) => r.folio ?? "—" },
@@ -103,8 +103,14 @@ export default function SitiosPage() {
             <dt>Cliente</dt><dd>{r.cliente?.razon_social ?? "—"}</dd>
             <dt>Tipo</dt><dd>{r.tipo ?? "—"}</dd>
             <dt>Dirección</dt><dd>{r.direccion ?? "—"}</dd>
+            <dt>Referencia</dt><dd>{r.referencia ?? "—"}</dd>
+            <dt>Latitud</dt><dd>{r.latitud ?? "—"}</dd>
+            <dt>Longitud</dt><dd>{r.longitud ?? "—"}</dd>
+            <dt>Radio geocerca</dt><dd>{r.radio_geofence_m != null ? `${r.radio_geofence_m} m` : "—"}</dd>
             <dt>Guardias requeridos</dt><dd>{r.num_guardias ?? "—"}</dd>
             <dt>Horario</dt><dd>{r.horario ?? "—"}</dd>
+            <dt>Estatus</dt><dd>{r.estatus ?? "—"}</dd>
+            <dt>Registrado</dt><dd>{r.creado_en ? new Date(r.creado_en).toLocaleString() : "—"}</dd>
           </dl>
           <p style={{ marginTop: 10 }}><Link href={`/clientes/${r.cliente_id}`} className="qbtn2">▤ Ver cliente →</Link></p>
         </>

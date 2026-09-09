@@ -102,7 +102,7 @@ export default function VideovigilanciaConsolaPage() {
 
   async function onMapReady(map: any) {
     mapRef.current = map;
-    if (!mlRef.current) { const m = await import("maplibre-gl"); mlRef.current = (m as any).default ?? m; }
+    if (!mlRef.current) { const m = await import("maplibre-gl" as any); mlRef.current = (m as any).default ?? m; }
     pintarMapa();
     if (slotL?.latitud != null) map.flyTo({ center: [Number(slotL.longitud), Number(slotL.latitud)], zoom: Math.max(map.getZoom(), 13), duration: 500 });
   }

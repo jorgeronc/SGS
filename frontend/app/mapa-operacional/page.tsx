@@ -108,7 +108,7 @@ export default function MapaOperacionalPage() {
     if (data) setSelChat({ canalId: data as string, folio: inc.folio ?? "incidente" });
   }
   const [capas, setCapas] = useState({ guardias: true, incidentes: true, camaras: true, sitios: true, puntos: true, geofences: true });
-  const [estiloId, setEstiloId] = useState<EstiloMapaId>("auto");
+  const [estiloId, setEstiloId] = useState<EstiloMapaId>("liberty");
 
   const mlRef = useRef<any>(null);
   const mapRef = useRef<any>(null);
@@ -131,7 +131,7 @@ export default function MapaOperacionalPage() {
   const vistaRestaurada = useRef(false);              // centro/zoom restaurados una sola vez
   const guardarVistaAttach = useRef(false);           // suscripción a moveend/zoomend (una vez)
 
-  useEffect(() => { import("maplibre-gl").then((m) => { mlRef.current = (m as any).default ?? m; setMlListo(true); }); }, []);
+  useEffect(() => { import("maplibre-gl" as any).then((m) => { mlRef.current = (m as any).default ?? m; setMlListo(true); }); }, []);
 
   // Preferencia duradera del tipo de mapa + limpieza del estado al cerrar sesión.
   useEffect(() => {
@@ -150,7 +150,7 @@ export default function MapaOperacionalPage() {
     if (estiloAplicado.current === estiloId) return;
     const primera = estiloAplicado.current === null;
     estiloAplicado.current = estiloId;
-    if (primera && estiloId === "auto") return; // el mapa ya se creó con 'auto'
+    if (primera && estiloId === "liberty") return; // el mapa ya se creó con Liberty
     map.setStyle(estiloMapaPorId(estiloId, temaMapa() === "dark"), { diff: false });
   }, [estiloId, mapListo]);
 

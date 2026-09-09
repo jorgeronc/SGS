@@ -1,9 +1,11 @@
 "use client";
 
-import { urlStaticMap } from "@/lib/geo";
+import { useEffect, useRef } from "react";
+import "maplibre-gl/dist/maplibre-gl.css";
+import { estiloMapaPorId } from "@/lib/mapStyle";
 
-// Mapa ligero con marcador. Con LocationIQ usa su mapa estático; si aún no hay
-// llave, cae al embed de OpenStreetMap. Muestra un enlace para abrir el punto.
+// Mapa "Calles (Liberty)" (MapLibre) con un marcador en el punto. Muestra las
+// coordenadas y (opcional) un enlace para abrir el punto en Google Maps.
 export default function MapaUbicacion({
   latitud,
   longitud,
@@ -15,6 +17,33 @@ export default function MapaUbicacion({
   sinEnlace?: boolean;
   sinCoords?: boolean;
 }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<any>(null);
+
+  useEffect(() => {
+    let cancelado = false;
+    if (latitud == null || longitud == null) return;
+    (async () => {
+      try {
+        const mod = await import("maplibre-gl" as any);
+        const maplibre: any = (mod as any).default ?? mod;
+        if (cancelado || !ref.current) return;
+        if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; }
+        const map = new maplibre.Map({
+          container: ref.current,
+          style: estiloMapaPorId("liberty", false), // Calles (Liberty) siempre
+          center: [longitud, latitud], zoom: 15,
+          attributionControl: { compact: true },
+        });
+        mapRef.current = map;
+        map.on("error", (e: any) => console.error("MapaUbicacion/MapLibre:", e?.error ?? e));
+        new maplibre.Marker({ color: "#e23b53" }).setLngLat([longitud, latitud]).addTo(map);
+        setTimeout(() => map.resize(), 60);
+      } catch (e) { console.error("MapaUbicacion: no se pudo iniciar el mapa", e); }
+    })();
+    return () => { cancelado = true; if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; } };
+  }, [latitud, longitud]);
+
   if (latitud == null || longitud == null) {
     return (
       <p style={{ color: "#555" }}>
@@ -23,19 +52,10 @@ export default function MapaUbicacion({
     );
   }
 
-  const staticUrl = urlStaticMap(latitud, longitud, 700, 320);
-  const d = 0.004; // margen del recuadro (~400 m) para el fallback OSM
-  const bbox = [longitud - d, latitud - d, longitud + d, latitud + d].join(",");
-  const srcOsm = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${latitud},${longitud}`;
   const enlace = `https://www.google.com/maps/search/?api=1&query=${latitud},${longitud}`;
-
   return (
     <div>
-      {staticUrl ? (
-        <img className="mapa" src={staticUrl} alt="Mapa de la ubicación" loading="lazy" style={{ width: "100%", borderRadius: 8, border: "1px solid var(--sc-card-line)" }} />
-      ) : (
-        <iframe className="mapa" src={srcOsm} title="Mapa de la ubicación" loading="lazy" />
-      )}
+      <div ref={ref} className="mapa" style={{ width: "100%", height: 320, borderRadius: 8, border: "1px solid var(--sc-card-line)", overflow: "hidden" }} />
       {!sinCoords && (
         <p style={{ fontSize: 13 }}>
           Lat {latitud.toFixed(6)}, Lng {longitud.toFixed(6)}
