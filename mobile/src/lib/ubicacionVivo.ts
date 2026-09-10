@@ -27,7 +27,7 @@ function uuidv4(): string {
 type PuntoRecorrido = {
   id: string; personal_id: string; user_id: string;
   latitud: number; longitud: number;
-  precision_m: number | null; rumbo: number | null; velocidad: number | null; fecha_hora: string;
+  precision_m: number | null; rumbo: number | null; velocidad: number | null; fecha_hora: string; mock: boolean;
 };
 
 // Guarda un punto en el buffer local (para sincronizar cuando vuelva la red).
@@ -98,6 +98,7 @@ async function reportar(loc: Location.LocationObject): Promise<void> {
   if (!raw) return;
   const id = JSON.parse(raw) as Ident;
   const est = await getEstatusServicio();
+  const mock = (loc as any).mocked ?? false; // ubicación simulada (Android) — antifraude
   // Última posición viva para el mapa de monitoreo. El servidor deriva user_id de
   // auth.uid() y sella actualizado_en (RPC 0098), así ni el reloj ni una identidad
   // desincronizada del teléfono impiden que el guardia aparezca.
@@ -112,6 +113,7 @@ async function reportar(loc: Location.LocationObject): Promise<void> {
     p_velocidad: loc.coords.speed ?? null,
     p_estatus: est.estatus,
     p_motivo: est.motivo,
+    p_mock: mock,
   });
   if (eUp) { ultimoError = eUp.message; } else { ultimoReporte = Date.now(); ultimoError = null; }
   // Historial acumulado (trayecto) para supervisar el recorrido del rondín.
@@ -129,6 +131,7 @@ async function reportar(loc: Location.LocationObject): Promise<void> {
     rumbo: loc.coords.heading ?? null,
     velocidad: loc.coords.speed ?? null,
     fecha_hora: new Date(loc.timestamp || Date.now()).toISOString(),
+    mock,
   });
 }
 

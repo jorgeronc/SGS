@@ -23,6 +23,7 @@ function Reporte() {
   const [ses, setSes] = useState<any>(null);
   const [checks, setChecks] = useState<any[]>([]);
   const [recorrido, setRecorrido] = useState<PtoGps[]>([]);
+  const [nMock, setNMock] = useState(0);
   const [rutaEsp, setRutaEsp] = useState<[number, number][]>([]);
   const [inc, setInc] = useState<any[]>([]);
   const [ev, setEv] = useState<any[]>([]);
@@ -37,12 +38,14 @@ function Reporte() {
         .eq("id", sesionId).maybeSingle();
       setSes(s);
       const [{ data: rec }, { data: chk }, { data: incs }, { data: evs }] = await Promise.all([
-        supabase.from("recorrido_gps").select("latitud, longitud, fecha_hora").eq("sesion_id", sesionId).order("fecha_hora", { ascending: true }),
+        supabase.from("recorrido_gps").select("latitud, longitud, fecha_hora, mock").eq("sesion_id", sesionId).order("fecha_hora", { ascending: true }),
         supabase.from("rondines").select("id, fecha_hora, novedad, dentro_geocerca, distancia_m, metodo, punto:puntos_control(nombre)").eq("sesion_id", sesionId).eq("estatus", "activo").order("fecha_hora", { ascending: true }),
         supabase.from("llamadas_cad").select("id, folio, tipo, prioridad, direccion").eq("sesion_id", sesionId),
         supabase.from("evidencias").select("id, folio, tipo, descripcion").eq("sesion_id", sesionId),
       ]);
-      setRecorrido(((rec as any[]) ?? []).filter((p) => p.latitud != null).map((p) => ({ lat: Number(p.latitud), lng: Number(p.longitud), t: p.fecha_hora })));
+      const recArr = ((rec as any[]) ?? []).filter((p) => p.latitud != null);
+      setRecorrido(recArr.map((p) => ({ lat: Number(p.latitud), lng: Number(p.longitud), t: p.fecha_hora })));
+      setNMock(recArr.filter((p) => p.mock === true).length);
       setChecks((chk as any[]) ?? []);
       setInc((incs as any[]) ?? []);
       setEv((evs as any[]) ?? []);
@@ -73,6 +76,7 @@ function Reporte() {
   if (ses.estado === "incompleto") anomalias.push({ tipo: "Rondín incompleto", detalle: "finalizó sin completar los checkpoints" });
   if (mr && mr.desvMax > corredor) anomalias.push({ tipo: "Desviación de ruta", detalle: `máx ${mr.desvMax} m (corredor ±${corredor} m) · ${mr.tFueraMin} min fuera` });
   paradas.forEach((p) => anomalias.push({ tipo: "Parada prolongada", detalle: `${p.durMin} min desde ${hhmm(p.desde)}` }));
+  if (nMock > 0) anomalias.push({ tipo: "GPS simulado (mock)", detalle: `${nMock} punto(s) con ubicación falsa` });
   for (let i = 1; i < recorrido.length; i++) {
     const dts = (new Date(recorrido[i].t).getTime() - new Date(recorrido[i - 1].t).getTime()) / 1000;
     if (dts / 60 > 5) anomalias.push({ tipo: "Sin señal GPS", detalle: `${Math.round(dts / 60)} min (${hhmm(recorrido[i - 1].t)}–${hhmm(recorrido[i].t)})` });

@@ -23,10 +23,19 @@ export default function InicioSgsScreen() {
   const [estatus, setEstatus] = useState<EstatusServicio>("en_servicio");
   const [motivoPausa, setMotivoPausa] = useState<string | null>(null);
   const [grabando, setGrabando] = useState(false);
+  const [sesRondin, setSesRondin] = useState<any>(null);
   // Motivos de pausa: catálogo (cat_opciones 'motivo_pausa'); respaldo sin "Otro".
   const [motivosPausa, setMotivosPausa] = useState<string[]>(["Alimentos", "Baño", "Descanso"]);
   useFocusEffect(useCallback(() => {
-    getMiOficial().then(setMio);
+    getMiOficial().then((m) => {
+      setMio(m);
+      if (m?.personalId) {
+        supabase.from("sesiones_rondin").select("folio, checkpoints_esperados, checkpoints_visitados, sitio:sitios(nombre)")
+          .eq("personal_id", m.personalId).eq("estado", "en_progreso").eq("estatus", "activo")
+          .order("iniciada_en", { ascending: false }).limit(1).maybeSingle()
+          .then(({ data }) => setSesRondin(data));
+      } else setSesRondin(null);
+    });
     getEstatusServicio().then((e) => { setEstatus(e.estatus); setMotivoPausa(e.motivo); });
     supabase.from("cat_opciones").select("valor").eq("categoria", "motivo_pausa").eq("activo", true).order("orden")
       .then(({ data }) => { const v = ((data as any[]) ?? []).map((r) => r.valor).filter(Boolean); if (v.length) setMotivosPausa(v); });
@@ -139,6 +148,17 @@ export default function InicioSgsScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 16 }}>
+        {sesRondin && (
+          <View style={styles.rondinBanner}>
+            <Ionicons name="navigate" size={20} color="#2563eb" />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rondinTitulo}>Rondín en curso{sesRondin.folio ? ` · ${sesRondin.folio}` : ""}</Text>
+              <Text style={styles.rondinSub}>
+                {sesRondin.sitio?.nombre ?? "Sitio"} · {sesRondin.checkpoints_visitados ?? 0}/{sesRondin.checkpoints_esperados ?? 0} puntos
+              </Text>
+            </View>
+          </View>
+        )}
         {!enLinea && (
           <Text style={styles.sub}>Selecciona tu elemento en Perfil para operar como guardia.</Text>
         )}
@@ -223,6 +243,9 @@ const styles = StyleSheet.create({
   hola: { color: T.text, fontSize: 22, fontWeight: "800", marginBottom: 14 },
   sub: { color: T.textDim, fontSize: 13.5, marginTop: 4, marginBottom: 14 },
   estadoBox: { backgroundColor: T.surface, borderColor: T.border, borderWidth: 1, borderRadius: 14, padding: 12, marginBottom: 16 },
+  rondinBanner: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#2563eb18", borderColor: "#2563eb55", borderWidth: 1, borderRadius: 14, padding: 12, marginBottom: 14 },
+  rondinTitulo: { color: "#2563eb", fontWeight: "800", fontSize: 14 },
+  rondinSub: { color: T.textDim, fontSize: 12.5, marginTop: 1 },
   estadoLbl: { color: T.textMute, fontSize: 12, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 8 },
   estadoRow: { flexDirection: "row", gap: 8 },
   estChip: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: T.border, backgroundColor: T.surfaceAlt },

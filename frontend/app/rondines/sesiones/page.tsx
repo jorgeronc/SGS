@@ -51,7 +51,7 @@ export default function SesionesRondinPage() {
   const [sesiones, setSesiones] = useState<Sesion[]>([]);
   const [sel, setSel] = useState<Sesion | null>(null);
   const [ruta, setRuta] = useState<[number, number][]>([]);
-  const [recorrido, setRecorrido] = useState<{ lat: number; lng: number; t: string }[]>([]);
+  const [recorrido, setRecorrido] = useState<{ lat: number; lng: number; t: string; mock?: boolean }[]>([]);
   const [rutaEsperada, setRutaEsperada] = useState<[number, number][]>([]);
   const [checks, setChecks] = useState<any[]>([]);
   const [incSes, setIncSes] = useState<any[]>([]);
@@ -129,13 +129,13 @@ export default function SesionesRondinPage() {
         .then(({ data }) => setRutaEsperada(((data as any[]) ?? []).map((p) => [Number(p.latitud), Number(p.longitud)] as [number, number])));
     }
     const [{ data: rec }, { data: chk }] = await Promise.all([
-      supabase.from("recorrido_gps").select("latitud, longitud, fecha_hora").eq("sesion_id", s.id).order("fecha_hora", { ascending: true }),
+      supabase.from("recorrido_gps").select("latitud, longitud, fecha_hora, mock").eq("sesion_id", s.id).order("fecha_hora", { ascending: true }),
       supabase.from("rondines").select("id, fecha_hora, latitud, longitud, novedad, dentro_geocerca, distancia_m, metodo, punto:puntos_control(nombre)")
         .eq("sesion_id", s.id).eq("estatus", "activo").order("fecha_hora", { ascending: true }),
     ]);
     const pts = ((rec as any[]) ?? []).filter((p) => p.latitud != null && p.longitud != null);
     setRuta(pts.map((p) => [Number(p.latitud), Number(p.longitud)] as [number, number]));
-    setRecorrido(pts.map((p) => ({ lat: Number(p.latitud), lng: Number(p.longitud), t: p.fecha_hora })));
+    setRecorrido(pts.map((p) => ({ lat: Number(p.latitud), lng: Number(p.longitud), t: p.fecha_hora, mock: p.mock === true })));
     setChecks((chk as any[]) ?? []);
 
     // Supervisión en vivo: posición actual del guardia + Realtime (solo en curso).
@@ -189,6 +189,8 @@ export default function SesionesRondinPage() {
     if (sel.estado === "incompleto") out.push({ tipo: "Rondín incompleto", detalle: "finalizó sin completar los checkpoints obligatorios", sev: "media" });
     if (mr && mr.desvMax > (sel.corredor_m ?? 30)) out.push({ tipo: "Desviación de ruta", detalle: `máx ${mr.desvMax} m (corredor ±${sel.corredor_m ?? 30} m) · ${mr.tFueraMin} min fuera`, sev: mr.tFueraMin > 5 ? "alta" : "media" });
     paradas.forEach((p) => out.push({ tipo: "Parada prolongada", detalle: `${p.durMin} min desde ${hhmm(p.desde)}`, sev: p.durMin >= 15 ? "media" : "baja" }));
+    const nMock = recorrido.filter((r) => r.mock).length;
+    if (nMock > 0) out.push({ tipo: "GPS simulado (mock)", detalle: `${nMock} punto(s) con ubicación falsa`, sev: "alta" });
     for (let i = 1; i < recorrido.length; i++) {
       const dts = (new Date(recorrido[i].t).getTime() - new Date(recorrido[i - 1].t).getTime()) / 1000;
       if (dts / 60 > 5) out.push({ tipo: "Sin señal GPS", detalle: `${Math.round(dts / 60)} min sin reporte (${hhmm(recorrido[i - 1].t)}–${hhmm(recorrido[i].t)})`, sev: dts / 60 > 15 ? "media" : "baja" });
