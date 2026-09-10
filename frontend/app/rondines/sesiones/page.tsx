@@ -5,6 +5,7 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import MapaTrazaLiberty, { type PuntoMapa } from "@/app/components/MapaTrazaLiberty";
 import { type ReporteMapa } from "@/app/components/MapaReportes";
+import { detectarParadas, metricasRuta, type Parada } from "@/lib/rondinMetricas";
 
 // Sesiones de rondín (trazabilidad, Fase 1A). Lista histórica con filtros y, al
 // elegir una sesión, su TRAZA GPS (recorrido_gps) + CHECKS (rondines) sobre el
@@ -30,76 +31,6 @@ const hace = (iso?: string | null): string => {
   const s = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
   return s < 60 ? `${s} s` : s < 3600 ? `${Math.round(s / 60)} min` : `${Math.round(s / 3600)} h`;
 };
-
-// Distancia Haversine (m) y detección de PARADAS (permanencia > minMin dentro de radioM).
-function distM(aLat: number, aLng: number, bLat: number, bLng: number): number {
-  const R = 6371000, toR = (d: number) => (d * Math.PI) / 180;
-  const dLat = toR(bLat - aLat), dLng = toR(bLng - aLng);
-  const s = Math.sin(dLat / 2) ** 2 + Math.cos(toR(aLat)) * Math.cos(toR(bLat)) * Math.sin(dLng / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(s));
-}
-interface Parada { lat: number; lng: number; durMin: number; desde: string }
-function detectarParadas(pts: { lat: number; lng: number; t: string }[], radioM = 25, minMin = 5): Parada[] {
-  const out: Parada[] = []; let i = 0;
-  while (i < pts.length) {
-    let j = i + 1;
-    while (j < pts.length && distM(pts[i].lat, pts[i].lng, pts[j].lat, pts[j].lng) <= radioM) j++;
-    const durMin = (new Date(pts[j - 1].t).getTime() - new Date(pts[i].t).getTime()) / 60000;
-    if (durMin >= minMin) { out.push({ lat: pts[i].lat, lng: pts[i].lng, durMin: Math.round(durMin), desde: pts[i].t }); i = j; }
-    else i++;
-  }
-  return out;
-}
-
-// --- Ruta esperada vs real (opción A: ruta = puntos de control en orden) ---
-// Distancia (m) de un punto a la polilínea de la ruta, con proyección local plana.
-function distARutaM(pLat: number, pLng: number, ruta: [number, number][], lat0: number): number {
-  if (ruta.length === 0) return Infinity;
-  if (ruta.length === 1) return distM(pLat, pLng, ruta[0][0], ruta[0][1]);
-  const kx = Math.cos((lat0 * Math.PI) / 180) * 111320, ky = 111320;
-  const px = pLng * kx, py = pLat * ky;
-  let min = Infinity;
-  for (let i = 1; i < ruta.length; i++) {
-    const ax = ruta[i - 1][1] * kx, ay = ruta[i - 1][0] * ky, bx = ruta[i][1] * kx, by = ruta[i][0] * ky;
-    const dx = bx - ax, dy = by - ay, len2 = dx * dx + dy * dy;
-    let t = len2 ? ((px - ax) * dx + (py - ay) * dy) / len2 : 0; t = Math.max(0, Math.min(1, t));
-    const d = Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
-    if (d < min) min = d;
-  }
-  return min;
-}
-function muestrearRuta(ruta: [number, number][], pasoM: number): [number, number][] {
-  const out: [number, number][] = [];
-  for (let i = 1; i < ruta.length; i++) {
-    const a = ruta[i - 1], b = ruta[i], seg = distM(a[0], a[1], b[0], b[1]);
-    const n = Math.max(1, Math.round(seg / pasoM));
-    for (let j = 0; j < n; j++) { const t = j / n; out.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]); }
-  }
-  if (ruta.length) out.push(ruta[ruta.length - 1]);
-  return out;
-}
-interface MetricasRuta { cobertura: number; desvMax: number; desvProm: number; distFueraM: number; tFueraMin: number }
-function metricasRuta(recorrido: { lat: number; lng: number; t: string }[], ruta: [number, number][], corredorM: number): MetricasRuta | null {
-  if (ruta.length < 2 || recorrido.length === 0) return null;
-  const lat0 = ruta[0][0];
-  let sum = 0, max = 0, distFuera = 0, tFuera = 0;
-  recorrido.forEach((g, i) => {
-    const d = distARutaM(g.lat, g.lng, ruta, lat0);
-    sum += d; if (d > max) max = d;
-    if (d > corredorM && i > 0) {
-      tFuera += (new Date(g.t).getTime() - new Date(recorrido[i - 1].t).getTime()) / 60000;
-      distFuera += distM(recorrido[i - 1].lat, recorrido[i - 1].lng, g.lat, g.lng);
-    }
-  });
-  const muestras = muestrearRuta(ruta, Math.max(15, corredorM));
-  let cub = 0;
-  muestras.forEach((m) => { if (recorrido.some((g) => distM(g.lat, g.lng, m[0], m[1]) <= corredorM)) cub++; });
-  return {
-    cobertura: muestras.length ? Math.round((cub / muestras.length) * 100) : 0,
-    desvMax: Math.round(max), desvProm: Math.round(sum / recorrido.length),
-    distFueraM: Math.round(distFuera), tFueraMin: Math.round(tFuera),
-  };
-}
 
 interface Sesion {
   id: string; folio: string | null; estado: string; iniciada_en: string; finalizada_en: string | null;
@@ -357,6 +288,10 @@ export default function SesionesRondinPage() {
             <p className="dash-sub">Selecciona una sesión para ver su recorrido en el mapa.</p>
           ) : (
             <>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                <b style={{ fontSize: 15 }}>{sel.folio ?? "—"} · <span style={{ fontWeight: 400, color: "var(--sc-text-soft)" }}>{sel.guardia} · {sel.sitio}</span></b>
+                <a href={`/rondines/sesiones/imprimir?sesion=${sel.id}`} target="_blank" rel="noopener noreferrer" className="qbtn2">🖨️ Reporte PDF ↗</a>
+              </div>
               {sel.estado === "en_progreso" && (
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "7px 12px", border: "1px solid #2f6bff55", background: "#2f6bff14", borderRadius: 10, color: "#2f6bff", fontWeight: 700, fontSize: 13 }}>
                   <span style={{ width: 9, height: 9, borderRadius: "50%", background: "#2f6bff" }} /> En vivo
