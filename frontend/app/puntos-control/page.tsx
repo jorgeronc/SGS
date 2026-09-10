@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabaseClient";
 import ListaMaestra from "@/app/components/ListaMaestra";
 import DireccionGeocode from "@/app/components/DireccionGeocode";
 import MapaPicker from "@/app/components/MapaPicker";
+import MapaUbicacion from "@/app/components/MapaUbicacion";
 import { getConfig } from "@/lib/config";
 import { urlReverse } from "@/lib/geo";
 
@@ -144,6 +145,52 @@ function EditarPuntoMapa({ borrador, setBorrador }: { borrador: any; setBorrador
   );
 }
 
+// Vista lateral del punto: datos + mapa de ubicación. El QR y sus opciones de
+// impresión se muestran solo al "Abrir / Ver QR" (retraído por defecto).
+function QuickViewPunto({ r }: { r: any }) {
+  const [verQr, setVerQr] = useState(false);
+  const lat = r.latitud != null ? Number(r.latitud) : null;
+  const lng = r.longitud != null ? Number(r.longitud) : null;
+  return (
+    <>
+      <h3 style={{ margin: "0 0 8px" }}>{r.nombre}</h3>
+      <dl className="sc-kv">
+        <dt>Folio</dt><dd>{r.folio ?? "—"}</dd>
+        <dt>Sitio</dt><dd>{r.sitio?.nombre ?? "—"}</dd>
+        <dt>Cliente</dt><dd>{r.sitio?.cliente?.razon_social ?? "—"}</dd>
+        <dt>Código (contenido)</dt><dd><code>{r.codigo}</code></dd>
+        <dt>Tipo de control</dt><dd>{r.tipo_control === "nfc" ? "NFC" : r.tipo_control === "ambos" ? "QR + NFC" : "QR"}</dd>
+        <dt>Tipo de punto</dt><dd>{r.tipo_punto ?? "control"}</dd>
+        <dt>Ubicación del control</dt><dd>{r.ubicacion_control ?? "—"}</dd>
+        <dt>Radio permitido</dt><dd>{r.radio_m != null ? `${r.radio_m} m` : "—"}</dd>
+        <dt>Orden</dt><dd>{r.orden ?? "—"}</dd>
+        <dt>Descripción</dt><dd>{r.descripcion ?? "—"}</dd>
+      </dl>
+      {lat != null && lng != null
+        ? <div style={{ marginTop: 12 }}><MapaUbicacion latitud={lat} longitud={lng} alto={190} sinEnlace /></div>
+        : <p className="dash-sub" style={{ marginTop: 8 }}>Sin ubicación en el mapa.</p>}
+      {r.estatus === "activo" && r.codigo && (
+        <button className="qbtn2" style={{ marginTop: 10 }} onClick={() => setVerQr((v) => !v)}>
+          {verQr ? "Ocultar QR" : "🔳 Abrir / Ver QR e imprimir"}
+        </button>
+      )}
+      {verQr && r.codigo && (
+        <>
+          <div style={{ marginTop: 12, textAlign: "center", padding: 12, border: "1px solid var(--sc-card-line)", borderRadius: 8 }}>
+            <QRCodeSVG value={r.codigo} size={160} includeMargin level="M" />
+            <div style={{ fontSize: 12, color: "#666", marginTop: 6 }}>Escanéalo desde la app en el rondín</div>
+          </div>
+          <p style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <a href={`/puntos-control/imprimir?punto=${r.id}`} target="_blank" rel="noopener noreferrer" className="qbtn2">🖨️ Imprimir este QR ↗</a>
+            {r.sitio_id && <a href={`/puntos-control/imprimir?sitio=${r.sitio_id}`} target="_blank" rel="noopener noreferrer" className="qbtn2">🖨️ Imprimir QR del sitio ↗</a>}
+          </p>
+        </>
+      )}
+      <p style={{ marginTop: 10 }}><Link href="/rondines" className="qbtn2">▤ Ver rondines →</Link></p>
+    </>
+  );
+}
+
 export default function PuntosControlPage() {
   return (
     <ListaMaestra
@@ -164,34 +211,8 @@ export default function PuntosControlPage() {
       ]}
       textoBusqueda={(r) => `${r.nombre} ${r.codigo} ${r.sitio?.nombre ?? ""}`}
       detalleHref={(r) => `/clientes/${r.sitio?.cliente_id ?? ""}`}
-      quickView={(r) => (
-        <>
-          <h3 style={{ margin: "0 0 8px" }}>{r.nombre}</h3>
-          <dl className="sc-kv">
-            <dt>Folio</dt><dd>{r.folio ?? "—"}</dd>
-            <dt>Sitio</dt><dd>{r.sitio?.nombre ?? "—"}</dd>
-            <dt>Cliente</dt><dd>{r.sitio?.cliente?.razon_social ?? "—"}</dd>
-            <dt>Código (contenido)</dt><dd><code>{r.codigo}</code></dd>
-            <dt>Tipo de control</dt><dd>{r.tipo_control === "nfc" ? "NFC" : r.tipo_control === "ambos" ? "QR + NFC" : "QR"}</dd>
-            <dt>Tipo de punto</dt><dd>{r.tipo_punto ?? "control"}</dd>
-            <dt>Ubicación del control</dt><dd>{r.ubicacion_control ?? "—"}</dd>
-            <dt>Radio permitido</dt><dd>{r.radio_m != null ? `${r.radio_m} m` : "—"}</dd>
-            <dt>Orden</dt><dd>{r.orden ?? "—"}</dd>
-            <dt>Descripción</dt><dd>{r.descripcion ?? "—"}</dd>
-          </dl>
-          {r.estatus === "activo" && r.codigo && (
-            <div style={{ marginTop: 12, textAlign: "center", padding: 12, border: "1px solid var(--sc-card-line)", borderRadius: 8 }}>
-              <QRCodeSVG value={r.codigo} size={160} includeMargin level="M" />
-              <div style={{ fontSize: 12, color: "#666", marginTop: 6 }}>Escanéalo desde la app en el rondín</div>
-            </div>
-          )}
-          <p style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <a href={`/puntos-control/imprimir?punto=${r.id}`} target="_blank" rel="noopener noreferrer" className="qbtn2">🖨️ Imprimir este QR ↗</a>
-            {r.sitio_id && <a href={`/puntos-control/imprimir?sitio=${r.sitio_id}`} target="_blank" rel="noopener noreferrer" className="qbtn2">🖨️ Imprimir QR del sitio ↗</a>}
-            <Link href="/rondines" className="qbtn2">▤ Ver rondines →</Link>
-          </p>
-        </>
-      )}
+      agruparPor={(r) => r.sitio?.nombre ?? "Sin sitio"}
+      quickView={(r) => <QuickViewPunto r={r} />}
       editar={[
         { campo: "nombre", label: "Nombre del punto" },
         { campo: "codigo", label: "Código (QR/NFC)" },

@@ -800,6 +800,9 @@ a.gcard:hover { border-color: var(--sc-accent); }
 .sc-table tbody tr { cursor: pointer; }
 .sc-table tbody tr:hover { background: var(--sc-surface); }
 .sc-table tbody tr.sel { background: var(--sc-accent-soft); }
+.sc-table tbody tr.lm-grupo { cursor: default; }
+.sc-table tbody tr.lm-grupo:hover { background: transparent; }
+.sc-table tbody tr.lm-grupo td { background: var(--sc-surface); font-weight: 800; color: var(--sc-accent); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; padding: 8px 12px; }
 .sc-folio { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--sc-accent); }
 /* Folio como enlace al detalle (clic abre el registro) en todas las listas. */
 .lm-folio-link { text-decoration: none; cursor: pointer; }

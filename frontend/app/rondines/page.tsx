@@ -73,6 +73,7 @@ export default function RondinesPage() {
       tabla="rondines"
       modulo="rondines"
       orderBy="fecha_hora"
+      agruparPor={(r) => r.punto?.sitio?.nombre ?? "Sin sitio"}
       select="id, fecha_hora, novedad, latitud, longitud, distancia_m, dentro_geocerca, metodo, tipo_evento, estatus, creado_en, punto_id, personal_id, punto:puntos_control(nombre, codigo, radio_m, sitio:sitios(nombre, cliente_id, cliente:clientes(razon_social))), guardia:personal(persona:personas(nombre, apellido_paterno, apellido_materno))"
       placeholderBuscar="Buscar punto, sitio, guardia…"
       columnas={[

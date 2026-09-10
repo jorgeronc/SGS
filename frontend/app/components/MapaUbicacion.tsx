@@ -11,11 +11,13 @@ export default function MapaUbicacion({
   longitud,
   sinEnlace = false,   // oculta el enlace "abrir en el mapa" (para no duplicarlo)
   sinCoords = false,   // oculta el renglón "Lat …, Lng …" bajo el mapa
+  alto = 320,          // altura del mapa en px
 }: {
   latitud: number | null;
   longitud: number | null;
   sinEnlace?: boolean;
   sinCoords?: boolean;
+  alto?: number;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
@@ -55,7 +57,7 @@ export default function MapaUbicacion({
   const enlace = `https://www.google.com/maps/search/?api=1&query=${latitud},${longitud}`;
   return (
     <div>
-      <div ref={ref} className="mapa" style={{ width: "100%", height: 320, borderRadius: 8, border: "1px solid var(--sc-card-line)", overflow: "hidden" }} />
+      <div ref={ref} className="mapa" style={{ width: "100%", height: alto, borderRadius: 8, border: "1px solid var(--sc-card-line)", overflow: "hidden" }} />
       {!sinCoords && (
         <p style={{ fontSize: 13 }}>
           Lat {latitud.toFixed(6)}, Lng {longitud.toFixed(6)}

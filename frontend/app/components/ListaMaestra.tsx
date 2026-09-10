@@ -93,6 +93,7 @@ export default function ListaMaestra({
   filtrosAvanzados,
   mapaBase,
   miniatura,
+  agruparPor,
   sinToggleCancelados = false,
 }: {
   titulo: string;
@@ -116,6 +117,7 @@ export default function ListaMaestra({
   filtrosAvanzados?: FiltroAvanzadoLM[];
   mapaBase?: string;   // si se define, muestra "Ver en mapa" (nueva pestaña) con los filtros
   miniatura?: (r: any) => unknown;  // devuelve el arreglo `fotografias`; muestra columna de miniatura
+  agruparPor?: (r: any) => string;  // agrupa la lista por esta etiqueta (encabezado por grupo, orden alfabético)
   sinToggleCancelados?: boolean;    // oculta el checkbox "Mostrar cancelados" (cancelados siempre ocultos)
 }) {
   const [filas, setFilas] = useState<any[]>([]);
@@ -445,29 +447,40 @@ export default function ListaMaestra({
             </tr>
           </thead>
           <tbody>
-            {visibles.map((r) => (
-              <tr key={r.id} className={sel?.id === r.id ? "sel" : ""} onClick={() => setSel(r)}>
-                {lote && (
-                  <td onClick={(e) => e.stopPropagation()}>
-                    <input type="checkbox" checked={marcados.includes(r.id)} onChange={() => toggleMarcado(r.id)} />
-                  </td>
-                )}
-                {miniatura && (
-                  <td>
-                    {primeraFoto(miniatura(r))
-                      ? <img src={primeraFoto(miniatura(r))!} alt="" className="sc-foto-mini" />
-                      : <span className="sc-foto-mini vacio" />}
-                  </td>
-                )}
-                {columnas.map((c, i) => (
-                  <td key={i}>
-                    {c.campo === "folio"
-                      ? <Link href={detalleHref(r)} className="lm-folio-link" onClick={(e) => e.stopPropagation()}>{c.celda(r)}</Link>
-                      : c.celda(r)}
-                  </td>
-                ))}
-              </tr>
-            ))}
+            {(() => {
+              const totalCols = columnas.length + (lote ? 1 : 0) + (miniatura ? 1 : 0);
+              const renderFila = (r: any) => (
+                <tr key={r.id} className={sel?.id === r.id ? "sel" : ""} onClick={() => setSel(r)}>
+                  {lote && (
+                    <td onClick={(e) => e.stopPropagation()}>
+                      <input type="checkbox" checked={marcados.includes(r.id)} onChange={() => toggleMarcado(r.id)} />
+                    </td>
+                  )}
+                  {miniatura && (
+                    <td>
+                      {primeraFoto(miniatura(r))
+                        ? <img src={primeraFoto(miniatura(r))!} alt="" className="sc-foto-mini" />
+                        : <span className="sc-foto-mini vacio" />}
+                    </td>
+                  )}
+                  {columnas.map((c, i) => (
+                    <td key={i}>
+                      {c.campo === "folio"
+                        ? <Link href={detalleHref(r)} className="lm-folio-link" onClick={(e) => e.stopPropagation()}>{c.celda(r)}</Link>
+                        : c.celda(r)}
+                    </td>
+                  ))}
+                </tr>
+              );
+              if (!agruparPor) return visibles.map(renderFila);
+              const mapa = new Map<string, any[]>();
+              for (const r of visibles) { const k = agruparPor(r) || "—"; if (!mapa.has(k)) mapa.set(k, []); mapa.get(k)!.push(r); }
+              const grupos = Array.from(mapa.entries()).sort((a, b) => a[0].localeCompare(b[0], "es"));
+              return grupos.flatMap(([g, rows]) => [
+                <tr key={`grupo-${g}`} className="lm-grupo"><td colSpan={totalCols}>{g} <span style={{ color: "var(--sc-text-faint)", fontWeight: 400 }}>· {rows.length}</span></td></tr>,
+                ...rows.map(renderFila),
+              ]);
+            })()}
             {!cargando && filtrados.length === 0 && (
               <tr>
                 <td colSpan={columnas.length + (lote ? 1 : 0) + (miniatura ? 1 : 0)} style={{ color: "#555" }}>

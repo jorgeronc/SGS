@@ -49,6 +49,7 @@ export default function ChatPage() {
   const [yo, setYo] = useState<string | null>(null);
   const [canales, setCanales] = useState<Canal[]>([]);
   const [adminDe, setAdminDe] = useState<Set<string>>(new Set());
+  const [esMando, setEsMando] = useState(false); // administrador/supervisor: puede cerrar cualquier canal
   const [sel, setSel] = useState<string | null>(null);
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
   const [miembros, setMiembros] = useState<Miembro[]>([]);
@@ -88,7 +89,11 @@ export default function ChatPage() {
   }, [cargarNoLeidos]);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setYo(data.user?.id ?? null));
+    supabase.auth.getUser().then(({ data }) => {
+      setYo(data.user?.id ?? null);
+      if (data.user) supabase.from("usuarios_perfil").select("rol").eq("id", data.user.id).maybeSingle()
+        .then(({ data: p }) => setEsMando(["administrador", "supervisor"].includes((p as any)?.rol)));
+    });
     cargarCanales();
   }, [cargarCanales]);
 
@@ -277,10 +282,10 @@ export default function ChatPage() {
                   </div>
                   <div style={{ fontSize: 12, color: "#777" }}>{miembros.length} integrante(s){cerrado ? " · cerrado" : ""}</div>
                 </div>
-                {adminDe.has(canalSel.id) && (
+                {(adminDe.has(canalSel.id) || esMando) && (
                   <div style={{ display: "flex", gap: 8, flex: "0 0 auto" }}>
-                    <EditarCanal canal={canalSel} onHecho={(nombre, tema) => setCanales((prev) => prev.map((c) => (c.id === canalSel.id ? { ...c, nombre, tema } : c)))} />
-                    {!cerrado && <IntegrarMiembros canalId={canalSel.id} actuales={miembros.map((m) => m.usuario_id)} onHecho={() => cargarCanal(canalSel.id)} />}
+                    {adminDe.has(canalSel.id) && <EditarCanal canal={canalSel} onHecho={(nombre, tema) => setCanales((prev) => prev.map((c) => (c.id === canalSel.id ? { ...c, nombre, tema } : c)))} />}
+                    {adminDe.has(canalSel.id) && !cerrado && <IntegrarMiembros canalId={canalSel.id} actuales={miembros.map((m) => m.usuario_id)} onHecho={() => cargarCanal(canalSel.id)} />}
                     <button className="qbtn2" onClick={alternarEstado}>{canalSel.estado === "abierto" ? "Cerrar canal" : "Reabrir"}</button>
                   </div>
                 )}

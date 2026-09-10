@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabaseClient";
 import ListaMaestra from "@/app/components/ListaMaestra";
 import { CatalogoSelect } from "@/app/components/CatalogoSelect";
 import DireccionGeocode from "@/app/components/DireccionGeocode";
+import MapaUbicacion from "@/app/components/MapaUbicacion";
 import { getConfig } from "@/lib/config";
 
 const TIPOS = [
@@ -95,6 +96,7 @@ export default function SitiosPage() {
       ]}
       textoBusqueda={(r) => `${r.folio ?? ""} ${r.nombre} ${r.cliente?.razon_social ?? ""} ${r.direccion ?? ""}`}
       detalleHref={(r) => `/clientes/${r.cliente_id}`}
+      agruparPor={(r) => r.cliente?.razon_social ?? "Sin cliente"}
       quickView={(r) => (
         <>
           <h3 style={{ margin: "0 0 8px" }}>{r.nombre}</h3>
@@ -112,6 +114,9 @@ export default function SitiosPage() {
             <dt>Estatus</dt><dd>{r.estatus ?? "—"}</dd>
             <dt>Registrado</dt><dd>{r.creado_en ? new Date(r.creado_en).toLocaleString() : "—"}</dd>
           </dl>
+          {r.latitud != null && r.longitud != null
+            ? <div style={{ marginTop: 12 }}><MapaUbicacion latitud={Number(r.latitud)} longitud={Number(r.longitud)} alto={190} sinEnlace /></div>
+            : <p className="dash-sub" style={{ marginTop: 8 }}>Sin ubicación en el mapa.</p>}
           <p style={{ marginTop: 10 }}><Link href={`/clientes/${r.cliente_id}`} className="qbtn2">▤ Ver cliente →</Link></p>
         </>
       )}

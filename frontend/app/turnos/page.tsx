@@ -12,7 +12,7 @@ function nombre(p: any) {
   return x ? `${x.nombre ?? ""} ${x.apellido_paterno ?? ""} ${x.apellido_materno ?? ""}`.trim() : "—";
 }
 function EstadoBadge({ e }: { e: string }) {
-  const c: Record<string, string> = { borrador: "#7a5c00", activo: "#0a7c2f", cerrado: "#555" };
+  const c: Record<string, string> = { borrador: "#7a5c00", activo: "#0a7c2f", cerrado: "#555", terminado: "#8a6d3b" };
   return <span className={`cad-pill`} style={{ background: c[e] ?? "#607d8b", color: "#fff" }}>{e}</span>;
 }
 
@@ -32,6 +32,8 @@ export default function TurnosPage() {
 
   async function cargar() {
     setCargando(true);
+    // Marca como 'terminado' los turnos cuyo horario ya concluyó (antes de listar).
+    await supabase.rpc("rpc_cerrar_turnos_vencidos").then(() => undefined, () => undefined);
     const { data } = await supabase.from("turnos")
       .select("id, folio, fecha, tipo_turno, hora_inicio, hora_fin, estado, estatus, sitio:sitios(nombre), supervisor:personal!turnos_supervisor_id_fkey(persona:personas(nombre, apellido_paterno, apellido_materno)), turno_guardias(count)")
       .eq("estatus", "activo").order("fecha", { ascending: false });
