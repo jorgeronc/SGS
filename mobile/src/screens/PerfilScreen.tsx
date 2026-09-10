@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Image, Alert, ActivityIndicator, Modal, TextInput, Linking } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Image, Alert, ActivityIndicator, Modal, TextInput, Linking, RefreshControl } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -59,6 +59,8 @@ export default function PerfilScreen() {
 
   // Scroll: para llevar a la sección de bodycam al iniciar descarga desde Inicio.
   const scrollRef = useRef<any>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const refrescarRef = useRef<() => void>(() => {});
   const bodycamY = useRef(0);
 
   async function cargarCuenta() {
@@ -106,6 +108,15 @@ export default function PerfilScreen() {
 
   const refrescarGps = () => estadoUbicacion().then(setGps).catch(() => {});
 
+  // Refresco completo: datos de mi elemento (sitio/turno/foto), videos pendientes,
+  // recordatorios y estado de GPS. Usado por pull-to-refresh y al tocar la pestaña.
+  async function refrescarTodo() {
+    setRefreshing(true);
+    try { cargarCuenta(); await resolverElemento(); pendientesBodycam().then(setPendientesBc); cargarRecordatorios(); refrescarGps(); }
+    finally { setRefreshing(false); }
+  }
+  refrescarRef.current = refrescarTodo;
+
   // Revisa/solicita permisos de ubicación y guía a "Permitir todo el tiempo" si
   // falta el permiso en segundo plano (clave para que la posición siga con la
   // pantalla bloqueada / la app en segundo plano).
@@ -139,6 +150,12 @@ export default function PerfilScreen() {
     return () => { clearInterval(t); unsub(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Al tocar el icono de la pestaña Perfil (incluso ya estando en ella), refresca todo.
+  useEffect(() => {
+    const unsub = nav.addListener("tabPress", () => refrescarRef.current());
+    return unsub;
+  }, [nav]);
 
   // Refresca sitio/unidad/turno al volver a la pantalla (refleja cambios del rol
   // de servicio sin cerrar sesión).
@@ -265,7 +282,8 @@ export default function PerfilScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
-      <KeyboardAwareScrollView ref={scrollRef} contentContainerStyle={styles.wrap} keyboardShouldPersistTaps="handled" bottomOffset={24}>
+      <KeyboardAwareScrollView ref={scrollRef} contentContainerStyle={styles.wrap} keyboardShouldPersistTaps="handled" bottomOffset={24}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => refrescarTodo()} tintColor={T.accent} colors={[T.accent]} />}>
         <View style={styles.hero}>
           <TouchableOpacity style={styles.avatar} onPress={cambiarFoto} onLongPress={elegirFotoGaleria} activeOpacity={0.8}>
             {subiendo ? <ActivityIndicator color={T.accent} />

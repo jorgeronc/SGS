@@ -1,11 +1,19 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "./supabase";
 
+// Fecha de HOY en zona LOCAL (no UTC). Con toISOString(), por la tarde/noche en
+// MX (UTC−6) "hoy" saltaba al día siguiente y no empataba con turnos.fecha, así
+// que sitio/turno salían vacíos aunque el turno estuviera activo.
+const hoyLocal = (): string => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
 // "Unidad" del guardia TOMADA DEL SISTEMA (no elegida): es el sitio/puesto que
 // tiene asignado en su turno activo de hoy (turno_guardias → sitios). Si es
 // supervisor o no está en un turno activo, devuelve null ("sin unidad").
 export async function getUnidadDelSistema(personalId: string): Promise<string | null> {
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = hoyLocal();
   const { data } = await supabase
     .from("turno_guardias")
     .select("sitio:sitios(nombre, folio), turno:turnos(estado, fecha)")
@@ -21,7 +29,7 @@ export interface TurnoVigente { fecha: string; horaInicio: string | null; horaFi
 // Turno vigente hoy del elemento: como guardia (turno_guardias) o como supervisor
 // (turnos.supervisor_id). Devuelve fecha y franja horaria para mostrar el horario.
 export async function getTurnoVigente(personalId: string): Promise<TurnoVigente | null> {
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = hoyLocal();
   const { data: tg } = await supabase
     .from("turno_guardias")
     .select("turno:turnos(fecha, hora_inicio, hora_fin, estado)")

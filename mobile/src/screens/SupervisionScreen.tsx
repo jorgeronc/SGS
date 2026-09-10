@@ -26,7 +26,7 @@ function enLinea(g: { en_linea: boolean; latitud: number | null; longitud: numbe
 const EST_LABEL: Record<string, string> = { en_servicio: "En posición", en_rondin: "En rondín", en_pausa: "En pausa" };
 const EST_COLOR: Record<string, string> = { en_servicio: "#22c55e", en_rondin: "#2f6bff", en_pausa: "#b06a00" };
 
-interface Paso { id: string; fecha_hora: string; novedad: string | null; punto: string; sitio: string }
+interface Paso { id: string; fecha_hora: string; novedad: string | null; punto: string; sitio: string; dentro: boolean | null; distancia: number | null }
 interface Gps { latitud: number | null; longitud: number | null; en_linea: boolean; estatus_servicio: string | null; motivo_pausa: string | null; actualizado_en: string | null }
 interface Sitio { nombre: string; latitud: number | null; longitud: number | null }
 interface PuntoGuardia { lat: number; lng: number; label: string }
@@ -141,13 +141,14 @@ export default function SupervisionScreen() {
       setCargando(true);
       const f = fmtFecha(fecha);
       const { data } = await supabase.from("rondines")
-        .select("id, fecha_hora, novedad, punto:puntos_control(nombre, sitio:sitios(nombre))")
+        .select("id, fecha_hora, novedad, dentro_geocerca, distancia_m, punto:puntos_control(nombre, sitio:sitios(nombre))")
         .eq("personal_id", guardiaId).eq("estatus", "activo")
         .gte("fecha_hora", `${f}T00:00:00`).lte("fecha_hora", `${f}T23:59:59.999`)
         .order("fecha_hora", { ascending: true });
       setPasos(((data as any[]) ?? []).map((r) => ({
         id: r.id, fecha_hora: r.fecha_hora, novedad: r.novedad,
         punto: r.punto?.nombre ?? "Punto", sitio: r.punto?.sitio?.nombre ?? "",
+        dentro: r.dentro_geocerca, distancia: r.distancia_m,
       })));
       setCargando(false);
     })();
@@ -261,20 +262,28 @@ export default function SupervisionScreen() {
                 <FlatList
                   data={pasos}
                   keyExtractor={(p) => p.id}
+                  style={{ flex: 1 }}
                   contentContainerStyle={{ padding: 16, paddingTop: 6 }}
                   ListEmptyComponent={<Text style={styles.sub}>Sin rondines en esta fecha.</Text>}
-                  renderItem={({ item, index }) => (
-                    <View style={styles.tlItem}>
-                      <View style={[styles.dot, conNovedad(item.novedad) && { backgroundColor: T.danger }]} />
-                      <View style={styles.tlBody}>
-                        <Text style={styles.tlPunto}>{index + 1}. {item.punto}{item.sitio ? ` · ${item.sitio}` : ""}</Text>
-                        <Text style={styles.tlMeta}>
-                          {new Date(item.fecha_hora).toLocaleString()}
-                          {conNovedad(item.novedad) ? ` · ⚠ ${item.novedad}` : " · Sin novedad"}
-                        </Text>
+                  renderItem={({ item, index }) => {
+                    const fuera = item.dentro === false;
+                    return (
+                      <View style={styles.tlItem}>
+                        <View style={[styles.dot, (fuera || conNovedad(item.novedad)) && { backgroundColor: T.danger }]} />
+                        <View style={styles.tlBody}>
+                          <Text style={[styles.tlPunto, fuera && { color: T.danger }]}>
+                            {fuera ? `Lectura fuera de rango - ${item.punto}` : `${index + 1}. ${item.punto}${item.sitio ? ` · ${item.sitio}` : ""}`}
+                          </Text>
+                          <Text style={[styles.tlMeta, fuera && { color: T.danger }]}>
+                            {new Date(item.fecha_hora).toLocaleString()}
+                            {fuera
+                              ? ` · ${item.distancia != null ? Math.round(item.distancia) : "?"} m fuera de rango${conNovedad(item.novedad) ? ` · ⚠ ${item.novedad}` : ""}`
+                              : (conNovedad(item.novedad) ? ` · ⚠ ${item.novedad}` : " · Sin novedad")}
+                          </Text>
+                        </View>
                       </View>
-                    </View>
-                  )}
+                    );
+                  }}
                 />
               )}
             </>
@@ -287,6 +296,7 @@ export default function SupervisionScreen() {
               <FlatList
                 data={guardiasSitio}
                 keyExtractor={(g) => g.personalId}
+                style={{ flex: 1 }}
                 contentContainerStyle={{ padding: 16, paddingTop: 6 }}
                 ListEmptyComponent={<Text style={styles.sub}>Este sitio no tiene guardias asignados hoy.</Text>}
                 renderItem={({ item }) => {
@@ -325,14 +335,14 @@ const styles = StyleSheet.create({
   segOn: { backgroundColor: T.accent, borderColor: T.accent },
   segTxt: { color: T.textDim, fontWeight: "800", fontSize: 13 },
   segTxtOn: { color: T.white },
-  chipsWrap: { maxHeight: 76, flexGrow: 0 },
+  chipsWrap: { maxHeight: 76, flexGrow: 0, flexShrink: 0 },
   chips: { paddingHorizontal: 12, gap: 8, paddingVertical: 4, alignItems: "stretch" },
   gCard: { width: 128, height: 66, borderWidth: 1, borderColor: T.border, borderRadius: 12, backgroundColor: T.surface, paddingHorizontal: 10, paddingVertical: 8, justifyContent: "space-between" },
   gCardOn: { backgroundColor: T.accent, borderColor: T.accent },
   gTop: { flexDirection: "row", alignItems: "center", gap: 6 },
   gDot: { width: 9, height: 9, borderRadius: 5 },
   gTxt: { color: T.text, fontWeight: "700", fontSize: 12.5, lineHeight: 15 },
-  mapaBox: { height: 190, marginHorizontal: 16, marginTop: 6, borderRadius: UI.radiusSm, overflow: "hidden", borderWidth: 1, borderColor: T.border, backgroundColor: "#e8ecef" },
+  mapaBox: { height: 190, flexShrink: 0, marginHorizontal: 16, marginTop: 6, borderRadius: UI.radiusSm, overflow: "hidden", borderWidth: 1, borderColor: T.border, backgroundColor: "#e8ecef" },
   gpsOverlay: { position: "absolute", top: 8, left: 8, flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(138,18,32,0.92)", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
   gpsTxt: { color: "#fff", fontWeight: "800", fontSize: 12 },
   estRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingTop: 8 },
