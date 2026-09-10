@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { getConfig } from "@/lib/config";
-import { detectarParadas, metricasRuta, type PtoGps, type MetricasRuta } from "@/lib/rondinMetricas";
+import { detectarParadas, metricasRuta, distM, type PtoGps, type MetricasRuta } from "@/lib/rondinMetricas";
 
 const nombreGuardia = (p: any): string => {
   const x = p?.persona ?? p;
@@ -73,7 +73,11 @@ function Reporte() {
   if (ses.estado === "incompleto") anomalias.push({ tipo: "Rondín incompleto", detalle: "finalizó sin completar los checkpoints" });
   if (mr && mr.desvMax > corredor) anomalias.push({ tipo: "Desviación de ruta", detalle: `máx ${mr.desvMax} m (corredor ±${corredor} m) · ${mr.tFueraMin} min fuera` });
   paradas.forEach((p) => anomalias.push({ tipo: "Parada prolongada", detalle: `${p.durMin} min desde ${hhmm(p.desde)}` }));
-  for (let i = 1; i < recorrido.length; i++) { const gap = (new Date(recorrido[i].t).getTime() - new Date(recorrido[i - 1].t).getTime()) / 60000; if (gap > 5) anomalias.push({ tipo: "Sin señal GPS", detalle: `${Math.round(gap)} min (${hhmm(recorrido[i - 1].t)}–${hhmm(recorrido[i].t)})` }); }
+  for (let i = 1; i < recorrido.length; i++) {
+    const dts = (new Date(recorrido[i].t).getTime() - new Date(recorrido[i - 1].t).getTime()) / 1000;
+    if (dts / 60 > 5) anomalias.push({ tipo: "Sin señal GPS", detalle: `${Math.round(dts / 60)} min (${hhmm(recorrido[i - 1].t)}–${hhmm(recorrido[i].t)})` });
+    if (dts > 0) { const v = distM(recorrido[i - 1].lat, recorrido[i - 1].lng, recorrido[i].lat, recorrido[i].lng) / dts; if (v > 40) anomalias.push({ tipo: "Velocidad imposible", detalle: `${Math.round(v * 3.6)} km/h a las ${hhmm(recorrido[i].t)} (posible GPS falso)` }); }
+  }
 
   const ind: [string, string][] = [
     ["Puntaje", `${score} / 100`], ["Cumplimiento", `${comp}%`], ["Cobertura ruta", mr ? `${mr.cobertura}%` : "—"],

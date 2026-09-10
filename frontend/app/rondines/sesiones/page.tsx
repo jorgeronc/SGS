@@ -5,7 +5,7 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import MapaTrazaLiberty, { type PuntoMapa } from "@/app/components/MapaTrazaLiberty";
 import { type ReporteMapa } from "@/app/components/MapaReportes";
-import { detectarParadas, metricasRuta, type Parada } from "@/lib/rondinMetricas";
+import { detectarParadas, metricasRuta, distM, type Parada } from "@/lib/rondinMetricas";
 
 // Sesiones de rondín (trazabilidad, Fase 1A). Lista histórica con filtros y, al
 // elegir una sesión, su TRAZA GPS (recorrido_gps) + CHECKS (rondines) sobre el
@@ -190,8 +190,9 @@ export default function SesionesRondinPage() {
     if (mr && mr.desvMax > (sel.corredor_m ?? 30)) out.push({ tipo: "Desviación de ruta", detalle: `máx ${mr.desvMax} m (corredor ±${sel.corredor_m ?? 30} m) · ${mr.tFueraMin} min fuera`, sev: mr.tFueraMin > 5 ? "alta" : "media" });
     paradas.forEach((p) => out.push({ tipo: "Parada prolongada", detalle: `${p.durMin} min desde ${hhmm(p.desde)}`, sev: p.durMin >= 15 ? "media" : "baja" }));
     for (let i = 1; i < recorrido.length; i++) {
-      const gap = (new Date(recorrido[i].t).getTime() - new Date(recorrido[i - 1].t).getTime()) / 60000;
-      if (gap > 5) out.push({ tipo: "Sin señal GPS", detalle: `${Math.round(gap)} min sin reporte (${hhmm(recorrido[i - 1].t)}–${hhmm(recorrido[i].t)})`, sev: gap > 15 ? "media" : "baja" });
+      const dts = (new Date(recorrido[i].t).getTime() - new Date(recorrido[i - 1].t).getTime()) / 1000;
+      if (dts / 60 > 5) out.push({ tipo: "Sin señal GPS", detalle: `${Math.round(dts / 60)} min sin reporte (${hhmm(recorrido[i - 1].t)}–${hhmm(recorrido[i].t)})`, sev: dts / 60 > 15 ? "media" : "baja" });
+      if (dts > 0) { const v = distM(recorrido[i - 1].lat, recorrido[i - 1].lng, recorrido[i].lat, recorrido[i].lng) / dts; if (v > 40) out.push({ tipo: "Velocidad imposible", detalle: `${Math.round(v * 3.6)} km/h a las ${hhmm(recorrido[i].t)} (posible GPS falso)`, sev: "media" }); }
     }
     return out;
   }, [sel, mr, paradas, recorrido]);
