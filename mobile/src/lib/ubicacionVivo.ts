@@ -47,15 +47,16 @@ async function vaciarColaRecorrido(): Promise<void> {
     const raw = await AsyncStorage.getItem(COLA_KEY);
     const cola: PuntoRecorrido[] = raw ? JSON.parse(raw) : [];
     if (cola.length === 0) return;
-    const { error } = await supabase.from("recorrido_gps").upsert(cola, { onConflict: "id", ignoreDuplicates: true });
+    // RPC (definer) inserta con user_id = auth.uid(); evita rechazo por RLS.
+    const { error } = await supabase.rpc("rpc_reportar_recorrido", { p_puntos: cola });
     if (!error) await AsyncStorage.removeItem(COLA_KEY);
   } catch { /* sin red: se reintenta luego */ }
 }
 
-// Inserta un punto de recorrido; si no hay red, lo encola.
+// Inserta un punto de recorrido (vía RPC); si no hay red, lo encola.
 async function insertarRecorrido(row: PuntoRecorrido): Promise<void> {
   try {
-    const { error } = await supabase.from("recorrido_gps").upsert(row, { onConflict: "id", ignoreDuplicates: true });
+    const { error } = await supabase.rpc("rpc_reportar_recorrido", { p_puntos: [row] });
     if (error) await encolarRecorrido(row);
   } catch { await encolarRecorrido(row); }
 }

@@ -35,6 +35,11 @@ export default function MapaTrazaLiberty({
   const mlRef = useRef<any>(null);
   const marks = useRef<any[]>([]);
   const pbMark = useRef<any>(null);
+  const listo = useRef(false);
+  // Últimos datos (para que pintar dibuje con lo más reciente tras cargar el mapa;
+  // evita que al primer clic no se dibuje la traza porque los datos llegan después).
+  const datos = useRef({ reportes, ruta, rutaEsperada, paradas, guardia });
+  datos.current = { reportes, ruta, rutaEsperada, paradas, guardia };
 
   useEffect(() => {
     let cancelado = false;
@@ -53,7 +58,7 @@ export default function MapaTrazaLiberty({
         });
         mapRef.current = map;
         map.on("error", (e: any) => console.error("MapaTrazaLiberty/MapLibre:", e?.error ?? e));
-        map.on("load", () => { setTimeout(() => map.resize(), 60); pintar(); });
+        map.on("load", () => { listo.current = true; setTimeout(() => map.resize(), 60); pintar(); });
       } catch (e) {
         console.error("MapaTrazaLiberty: no se pudo iniciar el mapa", e);
       }
@@ -64,7 +69,8 @@ export default function MapaTrazaLiberty({
 
   function pintar() {
     const map = mapRef.current, maplibre = mlRef.current;
-    if (!map || !maplibre) return;
+    if (!map || !maplibre || !listo.current) return;
+    const { reportes, ruta, rutaEsperada, paradas, guardia } = datos.current;
     // Traza (línea) — capa de estilo: espera a que el estilo esté cargado.
     const linea = ruta.map(([la, lo]) => [lo, la]);
     const fc = { type: "FeatureCollection", features: linea.length >= 2 ? [{ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: linea } }] : [] };
