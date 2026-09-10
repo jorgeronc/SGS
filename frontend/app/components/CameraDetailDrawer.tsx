@@ -27,8 +27,9 @@ const EST: Record<string, { t: string; c: string }> = {
   OFFLINE: { t: "DESCONECTADA", c: "#e23b53" }, LOADING: { t: "CARGANDO", c: "#8796a8" },
 };
 
-export default function CameraDetailDrawer({ camaraId, onClose, verMapaHref }: { camaraId: string; onClose?: () => void; verMapaHref?: string }) {
+export default function CameraDetailDrawer({ camaraId, onClose, verMapaHref, accionesColapsables }: { camaraId: string; onClose?: () => void; verMapaHref?: string; accionesColapsables?: boolean }) {
   const [cam, setCam] = useState<Cam | null>(null);
+  const [accExp, setAccExp] = useState(false); // "Acciones rápidas" retráctil (inicia colapsada) en el mapa
   const [vista, setVista] = useState<{ capacidades?: Cap; imagen_url?: string | null; estado?: string } | null>(null);
   const [tab, setTab] = useState<"detalle" | "eventos" | "historial">("detalle");
   const [eventos, setEventos] = useState<Evento[]>([]);
@@ -141,7 +142,15 @@ export default function CameraDetailDrawer({ camaraId, onClose, verMapaHref }: {
               ))}
             </div>
 
-            <div style={{ fontSize: 11, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--sc-text-faint)", margin: "14px 0 6px" }}>Acciones rápidas</div>
+            {accionesColapsables ? (
+              <button onClick={() => setAccExp((x) => !x)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: "transparent", border: "1px solid var(--sc-card-line)", color: "var(--sc-text)", borderRadius: 8, padding: "7px 10px", fontWeight: 700, fontSize: 11.5, letterSpacing: ".05em", textTransform: "uppercase", cursor: "pointer", margin: "14px 0 6px" }}>
+                <span>Acciones rápidas</span>
+                <span style={{ transform: accExp ? "rotate(90deg)" : "none", transition: "transform .15s", color: "var(--sc-text-faint)" }}>▶</span>
+              </button>
+            ) : (
+              <div style={{ fontSize: 11, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--sc-text-faint)", margin: "14px 0 6px" }}>Acciones rápidas</div>
+            )}
+            {(!accionesColapsables || accExp) && (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
               <button style={btn(cap.snapshot && !busy)} disabled={!cap.snapshot || busy} onClick={guardarSnapshot} title={cap.snapshot ? "Guardar snapshot como evidencia" : "El proveedor no entrega snapshot"}>📸 Snapshot → Evidencia</button>
               <button style={{ ...btn(!busy), background: "#e23b53" }} disabled={busy} onClick={() => setIncAbierto((x) => !x)}>🚨 Crear incidente</button>
@@ -150,9 +159,10 @@ export default function CameraDetailDrawer({ camaraId, onClose, verMapaHref }: {
               {/* Cableados; se encienden cuando el VMS los declare */}
               <button style={btn(cap.grabacion)} disabled={!cap.grabacion} title={cap.grabacion ? "Grabar clip" : "Disponible con un VMS conectado"}>⏺ Grabar {(!cap.grabacion) && "· VMS"}</button>
             </div>
+            )}
 
             {/* Form incidente */}
-            {incAbierto && (
+            {(!accionesColapsables || accExp) && incAbierto && (
               <div style={{ marginTop: 10, padding: 10, border: "1px solid var(--sc-card-line)", borderRadius: 10 }}>
                 <label style={{ display: "block", fontSize: 12, color: "var(--sc-text-soft)", marginBottom: 8 }}>
                   Tipo de incidente <span style={{ color: "#e23b53" }}>*</span>
