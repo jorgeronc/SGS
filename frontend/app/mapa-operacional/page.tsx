@@ -16,6 +16,12 @@ import { getEstadoMapa, setVistaMapa, setVentanasMapa, limpiarAlCerrarSesion } f
 const CENTER: [number, number] = [-100.309, 25.6714];
 const COL = { guardia: "#1f9d5c", pausa: "#d98a2b", incidente: "#e23b53", camara: "#0e8f86", geof: "#2f6bff", sitio: "#7c5cff", punto: "#eab308" };
 const ESTILO_KEY = "sgs_mapa_estilo"; // preferencia duradera del tipo de mapa (localStorage)
+const PITCH_KEY = "sgs_mapa_pitch";   // inclinación duradera del mapa (localStorage)
+const PITCH_DEFAULT = 50;             // arranca en perspectiva inclinada; se guarda si el usuario la cambia
+function pitchInicial(): number {
+  try { const v = localStorage.getItem(PITCH_KEY); if (v != null && v !== "") return Number(v); } catch { /* */ }
+  return PITCH_DEFAULT;
+}
 const PRIO_LBL: Record<string, string> = { alta: "Crítica", media: "Media", baja: "Baja" };
 
 // Color del icono de cámara según su estado_operativo (activa/inactiva/mantenimiento).
@@ -106,6 +112,7 @@ export default function MapaOperacionalPage() {
   }
   const [capas, setCapas] = useState({ guardias: true, incidentes: true, camaras: true, sitios: true, puntos: true, geofences: true });
   const [estiloId, setEstiloId] = useState<EstiloMapaId>("liberty");
+  const [pitchIni] = useState<number>(pitchInicial); // inclinación inicial (guardada o por defecto)
 
   const mlRef = useRef<any>(null);
   const mapRef = useRef<any>(null);
@@ -322,6 +329,9 @@ export default function MapaOperacionalPage() {
       guardarVistaAttach.current = true;
       const save = () => { try { const c = map.getCenter(); setVistaMapa([c.lng, c.lat], map.getZoom()); } catch { /* */ } };
       map.on("moveend", save); map.on("zoomend", save);
+      // La inclinación es preferencia DURADERA (localStorage): sobrevive al refresh
+      // y solo cambia cuando el usuario la modifica. Arranca en perspectiva (PITCH_DEFAULT).
+      map.on("pitchend", () => { try { localStorage.setItem(PITCH_KEY, String(Math.round(map.getPitch()))); } catch { /* */ } });
     }
     if (vistaRestaurada.current) return;
     vistaRestaurada.current = true;
@@ -349,7 +359,7 @@ export default function MapaOperacionalPage() {
 
   return (
     <div style={{ position: "relative", height: "calc(100vh - 56px)", margin: -22, overflow: "hidden" }}>
-      <MapaBase center={CENTER} zoom={12.5} className="mo-map" onReady={onReady} />
+      <MapaBase center={CENTER} zoom={12.5} pitch={pitchIni} className="mo-map" onReady={onReady} />
       <style>{`.mo-map{position:absolute;inset:0}.mo-hoverlabel{display:none}.mo-pin:hover .mo-hoverlabel{display:block}`}</style>
 
       {/* Barra superior: selección del mapa e "Ir a sitio" */}

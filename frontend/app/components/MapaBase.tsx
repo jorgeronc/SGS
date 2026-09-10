@@ -12,11 +12,13 @@ import { estiloMapaPorId, registrarPmtiles } from "@/lib/mapStyle";
 export interface MapaBaseProps {
   center?: [number, number];
   zoom?: number;
+  pitch?: number;   // inclinación inicial (0 = plano); útil para vista en perspectiva
+  bearing?: number; // rotación inicial
   className?: string;
   onReady?: (map: any) => void;
 }
 
-export default function MapaBase({ center = [-100.309, 25.6714], zoom = 12, className = "mapbox", onReady }: MapaBaseProps) {
+export default function MapaBase({ center = [-100.309, 25.6714], zoom = 12, pitch = 0, bearing = 0, className = "mapbox", onReady }: MapaBaseProps) {
   const ref = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const onReadyRef = useRef(onReady);
@@ -35,7 +37,7 @@ export default function MapaBase({ center = [-100.309, 25.6714], zoom = 12, clas
         const map = new maplibre.Map({
           container: ref.current,
           style: estiloMapaPorId("liberty", false), // Calles (Liberty) siempre
-          center, zoom,
+          center, zoom, pitch, bearing,
           attributionControl: { compact: true },
         });
         mapRef.current = map;
