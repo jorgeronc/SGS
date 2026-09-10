@@ -7,7 +7,14 @@
 -- geocerca durante una sesión activa, si hay permanencia (dwell) y muestras
 -- suficientes con precisión aceptable → registra el paso (metodo='geocerca').
 -- No requiere cambios en el móvil. Círculos (radio_m); polígonos = fase 2B.
+--
+-- Nota: si al correr da "deadlock detected" es contención transitoria con la app
+-- escribiendo recorrido_gps / leyendo puntos_control mientras la migración pide
+-- locks. Es idempotente: vuelve a correr el archivo completo (idealmente en un
+-- momento de baja actividad). lock_timeout hace que falle rápido y limpio.
 -- =====================================================================
+
+set local lock_timeout = '5s';
 
 alter table puntos_control add column if not exists metodo_validacion text not null default 'scan';
 do $$ begin
