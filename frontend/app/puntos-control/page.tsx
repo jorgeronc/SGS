@@ -15,7 +15,7 @@ import { urlReverse } from "@/lib/geo";
 // escanea (QR / tag NFC) para registrar su paso. Ver migración 0053_rondines.
 function NuevoPunto({ onCreado }: { onCreado: () => void }) {
   const [sitios, setSitios] = useState<any[]>([]);
-  const [f, setF] = useState({ sitio_id: "", nombre: "", codigo: "", orden: "", descripcion: "", lat: "", lng: "", buscarDir: "", tipo_punto: "control", radio_m: "40", tipo_control: "qr", ubicacion_control: "" });
+  const [f, setF] = useState({ sitio_id: "", nombre: "", codigo: "", orden: "", descripcion: "", lat: "", lng: "", buscarDir: "", tipo_punto: "control", radio_m: "40", tipo_control: "qr", ubicacion_control: "", metodo_validacion: "scan", dwell_seg: "45", muestras_min: "2", precision_max_m: "25" });
   const [jur, setJur] = useState(""); const [paisJur, setPaisJur] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [creando, setCreando] = useState(false);
@@ -54,6 +54,10 @@ function NuevoPunto({ onCreado }: { onCreado: () => void }) {
       latitud: f.lat ? Number(f.lat) : null, longitud: f.lng ? Number(f.lng) : null,
       tipo_punto: f.tipo_punto || "control", radio_m: f.radio_m ? Number(f.radio_m) : 40,
       tipo_control: f.tipo_control || "qr", ubicacion_control: f.ubicacion_control || null,
+      metodo_validacion: f.metodo_validacion || "scan",
+      dwell_seg: f.dwell_seg ? Number(f.dwell_seg) : 45,
+      muestras_min: f.muestras_min ? Number(f.muestras_min) : 2,
+      precision_max_m: f.precision_max_m ? Number(f.precision_max_m) : 25,
     });
     setCreando(false);
     if (error) { setError(error.message); return; }
@@ -97,6 +101,28 @@ function NuevoPunto({ onCreado }: { onCreado: () => void }) {
         <label className="dash-sub" style={{ display: "flex", flexDirection: "column" }}>Radio permitido (m)
           <input type="number" min={5} max={2000} value={f.radio_m} onChange={(e) => set("radio_m", e.target.value)} />
         </label>
+      </div>
+      <div className="form-fila">
+        <label className="dash-sub" style={{ display: "flex", flexDirection: "column" }}>Validación
+          <select value={f.metodo_validacion} onChange={(e) => set("metodo_validacion", e.target.value)}>
+            <option value="scan">Escaneo (QR/NFC)</option>
+            <option value="geocerca">Geocerca (automática por GPS)</option>
+            <option value="ambos">Ambas (escaneo o geocerca)</option>
+          </select>
+        </label>
+        {f.metodo_validacion !== "scan" && (
+          <>
+            <label className="dash-sub" style={{ display: "flex", flexDirection: "column" }}>Permanencia (s)
+              <input type="number" min={5} max={600} value={f.dwell_seg} onChange={(e) => set("dwell_seg", e.target.value)} />
+            </label>
+            <label className="dash-sub" style={{ display: "flex", flexDirection: "column" }}>Muestras mín.
+              <input type="number" min={1} max={20} value={f.muestras_min} onChange={(e) => set("muestras_min", e.target.value)} />
+            </label>
+            <label className="dash-sub" style={{ display: "flex", flexDirection: "column" }}>Precisión máx (m)
+              <input type="number" min={5} max={100} value={f.precision_max_m} onChange={(e) => set("precision_max_m", e.target.value)} />
+            </label>
+          </>
+        )}
       </div>
       <div className="form-fila">
         <input placeholder="Ubicación del control (piso/nivel, área, espacio…)" value={f.ubicacion_control} onChange={(e) => set("ubicacion_control", e.target.value)} style={{ flex: 1 }} />
@@ -163,6 +189,7 @@ function QuickViewPunto({ r }: { r: any }) {
         <dt>Tipo de punto</dt><dd>{r.tipo_punto ?? "control"}</dd>
         <dt>Ubicación del control</dt><dd>{r.ubicacion_control ?? "—"}</dd>
         <dt>Radio permitido</dt><dd>{r.radio_m != null ? `${r.radio_m} m` : "—"}</dd>
+        <dt>Validación</dt><dd>{r.metodo_validacion === "geocerca" ? `Geocerca (${r.dwell_seg ?? 45}s · ${r.muestras_min ?? 2} muestras · ≤${r.precision_max_m ?? 25}m)` : r.metodo_validacion === "ambos" ? "Escaneo o geocerca" : "Escaneo (QR/NFC)"}</dd>
         <dt>Orden</dt><dd>{r.orden ?? "—"}</dd>
         <dt>Descripción</dt><dd>{r.descripcion ?? "—"}</dd>
       </dl>
@@ -199,7 +226,7 @@ export default function PuntosControlPage() {
       tabla="puntos_control"
       modulo="puntos_control"
       orderBy="orden"
-      select="id, folio, nombre, codigo, orden, descripcion, latitud, longitud, tipo_punto, radio_m, tipo_control, ubicacion_control, estatus, creado_en, sitio_id, sitio:sitios(nombre, cliente_id, latitud, longitud, radio_geofence_m, cliente:clientes(razon_social))"
+      select="id, folio, nombre, codigo, orden, descripcion, latitud, longitud, tipo_punto, radio_m, tipo_control, ubicacion_control, metodo_validacion, dwell_seg, muestras_min, precision_max_m, estatus, creado_en, sitio_id, sitio:sitios(nombre, cliente_id, latitud, longitud, radio_geofence_m, cliente:clientes(razon_social))"
       placeholderBuscar="Buscar punto, código, sitio…"
       columnas={[
         { header: "Folio", celda: (r) => r.folio ?? "—" },
@@ -221,6 +248,10 @@ export default function PuntosControlPage() {
         { campo: "tipo_punto", label: "Tipo de punto", tipo: "select", opciones: ["control", "entrada", "salida", "caseta"] },
         { campo: "ubicacion_control", label: "Ubicación del control (piso/área)" },
         { campo: "radio_m", label: "Radio permitido (m)", tipo: "number" },
+        { campo: "metodo_validacion", label: "Validación", tipo: "select", opciones: ["scan", "geocerca", "ambos"] },
+        { campo: "dwell_seg", label: "Permanencia geocerca (s)", tipo: "number" },
+        { campo: "muestras_min", label: "Muestras mín. geocerca", tipo: "number" },
+        { campo: "precision_max_m", label: "Precisión máx. geocerca (m)", tipo: "number" },
         { campo: "latitud", label: "Latitud", tipo: "number" },
         { campo: "longitud", label: "Longitud", tipo: "number" },
         { campo: "descripcion", label: "Descripción", tipo: "textarea" },
