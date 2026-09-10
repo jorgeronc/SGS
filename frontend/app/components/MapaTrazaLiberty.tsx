@@ -20,19 +20,21 @@ function cuandoEstiloListo(map: any, fn: () => void) {
 export interface PuntoMapa { latitud: number; longitud: number; titulo: string }
 
 export default function MapaTrazaLiberty({
-  reportes, ruta, rutaEsperada = [], paradas = [], guardia = null, className = "mapbox",
+  reportes, ruta, rutaEsperada = [], paradas = [], guardia = null, playback = null, className = "mapbox",
 }: {
   reportes: ReporteMapa[];
   ruta: [number, number][];          // recorrido real [lat, lng] en orden temporal
   rutaEsperada?: [number, number][]; // ruta programada (puntos de control) [lat, lng]
   paradas?: PuntoMapa[];    // permanencias prolongadas (LONG_STOP)
   guardia?: PuntoMapa | null; // posición actual del guardia (sesión en curso)
+  playback?: { latitud: number; longitud: number } | null; // marcador de reproducción histórica
   className?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const mlRef = useRef<any>(null);
   const marks = useRef<any[]>([]);
+  const pbMark = useRef<any>(null);
 
   useEffect(() => {
     let cancelado = false;
@@ -121,6 +123,18 @@ export default function MapaTrazaLiberty({
   }
 
   useEffect(() => { if (mapRef.current) pintar(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [reportes, ruta, rutaEsperada, paradas, guardia]);
+
+  // Marcador de reproducción: persistente, se mueve sin repintar el resto.
+  useEffect(() => {
+    const map = mapRef.current, maplibre = mlRef.current;
+    if (!map || !maplibre) return;
+    if (!playback || playback.latitud == null) { if (pbMark.current) { pbMark.current.remove(); pbMark.current = null; } return; }
+    if (!pbMark.current) {
+      const el = document.createElement("div");
+      el.style.cssText = "width:18px;height:18px;border-radius:50%;background:#111;border:3px solid #fff;box-shadow:0 0 0 3px #1119,0 1px 5px #0008";
+      pbMark.current = new maplibre.Marker({ element: el, anchor: "center" }).setLngLat([Number(playback.longitud), Number(playback.latitud)]).addTo(map);
+    } else pbMark.current.setLngLat([Number(playback.longitud), Number(playback.latitud)]);
+  }, [playback]);
 
   return <div ref={ref} className={className} />;
 }

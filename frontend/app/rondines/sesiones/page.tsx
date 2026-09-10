@@ -128,6 +128,10 @@ export default function SesionesRondinPage() {
   const [guardiaVivo, setGuardiaVivo] = useState<{ latitud: number; longitud: number; actualizado_en: string | null } | null>(null);
   const [cargando, setCargando] = useState(false);
   const canalVivo = useRef<any>(null);
+  // Reproducción histórica (playback).
+  const [pbIdx, setPbIdx] = useState(0);
+  const [pbPlaying, setPbPlaying] = useState(false);
+  const [pbSpeed, setPbSpeed] = useState(1);
 
   useEffect(() => {
     supabase.from("clientes").select("id, razon_social").eq("estatus", "activo").order("razon_social")
@@ -179,6 +183,7 @@ export default function SesionesRondinPage() {
   // Detalle de la sesión seleccionada: traza + checks (+ guardia en vivo si está en curso).
   const abrir = useCallback(async (s: Sesion) => {
     setSel(s); setRuta([]); setRecorrido([]); setChecks([]); setGuardiaVivo(null); setRutaEsperada([]); setIncSes([]); setEvSes([]);
+    setPbIdx(0); setPbPlaying(false);
     if (canalVivo.current) { supabase.removeChannel(canalVivo.current); canalVivo.current = null; }
     // Incidentes y evidencias ligados a la sesión (creados durante el rondín).
     supabase.from("llamadas_cad").select("id, folio, tipo, prioridad, direccion, latitud, longitud").eq("sesion_id", s.id)
@@ -223,6 +228,42 @@ export default function SesionesRondinPage() {
     ? { latitud: Number(guardiaVivo.latitud), longitud: Number(guardiaVivo.longitud), titulo: `👷 ${sel?.guardia ?? "Guardia"} · GPS hace ${hace(guardiaVivo.actualizado_en)}` }
     : null), [guardiaVivo, sel]);
   const mr = useMemo(() => metricasRuta(recorrido, rutaEsperada, sel?.corredor_m ?? 30), [recorrido, rutaEsperada, sel]);
+
+  // Playback: avanza el índice según velocidad.
+  useEffect(() => {
+    if (!pbPlaying || recorrido.length < 2) return;
+    const t = setInterval(() => {
+      setPbIdx((i) => { if (i >= recorrido.length - 1) { setPbPlaying(false); return i; } return i + 1; });
+    }, Math.max(80, Math.round(500 / pbSpeed)));
+    return () => clearInterval(t);
+  }, [pbPlaying, pbSpeed, recorrido.length]);
+  const pbPunto = useMemo(() => (recorrido.length ? { latitud: recorrido[Math.min(pbIdx, recorrido.length - 1)].lat, longitud: recorrido[Math.min(pbIdx, recorrido.length - 1)].lng } : null), [recorrido, pbIdx]);
+
+  // Puntaje de cumplimiento (0–100): checkpoints + cobertura de ruta − penalizaciones.
+  const score = useMemo(() => {
+    if (!sel) return null;
+    const comp = sel.cumplimiento_pct ?? 0;
+    const cob = mr ? mr.cobertura : comp; // sin ruta programada, usa el cumplimiento
+    const penalDesv = mr ? Math.min(20, mr.tFueraMin) : 0;
+    const penalPar = Math.min(15, paradas.length * 5);
+    return Math.max(0, Math.min(100, Math.round(0.55 * comp + 0.45 * cob - penalDesv - penalPar)));
+  }, [sel, mr, paradas]);
+
+  // Anomalías automáticas (revisión): checkpoints omitidos, desviación, paradas, GPS perdido, incompleto.
+  const anomalias = useMemo<{ tipo: string; detalle: string; sev: "alta" | "media" | "baja" }[]>(() => {
+    if (!sel) return [];
+    const out: { tipo: string; detalle: string; sev: "alta" | "media" | "baja" }[] = [];
+    const om = sel.checkpoints_esperados - sel.checkpoints_visitados;
+    if (om > 0) out.push({ tipo: "Checkpoints omitidos", detalle: `${om} de ${sel.checkpoints_esperados}`, sev: "alta" });
+    if (sel.estado === "incompleto") out.push({ tipo: "Rondín incompleto", detalle: "finalizó sin completar los checkpoints obligatorios", sev: "media" });
+    if (mr && mr.desvMax > (sel.corredor_m ?? 30)) out.push({ tipo: "Desviación de ruta", detalle: `máx ${mr.desvMax} m (corredor ±${sel.corredor_m ?? 30} m) · ${mr.tFueraMin} min fuera`, sev: mr.tFueraMin > 5 ? "alta" : "media" });
+    paradas.forEach((p) => out.push({ tipo: "Parada prolongada", detalle: `${p.durMin} min desde ${hhmm(p.desde)}`, sev: p.durMin >= 15 ? "media" : "baja" }));
+    for (let i = 1; i < recorrido.length; i++) {
+      const gap = (new Date(recorrido[i].t).getTime() - new Date(recorrido[i - 1].t).getTime()) / 60000;
+      if (gap > 5) out.push({ tipo: "Sin señal GPS", detalle: `${Math.round(gap)} min sin reporte (${hhmm(recorrido[i - 1].t)}–${hhmm(recorrido[i].t)})`, sev: gap > 15 ? "media" : "baja" });
+    }
+    return out;
+  }, [sel, mr, paradas, recorrido]);
 
   const reportes = useMemo<ReporteMapa[]>(() => [
     ...checks.filter((p) => p.latitud != null && p.longitud != null).map((p, i) => ({
@@ -325,6 +366,7 @@ export default function SesionesRondinPage() {
                 </div>
               )}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 10, marginBottom: 12 }}>
+                <Caja t="Puntaje" v={score != null ? `${score}` : "—"} c={score == null ? undefined : score >= 90 ? "#1f9d5c" : score >= 75 ? "#d98a2b" : "#d32f2f"} />
                 <Caja t="Cumplimiento" v={sel.cumplimiento_pct != null ? `${sel.cumplimiento_pct}%` : "—"} c={(EST[sel.estado] ?? EST.en_progreso).c} />
                 <Caja t="Checkpoints" v={`${sel.checkpoints_visitados}/${sel.checkpoints_esperados}`} />
                 <Caja t="Distancia" v={km(sel.distancia_m)} />
@@ -335,8 +377,20 @@ export default function SesionesRondinPage() {
                 <Caja t="Fuera de ruta" v={mr ? `${mr.tFueraMin} min · ${km(mr.distFueraM)}` : "—"} c={mr && mr.tFueraMin > 0 ? "#d98a2b" : undefined} />
               </div>
               <div className="mapcard">
-                <MapaTrazaLiberty reportes={reportes} ruta={ruta} rutaEsperada={rutaEsperada} paradas={paradasMapa} guardia={guardiaMapa} className="mapbox-dash" />
+                <MapaTrazaLiberty reportes={reportes} ruta={ruta} rutaEsperada={rutaEsperada} paradas={paradasMapa} guardia={guardiaMapa} playback={pbPunto} className="mapbox-dash" />
               </div>
+              {recorrido.length >= 2 && (
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, padding: "6px 10px", border: "1px solid var(--sc-card-line)", borderRadius: 10 }}>
+                  <button onClick={() => setPbPlaying((p) => !p)} title="Reproducir recorrido" style={{ background: "var(--sc-btn,#f4a03f)", color: "#fff", border: "none", borderRadius: 8, width: 34, height: 30, cursor: "pointer", fontSize: 13 }}>{pbPlaying ? "⏸" : "▶"}</button>
+                  {[1, 2, 4].map((v) => (
+                    <button key={v} onClick={() => setPbSpeed(v)} style={{ background: pbSpeed === v ? "var(--sc-surface-2,#eef2f6)" : "transparent", border: "1px solid var(--sc-card-line)", borderRadius: 6, padding: "3px 7px", fontSize: 11.5, cursor: "pointer", color: "var(--sc-text)", fontWeight: pbSpeed === v ? 700 : 400 }}>{v}x</button>
+                  ))}
+                  <input type="range" min={0} max={Math.max(0, recorrido.length - 1)} value={pbIdx} onChange={(e) => { setPbIdx(Number(e.target.value)); setPbPlaying(false); }} style={{ flex: 1 }} />
+                  <span style={{ fontSize: 11.5, color: "var(--sc-text-soft)", minWidth: 96, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                    {recorrido[Math.min(pbIdx, recorrido.length - 1)] ? new Date(recorrido[Math.min(pbIdx, recorrido.length - 1)].t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "—"}
+                  </span>
+                </div>
+              )}
               {rutaEsperada.length >= 2 && (
                 <div style={{ fontSize: 11.5, color: "var(--sc-text-soft)", marginTop: 4 }}>
                   <span style={{ color: "#7c5cff" }}>— — ruta esperada</span> (puntos de control, corredor ±{sel.corredor_m ?? 30} m) · <span style={{ color: "#2563eb" }}>—— recorrido real</span>
@@ -363,6 +417,18 @@ export default function SesionesRondinPage() {
                     </li>
                   ))}
                 </ol>
+              )}
+
+              {anomalias.length > 0 && (
+                <div style={{ marginTop: 10 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#d98a2b", margin: "4px 0" }}>⚠ Anomalías detectadas ({anomalias.length})</div>
+                  {anomalias.map((a, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, padding: "3px 0" }}>
+                      <span style={{ width: 8, height: 8, borderRadius: "50%", flex: "0 0 auto", background: a.sev === "alta" ? "#d32f2f" : a.sev === "media" ? "#d98a2b" : "#9aa4b2" }} />
+                      <span><b>{a.tipo}</b> · {a.detalle}</span>
+                    </div>
+                  ))}
+                </div>
               )}
 
               {(incSes.length > 0 || evSes.length > 0) && (

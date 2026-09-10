@@ -98,6 +98,7 @@ export default function MapaOperacionalPage() {
   const [selCam, setSelCam] = useState<any | null>(est0.selCam);
   const [selChat, setSelChat] = useState<{ canalId: string; folio: string } | null>(est0.selChat);
   const [sitioFoco, setSitioFoco] = useState<string>(""); // selector "Ir a sitio"
+  const [accExp, setAccExp] = useState(false);            // acciones rápidas del incidente (inicia retraído)
 
   // Abre (asegurando membresía) el chat del incidente en el panel izquierdo.
   async function abrirChatIncidente(inc: any) {
@@ -138,6 +139,8 @@ export default function MapaOperacionalPage() {
 
   // Persiste las ventanas abiertas para restaurarlas al regresar al mapa.
   useEffect(() => { setVentanasMapa({ selInc, selCam, selChat }); }, [selInc, selCam, selChat]);
+  // Cada incidente abre con las acciones rápidas retraídas.
+  useEffect(() => { setAccExp(false); }, [selInc?.id]);
 
   // Aplica el estilo elegido (o restaurado) al mapa. Un solo camino para cambio
   // manual y restauración; styledata re-agrega capas/marcadores (idempotente).
@@ -379,12 +382,20 @@ export default function MapaOperacionalPage() {
             </div>
             <h3 style={{ margin: "8px 0 2px" }}>{selInc.tipo ?? "Incidencia"}</h3>
             <div style={{ color: "var(--sc-text-soft)", fontSize: 12.5 }}>{selInc.direccion ?? "—"} · prioridad {PRIO_LBL[selInc.prioridad] ?? selInc.prioridad}</div>
-            <Link href={`/cad/${selInc.id}`} style={{ display: "block", textAlign: "center", background: "#2f6bff", color: "#fff", borderRadius: 9, padding: 9, fontWeight: 700, marginTop: 10, textDecoration: "none" }}>Abrir en Central / Despacho</Link>
-            <button onClick={() => abrirChatIncidente(selInc)} style={{ display: "block", width: "100%", textAlign: "center", background: "#2563eb", color: "#fff", border: "none", borderRadius: 9, padding: 9, fontWeight: 700, marginTop: 8, cursor: "pointer" }}>💬 Chat del incidente</button>
+            <button onClick={() => setAccExp((v) => !v)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: "transparent", border: "1px solid var(--sc-card-line)", color: "var(--sc-text)", borderRadius: 8, padding: "7px 10px", fontWeight: 700, fontSize: 12.5, cursor: "pointer", marginTop: 10 }}>
+              <span>Acciones rápidas</span>
+              <span style={{ transform: accExp ? "rotate(90deg)" : "none", transition: "transform .15s", color: "var(--sc-text-faint)" }}>▶</span>
+            </button>
           </div>
-          <div style={{ padding: "6px 15px 14px" }}>
-            <CamarasCercanas latitud={selInc.latitud ?? null} longitud={selInc.longitud ?? null} radioM={600} />
-          </div>
+          {accExp && (
+            <div style={{ padding: "10px 15px 14px" }}>
+              <Link href={`/cad/${selInc.id}`} style={{ display: "block", textAlign: "center", background: "#2f6bff", color: "#fff", borderRadius: 9, padding: 9, fontWeight: 700, textDecoration: "none" }}>Abrir en Central / Despacho</Link>
+              <button onClick={() => abrirChatIncidente(selInc)} style={{ display: "block", width: "100%", textAlign: "center", background: "#2563eb", color: "#fff", border: "none", borderRadius: 9, padding: 9, fontWeight: 700, marginTop: 8, cursor: "pointer" }}>💬 Chat del incidente</button>
+              <div style={{ marginTop: 12 }}>
+                <CamarasCercanas latitud={selInc.latitud ?? null} longitud={selInc.longitud ?? null} radioM={600} />
+              </div>
+            </div>
+          )}
         </aside>
       )}
 
