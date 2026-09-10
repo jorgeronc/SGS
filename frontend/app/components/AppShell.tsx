@@ -191,6 +191,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const correo = session.user?.email ?? "";
   const iniciales = correo.slice(0, 2).toUpperCase();
   const tituloTop = TITULOS_TOP[pathname] ?? (pathname.startsWith("/cad/") ? "Central de Despacho — Detalle de incidente" : undefined);
+  // Ítem activo = el href que es el PREFIJO MÁS LARGO de la ruta (así /rondines/sesiones
+  // no marca también /rondines).
+  const activoHref = GRUPOS.flatMap((g) => g.items.filter((it) => !it.nueva).map((it) => it.href))
+    .filter((h) => pathname === h || pathname.startsWith(h + "/"))
+    .sort((a, b) => b.length - a.length)[0] ?? null;
 
   return (
     <div className={`shell${colapsado ? " collapsed" : ""}`}>
@@ -215,7 +220,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 <Link
                   key={it.href}
                   href={it.href}
-                  className={!it.nueva && pathname.startsWith(it.href) ? "on" : ""}
+                  className={!it.nueva && it.href === activoHref ? "on" : ""}
                   target={it.nueva ? "_blank" : undefined}
                   rel={it.nueva ? "noopener noreferrer" : undefined}
                 >
