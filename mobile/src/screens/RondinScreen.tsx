@@ -130,7 +130,7 @@ export default function RondinScreen() {
             <Text style={styles.lbl}>Punto (código)</Text>
             <Text style={styles.codigo}>{codigo}</Text>
             <Text style={[styles.lbl, { marginTop: 12 }]}>Novedad (opcional)</Text>
-            <TextInput style={[styles.input, { height: 124, textAlignVertical: "top" }]} placeholder="Sin novedad, o describe lo encontrado…" placeholderTextColor={T.textMute} value={novedad} onChangeText={setNovedad} multiline scrollEnabled />
+            <TextInput style={[styles.input, { flex: 0, height: 130, textAlignVertical: "top" }]} placeholder="Sin novedad, o describe lo encontrado…" placeholderTextColor={T.textMute} value={novedad} onChangeText={setNovedad} multiline scrollEnabled />
           </View>
           <TouchableOpacity style={[styles.btnGrande, enviando && { opacity: 0.6 }]} onPress={registrar} disabled={enviando}>
             {enviando ? <ActivityIndicator color={T.white} /> : (<><Ionicons name="checkmark-circle" size={20} color={T.white} /><Text style={styles.btnGrandeTxt}>Registrar paso</Text></>)}
