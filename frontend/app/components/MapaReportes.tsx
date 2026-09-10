@@ -16,6 +16,7 @@ export interface ReporteMapa {
   longitud: number;
   href: string;
   color?: string; // color del pin (p. ej. según estado); azul por defecto
+  orden?: number; // si viene, dibuja un marcador NUMERADO (para casar mapa ↔ lista)
 }
 export interface PatrullaMapa {
   id: string; titulo: string; sub?: string; latitud: number; longitud: number;
@@ -44,6 +45,15 @@ function cuandoEstiloListo(map: any, fn: () => void) {
 function punto(color: string, r = 8): HTMLElement {
   const el = document.createElement("div");
   el.style.cssText = `width:${r * 2}px;height:${r * 2}px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 1px 4px #0006;cursor:pointer`;
+  return el;
+}
+
+// Marcador NUMERADO (badge circular con el número dentro): casa el punto del mapa
+// con su renglón en la lista del historial (mismo número y mismo color).
+function numerado(color: string, num: number): HTMLElement {
+  const el = document.createElement("div");
+  el.style.cssText = `min-width:22px;height:22px;padding:0 5px;border-radius:11px;background:${color};border:2px solid #fff;box-shadow:0 1px 5px #0007;display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:800;line-height:1;cursor:pointer`;
+  el.textContent = String(num);
   return el;
 }
 
@@ -98,8 +108,11 @@ export default function MapaReportes({
     reportes.forEach((r) => {
       if (r.latitud == null || r.longitud == null) return;
       const enlace = r.href && r.href !== "#" ? `<br><a href="${r.href}">Abrir registro →</a>` : "";
-      const mk = new maplibre.Marker({ color: r.color ?? "#2563eb" }).setLngLat([Number(r.longitud), Number(r.latitud)])
-        .setPopup(new maplibre.Popup({ offset: 24, closeButton: false }).setHTML(`<div style="font-size:12px;color:#111"><b>${r.folio ?? "s/folio"}</b><br>${r.titulo}${enlace}</div>`))
+      const mk = (r.orden != null
+        ? new maplibre.Marker({ element: numerado(r.color ?? "#2563eb", r.orden), anchor: "center" })
+        : new maplibre.Marker({ color: r.color ?? "#2563eb" }))
+        .setLngLat([Number(r.longitud), Number(r.latitud)])
+        .setPopup(new maplibre.Popup({ offset: 18, closeButton: false }).setHTML(`<div style="font-size:12px;color:#111"><b>${r.folio ?? "s/folio"}</b><br>${r.titulo}${enlace}</div>`))
         .addTo(map);
       marks.current.push(mk); pts.push([Number(r.longitud), Number(r.latitud)]);
     });

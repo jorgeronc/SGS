@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabaseClient";
 import MapaReportes, { type ReporteMapa } from "@/app/components/MapaReportes";
 import { getConfig } from "@/lib/config";
 
+const TZ_MTY = "-06:00"; // Monterrey (sin horario de verano) — acota el día local
 const conNovedad = (n: string | null) => !!n && n.trim() !== "" && n.trim().toLowerCase() !== "sin novedad";
 const PAL = ["#1e88e5", "#8e24aa", "#00897b", "#f4511e", "#3949ab", "#c0ca33", "#00acc1", "#6d4c41"];
 function nombreGuardia(p: any): string {
@@ -36,7 +37,7 @@ function Reporte() {
     if (!fecha || (!guardiaId && !sitioId)) return;
     (async () => {
       getConfig().then((c) => setCorp(c?.corporacion ?? ""));
-      const desde = `${fecha}T00:00:00`, hasta = `${fecha}T23:59:59.999`;
+      const desde = `${fecha}T00:00:00${TZ_MTY}`, hasta = `${fecha}T23:59:59.999${TZ_MTY}`;
 
       // Puntos a considerar + encabezado según el modo.
       let puntoIds: string[] = [];

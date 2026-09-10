@@ -15,6 +15,10 @@ const conNovedad = (n: string | null) => !!n && n.trim() !== "" && n.trim().toLo
 // Fecha en HORA LOCAL (no UTC): con toISOString los turnos de hoy no aparecían de
 // noche (el UTC ya era el día siguiente) y por eso "por sitio" salía vacío.
 const fmtFecha = (d: Date) => { const p = (n: number) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; };
+// fecha_hora es timestamptz: hay que acotar el día en hora LOCAL (Monterrey, UTC−6
+// sin horario de verano). Sin el offset, PostgREST lo interpreta en UTC y un rondín
+// nocturno aparece en el día siguiente (bug de fechas).
+const TZ_MTY = "-06:00";
 // "En línea" = reportó GPS hace poco. No basta el flag en_linea guardado: una
 // posición vieja (o de demo) se quedaba fija aunque el GPS estuviera apagado.
 const VENTANA_GPS_MS = 5 * 60 * 1000;
@@ -143,7 +147,7 @@ export default function SupervisionScreen() {
       const { data } = await supabase.from("rondines")
         .select("id, fecha_hora, novedad, dentro_geocerca, distancia_m, punto:puntos_control(nombre, sitio:sitios(nombre))")
         .eq("personal_id", guardiaId).eq("estatus", "activo")
-        .gte("fecha_hora", `${f}T00:00:00`).lte("fecha_hora", `${f}T23:59:59.999`)
+        .gte("fecha_hora", `${f}T00:00:00${TZ_MTY}`).lte("fecha_hora", `${f}T23:59:59.999${TZ_MTY}`)
         .order("fecha_hora", { ascending: true });
       setPasos(((data as any[]) ?? []).map((r) => ({
         id: r.id, fecha_hora: r.fecha_hora, novedad: r.novedad,

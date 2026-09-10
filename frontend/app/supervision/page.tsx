@@ -5,7 +5,12 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import MapaReportes, { type ReporteMapa } from "@/app/components/MapaReportes";
 
-const hoyISO = () => new Date().toISOString().slice(0, 10);
+const TZ_MTY = "-06:00"; // Monterrey (sin horario de verano) — para acotar el día local
+const hoyISO = () => {
+  // "Hoy" en hora local, no en UTC (toISOString daría el día UTC).
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
 function nombreGuardia(p: any): string {
   const x = p?.persona ?? p;
   return x ? `${x.nombre ?? ""} ${x.apellido_paterno ?? ""} ${x.apellido_materno ?? ""}`.trim() : "—";
@@ -56,7 +61,10 @@ export default function SupervisionPage() {
     if (!sitioId) { setPasos([]); setRuta([]); return; }
     (async () => {
       setCargando(true);
-      const desde = `${fecha}T00:00:00`, hasta = `${fecha}T23:59:59.999`;
+      // fecha_hora es timestamptz: hay que acotar el día en hora LOCAL (Monterrey,
+      // UTC−6 sin horario de verano). Sin el offset, PostgREST lo interpreta en UTC
+      // y un rondín nocturno "cae" en el día siguiente (bug de fechas). TZ_MTY.
+      const desde = `${fecha}T00:00:00${TZ_MTY}`, hasta = `${fecha}T23:59:59.999${TZ_MTY}`;
       const { data: pts } = await supabase.from("puntos_control").select("id").eq("sitio_id", sitioId).eq("estatus", "activo");
       const ids = ((pts as any[]) ?? []).map((p) => p.id);
       if (ids.length === 0) { setPasos([]); setRuta([]); setCargando(false); return; }
@@ -89,12 +97,21 @@ export default function SupervisionPage() {
     return m;
   }, [pasos]);
 
-  const reportes = useMemo<ReporteMapa[]>(() => pasos.filter((p) => p.latitud != null && p.longitud != null).map((p, i) => ({
-    id: p.id, folio: `#${i + 1}`,
+  // Número y color por check, iguales en el mapa y en el historial (correspondencia).
+  // El número es el orden temporal global (pasos ya viene ordenado por fecha_hora).
+  const ordenPorId = useMemo(() => {
+    const m: Record<string, number> = {};
+    pasos.forEach((p, i) => { m[p.id] = i + 1; });
+    return m;
+  }, [pasos]);
+  const colorPaso = (p: Paso) => (conNovedad(p.novedad) || p.dentro === false) ? "#d32f2f" : (colorGuardia[p.personalId] ?? "#f4a03f");
+
+  const reportes = useMemo<ReporteMapa[]>(() => pasos.filter((p) => p.latitud != null && p.longitud != null).map((p) => ({
+    id: p.id, folio: `#${ordenPorId[p.id]}`, orden: ordenPorId[p.id],
     titulo: `👷 ${p.guardia}<br>${p.punto} · ${new Date(p.fecha_hora).toLocaleString()}${conNovedad(p.novedad) ? `<br>⚠ ${p.novedad}` : ""}${p.dentro === false ? `<br>⚠ Fuera de rango (${p.distancia ?? "?"} m)` : ""}`,
     latitud: Number(p.latitud), longitud: Number(p.longitud), href: `/rondines/${p.id}`,
-    color: (conNovedad(p.novedad) || p.dentro === false) ? "#d32f2f" : (colorGuardia[p.personalId] ?? "#f4a03f"),
-  })), [pasos, colorGuardia]);
+    color: colorPaso(p),
+  })), [pasos, colorGuardia, ordenPorId]);
 
   // Agrupado: sitio → guardia → pasos.
   const grupos = useMemo(() => {
@@ -184,11 +201,14 @@ export default function SupervisionPage() {
                         </button>
                         {abierto && (
                           <ol className="cad-timeline" style={{ padding: "12px 16px 6px" }}>
-                            {items.map((p, i) => (
+                            {items.map((p) => (
                               <li key={p.id} className="cad-tl-item">
-                                <span className="cad-tl-dot" style={conNovedad(p.novedad) ? { background: "#d32f2f" } : undefined} />
+                                <span className="cad-tl-dot" style={{ background: colorPaso(p) }} />
                                 <div className="cad-tl-body">
-                                  <span className="cad-tl-estado">{i + 1}. {p.punto}</span>
+                                  <span className="cad-tl-estado">
+                                    <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 20, height: 20, padding: "0 5px", borderRadius: 10, background: colorPaso(p), color: "#fff", fontSize: 11, fontWeight: 800, marginRight: 6, verticalAlign: "middle" }}>{ordenPorId[p.id]}</span>
+                                    {p.punto}
+                                  </span>
                                   <span className="cad-tl-meta">
                                     {new Date(p.fecha_hora).toLocaleString()}
                                     {p.metodo ? ` · ${p.metodo === "nfc" ? "NFC" : p.metodo === "manual" ? "Manual" : "QR"}` : ""}
