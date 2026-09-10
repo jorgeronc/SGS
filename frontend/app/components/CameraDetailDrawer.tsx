@@ -31,7 +31,7 @@ export default function CameraDetailDrawer({ camaraId, onClose, verMapaHref, acc
   const [cam, setCam] = useState<Cam | null>(null);
   const [accExp, setAccExp] = useState(false); // "Acciones rápidas" retráctil (inicia colapsada) en el mapa
   const [vista, setVista] = useState<{ capacidades?: Cap; imagen_url?: string | null; estado?: string } | null>(null);
-  const [tab, setTab] = useState<"detalle" | "eventos" | "historial">("detalle");
+  const [tab, setTab] = useState<"ptz" | "eventos" | "historial" | "detalle">("detalle");
   const [eventos, setEventos] = useState<Evento[]>([]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ txt: string; href?: string; ok: boolean } | null>(null);
@@ -124,12 +124,23 @@ export default function CameraDetailDrawer({ camaraId, onClose, verMapaHref, acc
 
       {/* Pestañas */}
       <div style={{ display: "flex", borderBottom: "1px solid var(--sc-card-line)", padding: "0 10px" }}>
-        <button style={tabBtn("detalle")} onClick={() => setTab("detalle")}>Detalle</button>
+        <button style={tabBtn("ptz")} onClick={() => setTab("ptz")}>PTZ</button>
         <button style={tabBtn("eventos")} onClick={() => setTab("eventos")}>Eventos{eventos.length ? ` (${eventos.length})` : ""}</button>
         <button style={tabBtn("historial")} onClick={() => setTab("historial")}>Historial</button>
+        <button style={tabBtn("detalle")} onClick={() => setTab("detalle")}>Detalle</button>
       </div>
 
       <div style={{ padding: "12px 14px" }}>
+        {tab === "ptz" && (
+          <>
+            <div style={{ fontSize: 11, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--sc-text-faint)", margin: "0 0 8px" }}>PTZ {(!cap.ptz) && <span style={{ textTransform: "none", fontWeight: 400 }}>· requiere cámara PTZ + VMS</span>}</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 40px)", gap: 6, justifyContent: "center", opacity: cap.ptz ? 1 : 0.4 }}>
+              {[["up", "↑"], ["left", "←"], ["home", "⌂"], ["right", "→"], ["down", "↓"], ["zin", "＋"], ["zout", "－"]].map(([c, s]) => (
+                <button key={c} disabled={!cap.ptz} onClick={() => ptz(c)} style={{ width: 40, height: 34, borderRadius: 8, border: "1px solid var(--sc-card-line)", background: "transparent", color: "var(--sc-text)", cursor: cap.ptz ? "pointer" : "not-allowed" }}>{s}</button>
+              ))}
+            </div>
+          </>
+        )}
         {tab === "detalle" && (
           <>
             <div style={{ fontSize: 11, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--sc-text-faint)", marginBottom: 6 }}>Información</div>
@@ -177,19 +188,11 @@ export default function CameraDetailDrawer({ camaraId, onClose, verMapaHref, acc
                 <button style={{ ...btn(!busy), background: "#e23b53", width: "100%" }} disabled={busy} onClick={crearIncidente}>Crear incidente (se ancla al sitio + snapshot)</button>
               </div>
             )}
-
-            {/* PTZ (cableado; deshabilitado hasta cámara PTZ + VMS) */}
-            <div style={{ fontSize: 11, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--sc-text-faint)", margin: "14px 0 6px" }}>PTZ {(!cap.ptz) && <span style={{ textTransform: "none", fontWeight: 400 }}>· requiere cámara PTZ + VMS</span>}</div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 40px)", gap: 6, justifyContent: "center", opacity: cap.ptz ? 1 : 0.4 }}>
-              {[["up", "↑"], ["left", "←"], ["home", "⌂"], ["right", "→"], ["down", "↓"], ["zin", "＋"], ["zout", "－"]].map(([c, s]) => (
-                <button key={c} disabled={!cap.ptz} onClick={() => ptz(c)} style={{ width: 40, height: 34, borderRadius: 8, border: "1px solid var(--sc-card-line)", background: "transparent", color: "var(--sc-text)", cursor: cap.ptz ? "pointer" : "not-allowed" }}>{s}</button>
-              ))}
-            </div>
           </>
         )}
 
         {tab === "eventos" && (
-          <div>
+          <div style={{ maxHeight: 260, overflowY: "auto" }}>
             {eventos.length === 0 ? (
               <div style={{ color: "var(--sc-text-soft)", fontSize: 13, textAlign: "center", padding: "18px 6px" }}>Sin eventos.<br /><span style={{ fontSize: 12, color: "var(--sc-text-faint)" }}>Los eventos analíticos llegan cuando se conecta un VMS o motor de analítica.</span></div>
             ) : eventos.map((ev) => (
@@ -207,7 +210,7 @@ export default function CameraDetailDrawer({ camaraId, onClose, verMapaHref, acc
         )}
 
         {tab === "historial" && (
-          <div style={{ fontSize: 12.5, display: "grid", gridTemplateColumns: "auto 1fr", rowGap: 5, columnGap: 12 }}>
+          <div style={{ fontSize: 12.5, display: "grid", gridTemplateColumns: "auto 1fr", rowGap: 5, columnGap: 12, maxHeight: 260, overflowY: "auto" }}>
             <span style={{ color: "var(--sc-text-soft)" }}>Estado actual</span><span style={{ fontWeight: 600, textAlign: "right", color: e.c }}>{e.t}</span>
             <span style={{ color: "var(--sc-text-soft)" }}>Proveedor</span><span style={{ fontWeight: 600, textAlign: "right" }}>{cam?.vms ?? cam?.proveedor}</span>
             {cam?.ultima_actividad && (<><span style={{ color: "var(--sc-text-soft)" }}>Última actividad</span><span style={{ fontWeight: 600, textAlign: "right" }}>{new Date(cam.ultima_actividad).toLocaleString("es-MX")}</span></>)}
