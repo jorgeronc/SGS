@@ -95,9 +95,9 @@ export default function VerCredencialPage() {
     .cv-card{width:480px;height:303px;border-radius:16px;overflow:hidden;position:relative;background:#fff;color:${p.ink};
       font-family:'Barlow',system-ui,Arial,sans-serif;box-shadow:0 8px 24px rgba(20,30,48,.18);
       display:grid;grid-template-rows:auto 1fr;border:${p.bw ? "1.5px solid #000" : "1px solid rgba(0,0,0,.1)"}}
-    .cv-card.bg{background-size:cover;background-position:center}
+    .cv-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0}
+    .cv-band,.cv-body{position:relative;z-index:1}
     .cv-band{background:${p.band};color:${p.bandInk};display:flex;align-items:center;gap:11px;padding:11px 15px;${p.bw ? "border-bottom:1.5px solid #000" : ""}}
-    .cv-card.bg .cv-band{background:rgba(0,0,0,0)}
     .cv-org{display:flex;flex-direction:column;line-height:1.05}
     .cv-org-name{font-family:'Saira Condensed',Arial;font-weight:700;font-size:15px;letter-spacing:.03em;text-transform:uppercase}
     .cv-org-sub{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:${p.accent};font-weight:700}
@@ -142,9 +142,10 @@ export default function VerCredencialPage() {
 
       <div style={{ display: "grid", gridTemplateColumns: "480px 1fr", gap: 24, alignItems: "start", flexWrap: "wrap" }}>
         {/* La credencial completa (imagen) */}
-        <div ref={cardRef} className={`cv-card${bgUrl ? " bg" : ""}`} style={bgUrl ? { backgroundImage: `url(${bgUrl})` } : undefined}>
-          <div className="cv-edge" />
-          <div className="cv-band">
+        <div ref={cardRef} className={`cv-card${bgUrl ? " bg" : ""}`}>
+          {bgUrl && <img className="cv-bg" src={bgUrl} crossOrigin="anonymous" alt="" />}
+          {!bgUrl && <div className="cv-edge" />}
+          {!bgUrl && <div className="cv-band">
             <svg width="30" height="34" viewBox="0 0 30 34" fill="none" style={{ color: p.bw ? "#000" : p.bandInk }}>
               <path d="M15 1.5 L28 5.2 V16 C28 24.6 22 30.6 15 32.6 C8 30.6 2 24.6 2 16 V5.2 Z" fill="none" stroke="currentColor" strokeWidth="1.6" />
               <path d="M15 7 L22 9.4 V16 C22 20.8 18.6 24.2 15 25.8 C11.4 24.2 8 20.8 8 16 V9.4 Z" fill="none" stroke="currentColor" strokeWidth="1.1" opacity=".75" />
@@ -152,7 +153,7 @@ export default function VerCredencialPage() {
             </svg>
             <div className="cv-org"><span className="cv-org-name">Consultech Seguridad</span><span className="cv-org-sub">{SUBT[cat]}</span></div>
             <span className="cv-type">{cat}</span>
-          </div>
+          </div>}
           <div className="cv-body">
             <div className="cv-photo">
               {fotoUrl ? <img src={fotoUrl} alt="Foto" crossOrigin="anonymous" /> : <span className="ph"><svg viewBox="0 0 100 100"><circle cx="50" cy="36" r="19" fill="#8ea2b5" /><path d="M14 100 C14 72 30 60 50 60 C70 60 86 72 86 100 Z" fill="#8ea2b5" /></svg></span>}

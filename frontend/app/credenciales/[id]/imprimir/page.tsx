@@ -74,10 +74,11 @@ export default function ImprimirCredencialPage() {
     .barra button{background:#f4a03f;color:#fff;border:none;border-radius:9px;padding:10px 18px;font-weight:800;font-size:14px;cursor:pointer}
     .barra a{background:transparent;border:1px solid #c9d2dc;color:#333;border-radius:9px;padding:10px 18px;font-weight:700;font-size:14px;text-decoration:none}
     .card{width:85.6mm;height:54mm;border-radius:3mm;overflow:hidden;position:relative;background:#fff;color:${p.ink};
-          box-shadow:0 6px 20px rgba(20,30,48,.22);display:grid;grid-template-rows:auto 1fr;border:${p.bw ? "0.4mm solid #000" : "0.2mm solid rgba(0,0,0,.15)"}}
-    .card.bg{background-size:cover;background-position:center}
+          box-shadow:0 6px 20px rgba(20,30,48,.22);display:grid;grid-template-rows:auto 1fr;border:${p.bw ? "0.4mm solid #000" : "0.2mm solid rgba(0,0,0,.15)"};
+          -webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .card-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0}
+    .band,.body{position:relative;z-index:1}
     .band{background:${p.band};color:${p.bandInk};display:flex;align-items:center;gap:2.2mm;padding:1.5mm 3mm;${p.bw ? "border-bottom:0.4mm solid #000" : ""}}
-    .card.bg .band{background:rgba(0,0,0,0);color:transparent}
     .emblem{width:6mm;height:6.8mm;flex:0 0 auto}
     .org{display:flex;flex-direction:column;line-height:1.05}
     .org-name{font-family:'Saira Condensed',Arial;font-weight:700;font-size:3.4mm;letter-spacing:.02em;text-transform:uppercase}
@@ -138,13 +139,16 @@ export default function ImprimirCredencialPage() {
       </div>
       <p style={{ fontSize: 12, color: "#667", margin: 0 }}>La impresión sale a 85.6 × 54 mm (CR80). Para revisar la credencial ampliada usa «Ver credencial».</p>
 
-      <div className={`card${bgUrl ? " bg" : ""}`} style={bgUrl ? { backgroundImage: `url(${bgUrl})` } : undefined}>
-        <div className="edge" />
-        <div className="band">
-          {emblema}
-          <div className="org"><span className="org-name">Consultech Seguridad</span><span className="org-sub">{SUBT[cat]}</span></div>
-          <span className="type">{cat}</span>
-        </div>
+      <div className={`card${bgUrl ? " bg" : ""}`}>
+        {bgUrl && <img className="card-bg" src={bgUrl} crossOrigin="anonymous" alt="" />}
+        {!bgUrl && <div className="edge" />}
+        {!bgUrl && (
+          <div className="band">
+            {emblema}
+            <div className="org"><span className="org-name">Consultech Seguridad</span><span className="org-sub">{SUBT[cat]}</span></div>
+            <span className="type">{cat}</span>
+          </div>
+        )}
         <div className="body">
           <div className="photo">
             {fotoUrl ? <img src={fotoUrl} alt="Foto" /> : <span className="ph"><svg viewBox="0 0 100 100"><circle cx="50" cy="36" r="19" fill="#8ea2b5" /><path d="M14 100 C14 72 30 60 50 60 C70 60 86 72 86 100 Z" fill="#8ea2b5" /></svg></span>}
