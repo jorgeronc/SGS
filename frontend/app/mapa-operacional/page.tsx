@@ -38,7 +38,6 @@ function circulo(lng: number, lat: number, radioM: number, n = 48): number[][] {
 
 const FOCO_RADIO_M = 1500; // 1.5 km a la redonda
 const NARANJA = "#f4820a";
-const ALTURA_PUNTO_POC = 50; // PRUEBA: altura (m) a la que "flota" el punto de control
 
 // Dibuja (o actualiza) la geocerca naranja de enfoque de 1.5 km alrededor de un
 // incidente y devuelve su anillo (para encuadrar). Idempotente.
@@ -271,57 +270,6 @@ export default function MapaOperacionalPage() {
     ["geoc-f", "geoc-l"].forEach((l) => map.getLayer(l) && map.setLayoutProperty(l, "visibility", v));
   }
 
-  // PRUEBA 3D: activa los edificios en 3D (fill-extrusion) si el estilo no los trae
-  // ya. Liberty suele incluirlos; en ese caso no se duplica. Idempotente.
-  function ensureEdificios3D(map: any) {
-    if (!map.isStyleLoaded()) return;
-    const style = map.getStyle();
-    const capasEstilo: any[] = style?.layers ?? [];
-    const yaHay = capasEstilo.some((l) => l.type === "fill-extrusion" && ((l as any)["source-layer"] === "building" || /build/i.test(l.id)));
-    if (yaHay || map.getLayer("edificios-3d")) return;
-    const sources = style?.sources ?? {};
-    const srcId = sources["openmaptiles"] ? "openmaptiles" : Object.keys(sources).find((k) => (sources as any)[k].type === "vector");
-    if (!srcId) return;
-    const primerSimbolo = capasEstilo.find((l) => l.type === "symbol")?.id;
-    map.addLayer({
-      id: "edificios-3d", type: "fill-extrusion", source: srcId, "source-layer": "building", minzoom: 14,
-      paint: {
-        "fill-extrusion-color": "#c9d2dc",
-        "fill-extrusion-height": ["coalesce", ["get", "render_height"], ["get", "height"], 8],
-        "fill-extrusion-base": ["coalesce", ["get", "render_min_height"], ["get", "min_height"], 0],
-        "fill-extrusion-opacity": 0.85,
-      },
-    }, primerSimbolo);
-  }
-
-  // PRUEBA 3D: dibuja cada punto de control como un disco amarillo FLOTANDO a
-  // ALTURA_PUNTO_POC metros (fill-extrusion con base+altura). Sobre el pin de suelo
-  // existente, así se ve el punto "en el piso 5". Idempotente; respeta la capa Puntos.
-  function ensurePuntos3D(map: any) {
-    if (!map.isStyleLoaded()) return;
-    const { puntos, capas } = datos.current;
-    const fc = {
-      type: "FeatureCollection",
-      features: puntos.filter((p: any) => p.latitud != null).map((p: any) => ({
-        type: "Feature", properties: {}, geometry: { type: "Polygon", coordinates: [circulo(Number(p.longitud), Number(p.latitud), 7)] },
-      })),
-    };
-    if (!map.getSource("puntos-3d")) {
-      map.addSource("puntos-3d", { type: "geojson", data: fc as any });
-      map.addLayer({
-        id: "puntos-3d-l", type: "fill-extrusion", source: "puntos-3d",
-        paint: {
-          "fill-extrusion-color": COL.punto,
-          "fill-extrusion-base": ALTURA_PUNTO_POC,
-          "fill-extrusion-height": ALTURA_PUNTO_POC + 2.5,
-          "fill-extrusion-opacity": 0.92,
-        },
-      });
-    } else { map.getSource("puntos-3d").setData(fc as any); }
-    const v = capas.puntos ? "visible" : "none";
-    if (map.getLayer("puntos-3d-l")) map.setLayoutProperty("puntos-3d-l", "visibility", v);
-  }
-
   // Al hacer clic en un incidente: lo selecciona, dibuja la geocerca naranja de
   // 1.5 km y encuadra el mapa para que se vea centrado con ese radio a la redonda.
   const enfocarIncidente = useCallback((it: any) => {
@@ -394,10 +342,10 @@ export default function MapaOperacionalPage() {
     if (e.selInc && e.selInc.latitud != null) dibujarFoco(map, Number(e.selInc.longitud), Number(e.selInc.latitud));
   }
 
-  function onReady(map: any) { mapRef.current = map; setMapListo(true); ensureEdificios3D(map); ensureGeocercas(map); ensurePuntos3D(map); pintar(); centrarFoco(); restaurarEstado(map); }
+  function onReady(map: any) { mapRef.current = map; setMapListo(true); ensureGeocercas(map); pintar(); centrarFoco(); restaurarEstado(map); }
 
   // Redibuja al cambiar datos/capas (sin reencuadrar).
-  useEffect(() => { if (mapRef.current) { pintar(); ensureGeocercas(mapRef.current); ensurePuntos3D(mapRef.current); } }, [guardias, incidentes, camaras, sitios, puntos, capas, mlListo, pintar]);
+  useEffect(() => { if (mapRef.current) { pintar(); ensureGeocercas(mapRef.current); } }, [guardias, incidentes, camaras, sitios, puntos, capas, mlListo, pintar]);
   useEffect(() => { centrarFoco(); }, [incidentes, centrarFoco]);
 
   const panel = "background:var(--sc-content);border:1px solid var(--sc-card-line);border-radius:12px;color:var(--sc-text)";
