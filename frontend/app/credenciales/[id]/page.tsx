@@ -27,11 +27,12 @@ export default function VerCredencialPage() {
   const [cred, setCred] = useState<any>(null);
   const [persona, setPersona] = useState<any>(null);
   const [numero, setNumero] = useState<string | null>(null);
-  const [plantilla, setPlantilla] = useState<string | null>(null);
+  const [imagen, setImagen] = useState<string | null>(null); // imagen final guardada de la credencial
   const [error, setError] = useState<string | null>(null);
   const [bajando, setBajando] = useState(false);
   const [capturar, setCapturar] = useState(false);
   const [guardandoFoto, setGuardandoFoto] = useState(false);
+  const horneado = useRef(false); // evita re-generar la imagen más de una vez
 
   useEffect(() => {
     (async () => {
@@ -41,8 +42,8 @@ export default function VerCredencialPage() {
       if (e) { setError(e.message); return; }
       if (!c) { setError("Credencial no encontrada."); return; }
       setCred(c); setPersona((c as any).persona ?? null);
+      setImagen((c as any).datos_adicionales?.imagen ?? null);
       if ((c as any).persona_id) supabase.from("personal").select("numero_placa").eq("persona_id", (c as any).persona_id).eq("estatus", "activo").maybeSingle().then(({ data }) => setNumero((data as any)?.numero_placa ?? null));
-      if ((c as any).categoria) supabase.from("credencial_plantillas").select("imagen_ruta").eq("categoria", (c as any).categoria).maybeSingle().then(({ data }) => setPlantilla((data as any)?.imagen_ruta ?? null));
     })();
   }, [params.id]);
 
@@ -54,7 +55,7 @@ export default function VerCredencialPage() {
   const referencia = empresa || cred?.descripcion || null;
   const role = cat === "Guardia" ? "Guardia de seguridad" : cat === "Empleado" ? (persona?.ocupacion ?? "Personal interno") : cat === "Visitante" ? (referencia ?? "Visitante") : (empresa ? `Empresa: ${empresa}` : (cred?.descripcion ?? SUBT[cat]));
   const fotoUrl = useMemo(() => urlFoto(Array.isArray(persona?.fotografias) ? persona.fotografias[0] : null), [persona]);
-  const bgUrl = plantilla ? urlFoto(plantilla) : null;
+  const imagenUrl = imagen ? urlFoto(imagen) : null;
   const numeroMostrar = numero ?? cred?.codigo ?? "—";
   const acceso = cred?.datos_adicionales?.acceso ?? {};
 
@@ -70,20 +71,30 @@ export default function VerCredencialPage() {
       const previas = Array.isArray((cur as any)?.fotografias) ? (cur as any).fotografias : [];
       await supabase.from("personas").update({ fotografias: [path, ...previas], actualizado_en: new Date().toISOString() }).eq("id", cred.persona_id);
       setPersona((pp: any) => ({ ...(pp ?? {}), fotografias: [path, ...previas] }));
+      // La imagen guardada quedó obsoleta: se limpia para regenerarla con la nueva foto.
+      const dd2 = { ...(cred.datos_adicionales ?? {}) }; delete dd2.imagen;
+      await supabase.from("credenciales").update({ datos_adicionales: dd2 }).eq("id", cred.id);
+      setCred((cc: any) => ({ ...cc, datos_adicionales: dd2 }));
+      horneado.current = false; setImagen(null);
       setCapturar(false);
     } catch (e: any) { alert("No se pudo guardar la foto: " + (e?.message ?? e)); }
     finally { setGuardandoFoto(false); }
   }
   const vigente = cred ? (cred.estatus === "activo" && (!cred.vigencia_fin || new Date(cred.vigencia_fin).getTime() >= Date.now())) : false;
 
+  // Genera el PNG de la credencial desde el diseño del sistema (nodo cardRef).
+  async function componerPng(node: HTMLElement): Promise<string> {
+    const { toPng } = await import("html-to-image");
+    try { return await toPng(node, { pixelRatio: 3, cacheBust: true }); }
+    catch { return await toPng(node, { pixelRatio: 3, cacheBust: true, skipFonts: true }); }
+  }
+
   async function descargarPng() {
-    const node = cardRef.current; if (!node) return;
     setBajando(true);
     try {
-      const { toPng } = await import("html-to-image");
-      let dataUrl: string;
-      try { dataUrl = await toPng(node, { pixelRatio: 3, cacheBust: true }); }
-      catch { dataUrl = await toPng(node, { pixelRatio: 3, cacheBust: true, skipFonts: true }); }
+      // Si ya hay imagen final guardada, se descarga esa; si no, se compone del diseño.
+      const dataUrl = imagenUrl ?? (cardRef.current ? await componerPng(cardRef.current) : null);
+      if (!dataUrl) return;
       const a = document.createElement("a");
       a.href = dataUrl; a.download = `credencial-${cred.folio ?? cred.codigo}.png`; a.click();
     } catch (e: any) {
@@ -91,11 +102,35 @@ export default function VerCredencialPage() {
     } finally { setBajando(false); }
   }
 
+  // Genera y GUARDA la imagen final de la credencial una sola vez (al emitir / primera
+  // consulta): compone el diseño del sistema con foto y datos, la sube a Storage y guarda
+  // su ruta. A partir de ahí la consulta muestra solo esa imagen (sin recomponer).
+  useEffect(() => {
+    if (imagen || horneado.current || !cred || !cardRef.current) return;
+    horneado.current = true;
+    const t = setTimeout(async () => {
+      const node = cardRef.current; if (!node) return;
+      try {
+        const dataUrl = await componerPng(node);
+        const blob = await (await fetch(dataUrl)).blob();
+        const path = `credenciales/emitidas/${cred.id}.png`;
+        const up = await supabase.storage.from("fotos").upload(path, blob, { contentType: "image/png", upsert: true });
+        if (up.error) { horneado.current = false; return; }
+        const dd2 = { ...(cred.datos_adicionales ?? {}), imagen: path };
+        await supabase.from("credenciales").update({ datos_adicionales: dd2 }).eq("id", cred.id);
+        setCred((cc: any) => ({ ...cc, datos_adicionales: dd2 }));
+        setImagen(path);
+      } catch { horneado.current = false; /* si falla, se queda el diseño en vivo */ }
+    }, 900);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cred, persona, fotoUrl, imagen]);
+
   const css = `
     .cv-card{width:480px;height:303px;border-radius:16px;overflow:hidden;position:relative;background:#fff;color:${p.ink};
       font-family:'Barlow',system-ui,Arial,sans-serif;box-shadow:0 8px 24px rgba(20,30,48,.18);
       display:grid;grid-template-rows:auto 1fr;border:${p.bw ? "1.5px solid #000" : "1px solid rgba(0,0,0,.1)"}}
-    .cv-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0}
+    .cv-shot{width:480px;height:303px;border-radius:16px;display:block;box-shadow:0 8px 24px rgba(20,30,48,.18)}
     .cv-band,.cv-body{position:relative;z-index:1}
     .cv-band{background:${p.band};color:${p.bandInk};display:flex;align-items:center;gap:11px;padding:11px 15px;${p.bw ? "border-bottom:1.5px solid #000" : ""}}
     .cv-org{display:flex;flex-direction:column;line-height:1.05}
@@ -121,7 +156,6 @@ export default function VerCredencialPage() {
     .cv-foot{font-size:9.5px;color:${p.sub}}
     .cv-qr{background:#fff;padding:4px;border-radius:5px;${p.bw ? "border:1px solid #000" : ""}}
     .cv-edge{position:absolute;top:0;bottom:0;left:0;width:7px;background:${p.accent}}
-    .cv-card.bg .cv-edge{display:none}
   `;
 
   if (error) return <main className="contenedor"><p style={{ color: "#b00020" }}>{error}</p><Link href="/credenciales">Volver</Link></main>;
@@ -141,11 +175,14 @@ export default function VerCredencialPage() {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "480px 1fr", gap: 24, alignItems: "start", flexWrap: "wrap" }}>
-        {/* La credencial completa (imagen) */}
-        <div ref={cardRef} className={`cv-card${bgUrl ? " bg" : ""}`}>
-          {bgUrl && <img className="cv-bg" src={bgUrl} crossOrigin="anonymous" alt="" />}
-          {!bgUrl && <div className="cv-edge" />}
-          {!bgUrl && <div className="cv-band">
+        {/* La credencial: si ya se generó su imagen final, se muestra esa; si no, se
+            dibuja el diseño del sistema (que se convierte en imagen y se guarda). */}
+        {imagenUrl ? (
+          <img className="cv-shot" src={imagenUrl} crossOrigin="anonymous" alt={`Credencial ${cred.folio ?? ""}`} />
+        ) : (
+        <div ref={cardRef} className="cv-card">
+          <div className="cv-edge" />
+          <div className="cv-band">
             <svg width="30" height="34" viewBox="0 0 30 34" fill="none" style={{ color: p.bw ? "#000" : p.bandInk }}>
               <path d="M15 1.5 L28 5.2 V16 C28 24.6 22 30.6 15 32.6 C8 30.6 2 24.6 2 16 V5.2 Z" fill="none" stroke="currentColor" strokeWidth="1.6" />
               <path d="M15 7 L22 9.4 V16 C22 20.8 18.6 24.2 15 25.8 C11.4 24.2 8 20.8 8 16 V9.4 Z" fill="none" stroke="currentColor" strokeWidth="1.1" opacity=".75" />
@@ -153,7 +190,7 @@ export default function VerCredencialPage() {
             </svg>
             <div className="cv-org"><span className="cv-org-name">Consultech Seguridad</span><span className="cv-org-sub">{SUBT[cat]}</span></div>
             <span className="cv-type">{cat}</span>
-          </div>}
+          </div>
           <div className="cv-body">
             <div className="cv-photo">
               {fotoUrl ? <img src={fotoUrl} alt="Foto" crossOrigin="anonymous" /> : <span className="ph"><svg viewBox="0 0 100 100"><circle cx="50" cy="36" r="19" fill="#8ea2b5" /><path d="M14 100 C14 72 30 60 50 60 C70 60 86 72 86 100 Z" fill="#8ea2b5" /></svg></span>}
@@ -177,6 +214,7 @@ export default function VerCredencialPage() {
             </div>
           </div>
         </div>
+        )}
 
         {/* Datos de la credencial */}
         <div>

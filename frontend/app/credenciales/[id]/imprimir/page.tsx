@@ -24,7 +24,7 @@ export default function ImprimirCredencialPage() {
   const [cred, setCred] = useState<any>(null);
   const [persona, setPersona] = useState<any>(null);
   const [numero, setNumero] = useState<string | null>(null);
-  const [plantilla, setPlantilla] = useState<string | null>(null);
+  const [imagen, setImagen] = useState<string | null>(null); // imagen final guardada de la credencial
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -35,13 +35,10 @@ export default function ImprimirCredencialPage() {
       if (e) { setError(e.message); return; }
       if (!c) { setError("Credencial no encontrada."); return; }
       setCred(c); setPersona((c as any).persona ?? null);
+      setImagen((c as any).datos_adicionales?.imagen ?? null);
       if ((c as any).persona_id) {
         supabase.from("personal").select("numero_placa").eq("persona_id", (c as any).persona_id).eq("estatus", "activo").maybeSingle()
           .then(({ data }) => setNumero((data as any)?.numero_placa ?? null));
-      }
-      if ((c as any).categoria) {
-        supabase.from("credencial_plantillas").select("imagen_ruta").eq("categoria", (c as any).categoria).maybeSingle()
-          .then(({ data }) => setPlantilla((data as any)?.imagen_ruta ?? null));
       }
     })();
   }, [params.id]);
@@ -60,7 +57,7 @@ export default function ImprimirCredencialPage() {
     : cat === "Visitante" ? (referencia ?? "Visitante")
     : (empresa ? `Empresa: ${empresa}` : (cred?.descripcion ?? SUBT[cat]));
   const fotoUrl = useMemo(() => urlFoto(Array.isArray(persona?.fotografias) ? persona.fotografias[0] : null), [persona]);
-  const bgUrl = plantilla ? urlFoto(plantilla) : null;
+  const imagenUrl = imagen ? urlFoto(imagen) : null;
   const numeroMostrar = numero ?? cred?.codigo ?? "—";
 
   const css = `
@@ -139,16 +136,16 @@ export default function ImprimirCredencialPage() {
       </div>
       <p style={{ fontSize: 12, color: "#667", margin: 0 }}>La impresión sale a 85.6 × 54 mm (CR80). Para revisar la credencial ampliada usa «Ver credencial».</p>
 
-      <div className={`card${bgUrl ? " bg" : ""}`}>
-        {bgUrl && <img className="card-bg" src={bgUrl} crossOrigin="anonymous" alt="" />}
-        {!bgUrl && <div className="edge" />}
-        {!bgUrl && (
-          <div className="band">
-            {emblema}
-            <div className="org"><span className="org-name">Consultech Seguridad</span><span className="org-sub">{SUBT[cat]}</span></div>
-            <span className="type">{cat}</span>
-          </div>
-        )}
+      {imagenUrl ? (
+        <div className="card"><img className="card-bg" src={imagenUrl} crossOrigin="anonymous" alt={`Credencial ${cred.folio ?? ""}`} /></div>
+      ) : (
+      <div className="card">
+        <div className="edge" />
+        <div className="band">
+          {emblema}
+          <div className="org"><span className="org-name">Consultech Seguridad</span><span className="org-sub">{SUBT[cat]}</span></div>
+          <span className="type">{cat}</span>
+        </div>
         <div className="body">
           <div className="photo">
             {fotoUrl ? <img src={fotoUrl} alt="Foto" /> : <span className="ph"><svg viewBox="0 0 100 100"><circle cx="50" cy="36" r="19" fill="#8ea2b5" /><path d="M14 100 C14 72 30 60 50 60 C70 60 86 72 86 100 Z" fill="#8ea2b5" /></svg></span>}
@@ -175,6 +172,7 @@ export default function ImprimirCredencialPage() {
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }
