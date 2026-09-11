@@ -38,7 +38,7 @@ function circulo(lng: number, lat: number, radioM: number, n = 48): number[][] {
 
 const FOCO_RADIO_M = 1500; // 1.5 km a la redonda
 const NARANJA = "#f4820a";
-const ALTURA_PUNTO_POC = 15; // PRUEBA: altura (m) a la que "flota" el punto de control (≈ piso 5)
+const ALTURA_PUNTO_POC = 50; // PRUEBA: altura (m) a la que "flota" el punto de control
 
 // Dibuja (o actualiza) la geocerca naranja de enfoque de 1.5 km alrededor de un
 // incidente y devuelve su anillo (para encuadrar). Idempotente.
