@@ -178,7 +178,8 @@ function NuevaCredencial({ onCreado }: { onCreado: () => void }) {
   const [personas, setPersonas] = useState<any[]>([]);
   const [f, setF] = useState({ categoria: "Empleado", persona_id: "", nombre: "", apellido_paterno: "", apellido_materno: "", referencia: "", tipo: "qr", codigo: "", fecha_emision: localDT(new Date()), vigencia_fin: "" });
   const [dias, setDias] = useState(1); // días de vigencia para Visitante
-  const [foto, setFoto] = useState<Blob | null>(null); // foto en vivo del visitante
+  const [foto, setFoto] = useState<Blob | null>(null); // foto en vivo (cualquier tipo)
+  const [tomarFoto, setTomarFoto] = useState(false); // abre la cámara al crear (no visitante)
   const [sitios, setSitios] = useState<any[]>([]);
   const [zonas, setZonas] = useState<any[]>([]);
   const [selSitios, setSelSitios] = useState<string[]>([]);
@@ -321,6 +322,23 @@ function NuevaCredencial({ onCreado }: { onCreado: () => void }) {
           ); })}
         </div>
       </div>
+      {f.categoria !== "Visitante" && f.persona_id && (
+        <div style={{ marginTop: 8 }}>
+          {!tomarFoto ? (
+            <button type="button" onClick={() => setTomarFoto(true)} style={{ border: "1px solid var(--sc-card-line)", background: "transparent", color: "var(--sc-text)", borderRadius: 9, padding: "9px 16px", fontWeight: 700, cursor: "pointer" }}>
+              📸 {foto ? "Retomar foto" : "Tomar foto ahora"}
+            </button>
+          ) : (
+            <div style={{ border: "1px solid var(--sc-card-line)", borderRadius: 10, padding: 10 }}>
+              <div className="dash-sub" style={{ fontWeight: 700, marginBottom: 6 }}>Foto de la persona (cámara del dispositivo o conectada)</div>
+              <CamaraFoto onCapture={(b) => setFoto(b)} alto={220} />
+              {foto && <p style={{ color: "#0a7c2f", fontSize: 13, marginTop: 4 }}>✓ Foto lista — se guarda al emitir</p>}
+              <button type="button" onClick={() => setTomarFoto(false)} style={{ marginTop: 6, border: "1px solid var(--sc-card-line)", background: "transparent", color: "var(--sc-text)", borderRadius: 9, padding: "7px 14px", cursor: "pointer" }}>Cerrar cámara</button>
+            </div>
+          )}
+          <div className="dash-sub" style={{ fontSize: 12, marginTop: 4 }}>Opcional: si no tomas foto, se usará la que ya tenga la persona.</div>
+        </div>
+      )}
       {f.categoria === "Visitante" && (
         <div style={{ marginTop: 8 }}>
           <div className="dash-sub" style={{ marginBottom: 6, fontWeight: 700 }}>Foto del visitante (cámara del dispositivo o conectada)</div>

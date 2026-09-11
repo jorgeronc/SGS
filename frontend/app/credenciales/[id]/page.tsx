@@ -113,7 +113,9 @@ export default function VerCredencialPage() {
       try {
         const dataUrl = await componerPng(node);
         const blob = await (await fetch(dataUrl)).blob();
-        const path = `credenciales/emitidas/${cred.id}.png`;
+        // Ruta ÚNICA por versión: evita que el navegador/CDN sirva una imagen en caché
+        // (misma ruta) tras regenerar; p. ej. al actualizar la foto.
+        const path = `credenciales/emitidas/${cred.id}-${Date.now()}.png`;
         const up = await supabase.storage.from("fotos").upload(path, blob, { contentType: "image/png", upsert: true });
         if (up.error) { horneado.current = false; return; }
         const dd2 = { ...(cred.datos_adicionales ?? {}), imagen: path };
