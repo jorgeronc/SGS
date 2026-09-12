@@ -22,75 +22,85 @@ const TITULOS_TOP: Record<string, string> = {
 
 const GRUPOS: { grupo: string; items: { href: string; label: string; ico: string; nueva?: boolean }[] }[] = [
   {
-    grupo: "Operaciones",
+    grupo: "Panel de Información",
+    items: [
+      { href: "/", label: "Panel Operativo", ico: "📊" },
+      { href: "/copiloto", label: "Copiloto IA", ico: "🤖" },
+    ],
+  },
+  {
+    grupo: "Central de Operaciones",
     items: [
       { href: "/cad", label: "Central / Despacho", ico: "🎧" },
-      { href: "/mapa-operacional", label: "Mapa Operacional", ico: "🗺" },
+      { href: "/mapa-operacional", label: "Mapa Operativo", ico: "🗺" },
       { href: "/videovigilancia", label: "Videovigilancia", ico: "📹" },
+      { href: "/chat", label: "Chats", ico: "💬" },
+      { href: "/directorio", label: "Directorio de autoridades", ico: "📇" },
+      { href: "/evidencias", label: "Evidencias", ico: "📎" },
       { href: "/sitios", label: "Sitios / Puestos", ico: "📍" },
-      { href: "/puntos-control", label: "Puntos de control", ico: "🚩" },
-      { href: "/rondines", label: "Rondines", ico: "🔁" },
-      { href: "/rondines/sesiones", label: "Sesiones de rondín", ico: "🧭" },
-      { href: "/rondines/programados", label: "Programar rondín", ico: "🗓" },
-      { href: "/supervision", label: "Supervisión rondín", ico: "🛰" },
-      { href: "/tareas", label: "Tareas", ico: "✔" },
-      { href: "/chat", label: "Chat", ico: "💬" },
       { href: "/alertas", label: "Alerta general", ico: "🚨" },
     ],
   },
   {
-    grupo: "Control de accesos",
+    grupo: "Vigilancia en sitio",
     items: [
-      { href: "/accesos", label: "Accesos", ico: "🚧" },
-      { href: "/citas", label: "Citas (CEDIS)", ico: "📅" },
-      { href: "/transportistas", label: "Transportistas", ico: "🚚" },
-      { href: "/credenciales", label: "Credenciales", ico: "🎫" },
-      { href: "/zonas", label: "Zonas", ico: "🗺" },
+      { href: "/puntos-control", label: "Puntos de control", ico: "🚩" },
+      { href: "/rondines/programados", label: "Programar rondín", ico: "🗓" },
+      { href: "/tareas", label: "Tareas", ico: "✔" },
+      { href: "/rondines", label: "Bitácora de seguridad", ico: "🔁" },
+      { href: "/supervision", label: "Supervisión rondines", ico: "🛰" },
+      { href: "/turnos", label: "Rol de turnos", ico: "🗂" },
     ],
   },
   {
-    grupo: "Seguridad Logística",
+    grupo: "Control de Acceso",
     items: [
-      { href: "/vista-operativa", label: "Vista Operativa", ico: "🧭" },
-      { href: "/logistica/movimientos", label: "Movimientos", ico: "🚛" },
+      { href: "/accesos", label: "Bitácora de accesos", ico: "🚧" },
+      { href: "/citas", label: "Citas", ico: "📅" },
+      { href: "/credenciales", label: "Credenciales", ico: "🎫" },
+      { href: "/transportistas", label: "Proveedores", ico: "🚚" },
+      { href: "/zonas", label: "Zonas de control", ico: "🚷" },
+    ],
+  },
+  {
+    grupo: "Seguridad logística",
+    items: [
+      { href: "/vista-operativa", label: "Vista operativa", ico: "🧭" },
+      { href: "/logistica/inspecciones", label: "Inspecciones", ico: "🔎" },
+      { href: "/logistica/movimientos", label: "Transportación", ico: "🚛" },
       { href: "/logistica/activos", label: "Activos de transporte", ico: "🚆" },
       { href: "/logistica/unidades-carga", label: "Unidades de carga", ico: "📦" },
       { href: "/logistica/sellos", label: "Sellos", ico: "🔒" },
-      { href: "/logistica/inspecciones", label: "Inspecciones", ico: "🔎" },
     ],
   },
   {
-    grupo: "Registros Maestros",
+    grupo: "Administración",
     items: [
-      { href: "/personas", label: "Personas", ico: "☷" },
-      { href: "/vehiculos", label: "Vehículos", ico: "▣" },
-      { href: "/ubicaciones", label: "Sitios / Ubicaciones", ico: "◉" },
-    ],
-  },
-  {
-    grupo: "Bienes",
-    items: [
-      { href: "/evidencias", label: "Evidencias", ico: "◧" },
+      { href: "/clientes", label: "Clientes", ico: "🏢" },
+      { href: "/sla", label: "Metas de SLA", ico: "🎯" },
+      { href: "/personal", label: "Guardias", ico: "★" },
       { href: "/patrullas", label: "Unidades", ico: "▣" },
       { href: "/armamento", label: "Armamento", ico: "⚔" },
       { href: "/comunicacion", label: "Comunicación", ico: "📻" },
-      { href: "/bodycams", label: "Bodycams", ico: "◉" },
-      { href: "/otros", label: "Otros equipos", ico: "▨" },
+      { href: "/bodycams", label: "Smartphones", ico: "📱" },
+      { href: "/otros", label: "Otros equipos", ico: "🧰" },
+      { href: "/bitacora", label: "Auditoría", ico: "📋" },
     ],
   },
   {
-    grupo: "Gestión",
+    grupo: "Reportes",
     items: [
-      { href: "/clientes", label: "Clientes", ico: "🏢" },
-      { href: "/personal", label: "Guardias", ico: "★" },
-      { href: "/turnos", label: "Rol de turnos", ico: "🗓" },
-      { href: "/sla", label: "Metas de SLA", ico: "🎯" },
-      { href: "/reporte-sla", label: "Reporte mensual", ico: "📄" },
       { href: "/reporte-horas", label: "Horas trabajadas", ico: "⏱" },
-      { href: "/directorio", label: "Directorio de autoridades", ico: "📇" },
-      { href: "/kardex", label: "Kardex", ico: "▤" },
-      { href: "/bitacora", label: "Bitácora", ico: "▥" },
-      { href: "/configuracion", label: "Configuración", ico: "⚙" },
+      { href: "/reporte-sla", label: "Reporte mensual", ico: "📄" },
+    ],
+  },
+  {
+    grupo: "Configuración",
+    items: [
+      { href: "/admin", label: "Gestión del sistema", ico: "🛠" },
+      { href: "/configuracion", label: "Parámetros", ico: "⚙" },
+      { href: "/configuracion", label: "Mi empresa", ico: "🏛" },
+      { href: "/configuracion", label: "Versión del sistema", ico: "ℹ" },
     ],
   },
 ];
@@ -206,20 +216,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <span className="brand-name">Sistema de<br />Gestión de<br />Seguridad</span>
         </Link>
         <nav className="shell-nav">
-          <Link href="/" className={pathname === "/" ? "on" : ""}>
-            <span className="ico">◫</span>
-            <span>Dashboard</span>
-          </Link>
-          <Link href="/copiloto" className={pathname.startsWith("/copiloto") ? "on" : ""}>
-            <span className="ico">🔎</span>
-            <span>Copiloto IA</span>
-          </Link>
           {GRUPOS.map((g) => (
             <div key={g.grupo}>
               <div className="shell-group">{g.grupo}</div>
               {g.items.map((it) => (
                 <Link
-                  key={it.href}
+                  key={`${g.grupo}-${it.label}`}
                   href={it.href}
                   className={!it.nueva && it.href === activoHref ? "on" : ""}
                   target={it.nueva ? "_blank" : undefined}
