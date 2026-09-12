@@ -24,6 +24,7 @@ export default function InicioSgsScreen() {
   const [motivoPausa, setMotivoPausa] = useState<string | null>(null);
   const [grabando, setGrabando] = useState(false);
   const [sesRondin, setSesRondin] = useState<any>(null);
+  const [programados, setProgramados] = useState<any[]>([]); // rondines programados de hoy
   // Motivos de pausa: catálogo (cat_opciones 'motivo_pausa'); respaldo sin "Otro".
   const [motivosPausa, setMotivosPausa] = useState<string[]>(["Alimentos", "Baño", "Descanso"]);
   useFocusEffect(useCallback(() => {
@@ -34,7 +35,13 @@ export default function InicioSgsScreen() {
           .eq("personal_id", m.personalId).eq("estado", "en_progreso").eq("estatus", "activo")
           .order("iniciada_en", { ascending: false }).limit(1).maybeSingle()
           .then(({ data }) => setSesRondin(data));
-      } else setSesRondin(null);
+        // Recordatorio: rondines programados de hoy. Y de paso disparamos el barrido
+        // (+15 min) por si algún programado ya venció sin iniciarse.
+        supabase.rpc("rpc_rondin_barrer_programados").then(() => {
+          supabase.rpc("rpc_rondin_programados_hoy", { p_personal: m.personalId })
+            .then(({ data }) => setProgramados((data as any[]) ?? []));
+        });
+      } else { setSesRondin(null); setProgramados([]); }
     });
     getEstatusServicio().then((e) => { setEstatus(e.estatus); setMotivoPausa(e.motivo); });
     supabase.from("cat_opciones").select("valor").eq("categoria", "motivo_pausa").eq("activo", true).order("orden")
@@ -62,9 +69,16 @@ export default function InicioSgsScreen() {
     Alert.alert("🔴 Bodycam activa", "Grabando en HD en segundo plano. Puedes bloquear la pantalla.");
   }
 
-  function cambiarEstatus(e: EstatusServicio, motivo?: string | null) {
+  async function cambiarEstatus(e: EstatusServicio, motivo?: string | null) {
     setEstatus(e); setMotivoPausa(motivo ?? null);
-    setEstatusServicio(e, motivo ?? null);
+    await setEstatusServicio(e, motivo ?? null); // "en rondín" abre la sesión (RPC 0107)
+    if (e === "en_rondin" && mio?.personalId) {
+      const { data } = await supabase.from("sesiones_rondin")
+        .select("folio, checkpoints_esperados, checkpoints_visitados, sitio:sitios(nombre)")
+        .eq("personal_id", mio.personalId).eq("estado", "en_progreso").eq("estatus", "activo")
+        .order("iniciada_en", { ascending: false }).limit(1).maybeSingle();
+      setSesRondin(data);
+    }
   }
 
   // Enviar alerta (pánico): crea un despacho de emergencia con la ubicación del
@@ -159,6 +173,23 @@ export default function InicioSgsScreen() {
             </View>
           </View>
         )}
+        {(() => {
+          const hoyStr = new Date().toLocaleDateString("en-CA");
+          const pend = programados.filter((p) => p.repetir_diario ? (p.datos_adicionales?.ultima_ejecucion !== hoyStr) : (p.estado === "pendiente"));
+          if (pend.length === 0) return null;
+          return (
+            <View style={styles.progBox}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                <Ionicons name="alarm-outline" size={18} color={T.accent} />
+                <Text style={styles.progTitulo}>Rondines programados hoy</Text>
+              </View>
+              {pend.map((p) => (
+                <Text key={p.id} style={styles.progItem}>• {String(p.hora).slice(0, 5)} h{p.motivo ? ` · ${p.motivo}` : ""}{p.repetir_diario ? " · diario" : ""}</Text>
+              ))}
+              <Text style={styles.progHint}>Pon tu estatus en «En rondín» a esa hora para iniciar. Si no, la sesión inicia sola 15 min después.</Text>
+            </View>
+          );
+        })()}
         {!enLinea && (
           <Text style={styles.sub}>Selecciona tu elemento en Perfil para operar como guardia.</Text>
         )}
@@ -251,6 +282,10 @@ const styles = StyleSheet.create({
   estChip: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: T.border, backgroundColor: T.surfaceAlt },
   estChipOn: { backgroundColor: T.accent, borderColor: T.accent },
   estChipTxt: { color: T.textDim, fontWeight: "700", fontSize: 12.5 },
+  progBox: { backgroundColor: T.surface, borderWidth: 1, borderColor: T.border, borderLeftWidth: 4, borderLeftColor: T.accent, borderRadius: 12, padding: 12, marginBottom: 12 },
+  progTitulo: { color: T.text, fontWeight: "800", fontSize: 14 },
+  progItem: { color: T.text, fontSize: 13.5, marginTop: 2 },
+  progHint: { color: T.textDim, fontSize: 12, marginTop: 6 },
   motivoRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 },
   motChip: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, borderColor: T.border, backgroundColor: T.surfaceAlt },
   motChipOn: { borderColor: T.accent, backgroundColor: T.accentBg },

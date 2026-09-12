@@ -82,6 +82,12 @@ export async function setEstatusServicio(estatus: EstatusServicio, motivo?: stri
       await supabase.from("ubicaciones_guardias")
         .update({ estatus_servicio: estatus, motivo_pausa: motivo ?? null, actualizado_en: new Date().toISOString() })
         .eq("personal_id", id.personalId);
+      // "En rondín" ABRE la sesión de rondín: si hay una programada dentro de ±15 min
+      // de su hora, cuenta como la programada; si no, inicia una sesión nueva. El
+      // servidor deriva user_id y decide (RPC 0107).
+      if (estatus === "en_rondin") {
+        try { await supabase.rpc("rpc_rondin_por_estatus", { p_personal: id.personalId }); } catch { /* reintenta al próximo cambio */ }
+      }
     }
   } catch { /* se aplicará en el próximo reporte */ }
 }
