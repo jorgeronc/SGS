@@ -195,7 +195,7 @@ export default function SupervisionPage() {
                       <div key={k} style={{ border: "1px solid var(--sc-card-line, #e2e6ec)", borderRadius: 8, marginBottom: 8, overflow: "hidden" }}>
                         <button onClick={() => toggle(k)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: "var(--sc-surface-2, #f7f9fb)", border: "none", cursor: "pointer", textAlign: "left" }}>
                           <span style={{ transform: abierto ? "rotate(90deg)" : "none", transition: "transform .15s", color: "#888" }}>▶</span>
-                          <b style={{ flex: 1 }}>👷 {guardia}</b>
+                          <b style={{ flex: 1, color: "var(--sc-text, #16202c)" }}>👷 {guardia}</b>
                           <span style={{ fontSize: 12, color: "#666" }}>{items.length} lecturas</span>
                           {nov > 0 && <span className="cad-pill" style={{ background: "#d32f2f", color: "#fff", fontSize: 11 }}>{nov} novedad</span>}
                         </button>
