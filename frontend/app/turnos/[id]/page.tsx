@@ -33,6 +33,10 @@ export default function TurnoDetallePage() {
   const [disponibles, setDisponibles] = useState<any[]>([]);             // personal disponible (sin conflicto de fatiga)
   const [disponiblesError, setDisponiblesError] = useState<string | null>(null);
   const [miembros, setMiembros] = useState<Set<string>>(new Set());      // personal_id que está/estuvo en el turno (BD)
+  const [miRol, setMiRol] = useState<string>("");                        // rol del usuario actual
+  const [sobre, setSobre] = useState<string | null>(null);              // sitio bajo el cursor al arrastrar
+  const [forzar, setForzar] = useState<{ personal: string; motivo: string } | null>(null); // relevo forzado (fatiga)
+  const [forzarSitio, setForzarSitio] = useState<string | null>(null);   // sitio con el form de forzar abierto
 
   async function cargar() {
     const { data: t } = await supabase.from("turnos")
@@ -58,6 +62,9 @@ export default function TurnoDetallePage() {
     const rmap: Record<string, string> = {};
     ((gs as any[]) ?? []).forEach((g) => { if (g.usuario_id && rolPorUsuario.has(g.usuario_id)) rmap[g.id] = rolPorUsuario.get(g.usuario_id)!; });
     setRolPorPersonal(rmap);
+    // Rol del usuario actual (para habilitar el relevo forzado).
+    const { data: au } = await supabase.auth.getUser();
+    setMiRol(au?.user ? (rolPorUsuario.get(au.user.id) ?? "") : "");
     const inicial: Record<string, Sel> = {};
     ((gs as any[]) ?? []).forEach((g) => { inicial[g.id] = { checked: false, sitio_id: "" }; });
     ((tg as any[]) ?? []).forEach((r) => { inicial[r.personal_id] = { checked: true, sitio_id: r.sitio_id ?? "" }; });
@@ -95,6 +102,27 @@ export default function TurnoDetallePage() {
   // del turno si existe). Al guardar se inserta en turno_guardias.
   function agregarGuardia(pid: string) {
     setSel((s) => ({ ...s, [pid]: { checked: true, sitio_id: s[pid]?.sitio_id || turno?.sitio_id || "" } }));
+  }
+  // Soltar (drag&drop) un disponible en un sitio: guardia -> se asigna a ese sitio;
+  // supervisor -> queda como supervisor del sitio.
+  function soltarEnSitio(pid: string, rol: string, sid: string) {
+    if (rol === "supervisor" && sid !== "__sin__") {
+      setSuperv((s) => ({ ...s, [sid]: pid }));
+    } else {
+      setSel((s) => ({ ...s, [pid]: { checked: true, sitio_id: sid === "__sin__" ? "" : sid } }));
+    }
+  }
+  // Relevo forzado (coordinador/administrador): asigna omitiendo la fatiga y con motivo.
+  async function forzarRelevo(sid: string) {
+    if (!forzar?.personal) { setError("Elige a quién forzar."); return; }
+    if (!forzar.motivo.trim()) { setError("Indica el motivo del relevo forzado."); return; }
+    setGuardando(true); setError(null); setMensaje(null);
+    const { error: e } = await supabase.rpc("rpc_asignar_con_override", {
+      p_turno: params.id, p_personal: forzar.personal, p_sitio: sid === "__sin__" ? null : sid, p_motivo: forzar.motivo.trim(),
+    });
+    setGuardando(false);
+    if (e) { setError(e.message); return; }
+    setForzar(null); setMensaje("Relevo forzado registrado."); cargar();
   }
 
   async function guardar() {
@@ -295,7 +323,11 @@ export default function TurnoDetallePage() {
           {sitiosRoster.map((sid) => {
             const gs = asignados.filter(([, v]) => (v.sitio_id || "__sin__") === sid).map(([pid]) => guardiaPorId.get(pid)).filter(Boolean) as any[];
             return (
-              <div key={sid} style={{ border: "1px solid var(--sc-card-line)", borderRadius: 10, overflow: "hidden" }}>
+              <div key={sid}
+                onDragOver={(e) => { e.preventDefault(); setSobre(sid); }}
+                onDragLeave={() => setSobre((s) => (s === sid ? null : s))}
+                onDrop={(e) => { e.preventDefault(); setSobre(null); const d = e.dataTransfer.getData("sgsdnd"); if (d) { const [pid, rol] = d.split("|"); soltarEnSitio(pid, rol, sid); } }}
+                style={{ border: sobre === sid ? "2px dashed var(--sc-btn,#f4a03f)" : "1px solid var(--sc-card-line)", borderRadius: 10, overflow: "hidden" }}>
                 <div style={{ background: "var(--sc-btn-soft,#f6ede1)", padding: "7px 12px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                   <b>{sid === "__sin__" ? "Sin sitio asignado" : sitioNombre(sid)}</b>
                   <span className="dash-sub" style={{ fontSize: 12 }}>({gs.length} guardia{gs.length === 1 ? "" : "s"})</span>
@@ -325,6 +357,26 @@ export default function TurnoDetallePage() {
                     {gs.length === 0 && <tr><td className="dash-sub">Sin guardias en este sitio.</td></tr>}
                   </tbody>
                 </table>
+                {(miRol === "coordinador" || miRol === "administrador") && (
+                  <div style={{ padding: "6px 12px", borderTop: "1px dashed var(--sc-card-line)" }}>
+                    {forzarSitio !== sid ? (
+                      <button className="secundario" style={{ fontSize: 12 }} onClick={() => { setForzarSitio(sid); setForzar({ personal: "", motivo: "" }); }}>⚠ Forzar guardia (fatiga)</button>
+                    ) : (
+                      <div style={{ display: "grid", gap: 6 }}>
+                        <span className="dash-sub" style={{ fontSize: 12 }}>Asignar omitiendo la regla de fatiga (queda auditado). Sitio: <b>{sid === "__sin__" ? "Sin sitio" : sitioNombre(sid)}</b></span>
+                        <select value={forzar?.personal ?? ""} onChange={(e) => setForzar((f) => ({ personal: e.target.value, motivo: f?.motivo ?? "" }))}>
+                          <option value="">— Elegir persona —</option>
+                          {guardias.filter((g) => !sel[g.id]?.checked).map((g) => <option key={g.id} value={g.id}>{nombre(g)}</option>)}
+                        </select>
+                        <input placeholder="Motivo del relevo forzado" value={forzar?.motivo ?? ""} onChange={(e) => setForzar((f) => ({ personal: f?.personal ?? "", motivo: e.target.value }))} />
+                        <div className="form-fila" style={{ gap: 6 }}>
+                          <button onClick={() => forzarRelevo(sid)} disabled={guardando}>Forzar</button>
+                          <button className="secundario" onClick={() => { setForzarSitio(null); setForzar(null); }}>Cancelar</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -354,15 +406,19 @@ export default function TurnoDetallePage() {
                 <div style={{ marginBottom: 10 }}>
                   <div className="dash-sub" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", fontWeight: 700 }}>Supervisores ({sups.length})</div>
                   {sups.map((g) => (
-                    <div key={g.id} style={{ padding: "5px 0", borderBottom: "1px solid var(--sc-card-line)", fontSize: 13 }}>{nombre(g)}</div>
+                    <div key={g.id} draggable onDragStart={(e) => e.dataTransfer.setData("sgsdnd", `${g.id}|supervisor`)}
+                      title="Arrastra a un sitio para asignarlo como supervisor"
+                      style={{ padding: "5px 0", borderBottom: "1px solid var(--sc-card-line)", fontSize: 13, cursor: "grab" }}>⠿ {nombre(g)}</div>
                   ))}
                 </div>
               )}
               <div className="dash-sub" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", fontWeight: 700 }}>Guardias ({guas.length})</div>
               <div style={{ maxHeight: 420, overflowY: "auto" }}>
                 {guas.map((g) => (
-                  <div key={g.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0", borderBottom: "1px solid var(--sc-card-line)", fontSize: 13 }}>
-                    <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{nombre(g)}</span>
+                  <div key={g.id} draggable onDragStart={(e) => e.dataTransfer.setData("sgsdnd", `${g.id}|guardia`)}
+                    title="Arrastra a un sitio o usa ＋"
+                    style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0", borderBottom: "1px solid var(--sc-card-line)", fontSize: 13, cursor: "grab" }}>
+                    <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>⠿ {nombre(g)}</span>
                     <button className="secundario" style={{ padding: "2px 8px" }} onClick={() => agregarGuardia(g.id)}>＋</button>
                   </div>
                 ))}
