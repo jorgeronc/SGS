@@ -30,6 +30,7 @@ export const GRUPOS: { grupo: string; items: { href: string; label: string; ico:
     items: [
       { href: "/", label: "Panel Operativo", ico: "📊" },
       { href: "/copiloto", label: "Copiloto IA", ico: "🤖" },
+      { href: "/cumplimiento", label: "Cumplimiento SLA", ico: "📈" },
     ],
   },
   {
