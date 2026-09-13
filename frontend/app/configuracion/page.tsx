@@ -4,6 +4,7 @@ import { useState } from "react";
 import AdminTabs from "../admin/AdminTabs";
 import ParametrosPanel from "./ParametrosPanel";
 import AcercaDe from "./AcercaDe";
+import PersonalizarMenu from "../components/PersonalizarMenu";
 
 // Pantalla Configuración: agrupa Administración, Parámetros del sistema y
 // Acerca de en una sola pantalla con pestañas.
@@ -27,7 +28,13 @@ export default function ConfiguracionPage() {
       </div>
       <div className="sc-tabbody">
         {tab === "admin" && <AdminTabs embedded />}
-        {tab === "parametros" && <ParametrosPanel />}
+        {tab === "parametros" && (
+          <>
+            <ParametrosPanel />
+            <h3 style={{ marginTop: 24 }}>Personalizar menú lateral</h3>
+            <PersonalizarMenu />
+          </>
+        )}
         {tab === "acerca" && <AcercaDe />}
       </div>
     </main>

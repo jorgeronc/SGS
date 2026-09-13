@@ -20,7 +20,11 @@ const TITULOS_TOP: Record<string, string> = {
   "/vista-operativa": "Vista Operativa — Seguridad Logística",
 };
 
-const GRUPOS: { grupo: string; items: { href: string; label: string; ico: string; nueva?: boolean }[] }[] = [
+// Módulos que NO se pueden ocultar (para no dejar al usuario sin forma de volver a
+// mostrar los demás): inicio y la propia Configuración.
+export const SIEMPRE_VISIBLE = ["/", "/configuracion", "/admin"];
+
+export const GRUPOS: { grupo: string; items: { href: string; label: string; ico: string; nueva?: boolean }[] }[] = [
   {
     grupo: "Panel de Información",
     items: [
@@ -112,6 +116,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [q, setQ] = useState("");
   const [chatNuevos, setChatNuevos] = useState(0);
   const [ahora, setAhora] = useState<Date | null>(null);
+  const [oculto, setOculto] = useState<string[]>([]); // módulos que el usuario ocultó (por cuenta)
   const pathname = usePathname();
   const router = useRouter();
 
@@ -125,6 +130,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
     return () => sub.subscription.unsubscribe();
   }, []);
+
+  // Preferencia de módulos ocultos (por cuenta). Se relee al navegar para reflejar
+  // cambios guardados en Configuración sin recargar toda la app.
+  useEffect(() => {
+    if (!session) { setOculto([]); return; }
+    supabase.from("usuarios_perfil").select("menu_oculto").eq("id", session.user.id).maybeSingle()
+      .then(({ data }) => setOculto(Array.isArray((data as any)?.menu_oculto) ? (data as any).menu_oculto : []));
+  }, [session, pathname]);
 
   useEffect(() => {
     if (!cargando && !session && !PUBLICAS.includes(pathname)) {
@@ -208,6 +221,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     .filter((h) => pathname === h || pathname.startsWith(h + "/"))
     .sort((a, b) => b.length - a.length)[0] ?? null;
 
+  // Menú según la preferencia del usuario: oculta los módulos elegidos (salvo los
+  // SIEMPRE_VISIBLE) y descarta los grupos que queden vacíos.
+  const gruposVisibles = GRUPOS
+    .map((g) => ({ ...g, items: g.items.filter((it) => SIEMPRE_VISIBLE.includes(it.href) || !oculto.includes(it.href)) }))
+    .filter((g) => g.items.length > 0);
+
   return (
     <div className={`shell${colapsado ? " collapsed" : ""}`}>
       <aside className="shell-side">
@@ -216,7 +235,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <span className="brand-name">Sistema de<br />Gestión de<br />Seguridad</span>
         </Link>
         <nav className="shell-nav">
-          {GRUPOS.map((g) => (
+          {gruposVisibles.map((g) => (
             <div key={g.grupo}>
               <div className="shell-group">{g.grupo}</div>
               {g.items.map((it) => (
