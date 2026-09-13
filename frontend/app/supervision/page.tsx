@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import MapaReportes, { type ReporteMapa } from "@/app/components/MapaReportes";
+import SesionesRondinPage from "@/app/rondines/sesiones/page";
 
 const TZ_MTY = "-06:00"; // Monterrey (sin horario de verano) — para acotar el día local
 const hoyISO = () => {
@@ -24,10 +25,10 @@ interface Paso {
   dentro: boolean | null; distancia: number | null; metodo: string | null;
 }
 
-// Supervisión de rondín: filtros en cascada (fecha → cliente → sitio → guardia
-// opcional) fijos en pantalla; mapa con puntos por guardia (clic → registro) e
+// Supervisión de rondín (pestaña "En vivo"): filtros en cascada (fecha → cliente →
+// sitio → guardia opcional); mapa con puntos por guardia (clic → registro) e
 // historial agrupado por sitio y guardia, colapsable.
-export default function SupervisionPage() {
+function SupervisionEnVivo() {
   const [fecha, setFecha] = useState(hoyISO());
   const [clientes, setClientes] = useState<any[]>([]);
   const [sitios, setSitios] = useState<any[]>([]);
@@ -231,5 +232,23 @@ export default function SupervisionPage() {
         </>
       )}
     </main>
+  );
+}
+
+// Pantalla unificada del supervisor: pestañas "En vivo" (supervisión por fecha) y
+// "Sesiones" (sesiones de rondín con traza, playback, cumplimiento y anomalías).
+export default function SupervisionPage() {
+  const [tab, setTab] = useState<"envivo" | "sesiones">("envivo");
+  return (
+    <>
+      <div style={{ padding: "14px 22px 0" }}>
+        <h2 style={{ margin: "0 0 8px" }}>Supervisión de rondines</h2>
+        <div className="sc-tabs">
+          <button className={`sc-tab${tab === "envivo" ? " on" : ""}`} onClick={() => setTab("envivo")}>🛰 En vivo</button>
+          <button className={`sc-tab${tab === "sesiones" ? " on" : ""}`} onClick={() => setTab("sesiones")}>🧭 Sesiones</button>
+        </div>
+      </div>
+      {tab === "envivo" ? <SupervisionEnVivo /> : <SesionesRondinPage />}
+    </>
   );
 }
