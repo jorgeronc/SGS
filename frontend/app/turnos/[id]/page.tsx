@@ -29,6 +29,7 @@ export default function TurnoDetallePage() {
   const [coordinadorId, setCoordinadorId] = useState<string>("");        // personal del coordinador del turno
   const [superv, setSuperv] = useState<Record<string, string>>({});      // sitio_id -> personal del supervisor
   const [rolPorPersonal, setRolPorPersonal] = useState<Record<string, string>>({}); // personal.id -> rol de su cuenta
+  const [editando, setEditando] = useState(false);                       // vista (roster) vs. edición
 
   async function cargar() {
     const { data: t } = await supabase.from("turnos")
@@ -36,6 +37,8 @@ export default function TurnoDetallePage() {
       .eq("id", params.id).maybeSingle();
     setTurno(t);
     setCoordinadorId((t as any)?.coordinador_id ?? "");
+    // Borrador abre en edición; activo/cerrado abren en vista (solo el roster).
+    setEditando((t as any)?.estado === "borrador");
 
     const [{ data: gs }, { data: ss }, { data: tg }, { data: ts }, { data: perfiles }] = await Promise.all([
       supabase.from("personal").select("id, categoria, usuario_id, persona:personas(nombre, apellido_paterno, apellido_materno)")
@@ -171,6 +174,18 @@ export default function TurnoDetallePage() {
     return !t || nombre(g).toLowerCase().includes(t) || (g.categoria ?? "").toLowerCase().includes(t);
   });
 
+  // Roster para el modo VISTA: agrupado por sitio, supervisor arriba y guardias debajo.
+  const guardiaPorId = new Map(guardias.map((g) => [g.id, g]));
+  const asignados = Object.entries(sel).filter(([, v]) => v.checked); // [pid, {sitio_id}]
+  const sitiosRoster = Array.from(new Set([
+    ...asignados.map(([, v]) => v.sitio_id || "__sin__"),
+    ...Object.keys(superv).filter((sid) => superv[sid]),
+  ])).sort((a, b) => (a === "__sin__" ? 1 : b === "__sin__" ? -1 : sitioNombre(a).localeCompare(sitioNombre(b))));
+  const rosterSitio = (sid: string) => ({
+    supervisor: sid !== "__sin__" && superv[sid] ? guardiaPorId.get(superv[sid]) : null,
+    guardias: asignados.filter(([, v]) => (v.sitio_id || "__sin__") === sid).map(([pid]) => guardiaPorId.get(pid)).filter(Boolean),
+  });
+
   return (
     <main className="contenedor">
       <p style={{ marginBottom: 4 }}><Link href="/turnos">← Rol de turnos</Link></p>
@@ -187,8 +202,15 @@ export default function TurnoDetallePage() {
       </div>
 
       <div className="form-fila" style={{ marginTop: 12, gap: 10, flexWrap: "wrap" }}>
-        <button onClick={guardar} disabled={guardando || !puedeEditar}>{guardando ? "Guardando…" : "💾 Guardar turno"}</button>
-        {turno.estado === "borrador" && <button className="cad-guardar" onClick={activar} disabled={guardando}>✔ Activar turno</button>}
+        {editando ? (
+          <>
+            <button onClick={guardar} disabled={guardando || !puedeEditar}>{guardando ? "Guardando…" : "💾 Guardar turno"}</button>
+            {turno.estado === "borrador" && <button className="cad-guardar" onClick={activar} disabled={guardando}>✔ Activar turno</button>}
+            <button className="secundario" onClick={() => { cargar(); }} disabled={guardando}>👁 Ver roster</button>
+          </>
+        ) : (
+          <button onClick={() => setEditando(true)} disabled={!puedeEditar}>✏️ Editar turno</button>
+        )}
         {!puedeEditar && <span className="dash-sub" style={{ color: "#8a1220" }}>Turno cerrado: no admite cambios.</span>}
         <span style={{ flex: 1 }} />
         <label className="dash-sub" style={{ display: "flex", alignItems: "center", gap: 6 }}>Copiar a
@@ -199,6 +221,44 @@ export default function TurnoDetallePage() {
       {mensaje && <p style={{ color: "#0a7c2f" }}>{mensaje}</p>}
       {error && <p style={{ color: "#b00020" }}>{error}</p>}
 
+      {!editando && (
+        <div style={{ marginTop: 16 }}>
+          <h3 style={{ marginBottom: 6 }}>Personal del turno</h3>
+          {sitiosRoster.length === 0 ? (
+            <p className="dash-sub">Este turno aún no tiene personal asignado. Usa “✏️ Editar turno”.</p>
+          ) : (
+            <div style={{ display: "grid", gap: 12 }}>
+              {sitiosRoster.map((sid) => {
+                const { supervisor, guardias: gs } = rosterSitio(sid);
+                return (
+                  <div key={sid} style={{ border: "1px solid var(--sc-card-line)", borderRadius: 10, overflow: "hidden" }}>
+                    <div style={{ background: "var(--sc-btn-soft,#f6ede1)", padding: "7px 12px", fontWeight: 700 }}>
+                      {sid === "__sin__" ? "Sin sitio asignado" : sitioNombre(sid)}
+                      <span className="dash-sub" style={{ fontWeight: 400, marginLeft: 8 }}>({gs.length} guardia{gs.length === 1 ? "" : "s"})</span>
+                    </div>
+                    <div style={{ padding: "8px 12px" }}>
+                      <div style={{ marginBottom: gs.length ? 8 : 0 }}>
+                        <span className="dash-sub" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em" }}>Supervisor</span><br />
+                        <b>{supervisor ? nombre(supervisor) : "— Sin supervisor —"}</b>
+                      </div>
+                      {gs.length > 0 && (
+                        <>
+                          <span className="dash-sub" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em" }}>Guardias</span>
+                          <ul style={{ margin: "2px 0 0", paddingLeft: 18 }}>
+                            {gs.map((g: any) => <li key={g.id}>{nombre(g)}{g.categoria ? <span className="dash-sub"> · {g.categoria}</span> : null}</li>)}
+                          </ul>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {editando && (<>
       <h3 style={{ marginTop: 16 }}>Supervisión del turno</h3>
       <p className="dash-sub">El <b>coordinador</b> cubre todo el turno; cada <b>sitio</b> tiene su supervisor (una misma persona puede cubrir varios). Deben ser personal con <b>cuenta ligada</b> (Gestión del sistema → Usuarios y roles → “Guardia (app)”) para integrarse a las alertas de relevo.</p>
       <div className="form-grid" style={{ maxWidth: 520 }}>
@@ -256,6 +316,7 @@ export default function TurnoDetallePage() {
           {lista.length === 0 && <tr><td colSpan={4} className="dash-sub">Sin guardias.</td></tr>}
         </tbody>
       </table>
+      </>)}
     </main>
   );
 }

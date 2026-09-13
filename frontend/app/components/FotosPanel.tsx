@@ -35,6 +35,28 @@ export default function FotosPanel({ tabla, id }: { tabla: TablaConFotos; id: st
   const [subiendo, setSubiendo] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  // En Personas la foto principal (índice 0) es la que se imprime en la credencial.
+  const esPersona = tabla === "personas";
+
+  // Invalida el PNG horneado de las credenciales de esta persona para que se
+  // regeneren con la foto principal actual.
+  async function invalidarCredenciales() {
+    if (!esPersona) return;
+    const { data } = await supabase.from("credenciales").select("id, datos_adicionales").eq("persona_id", id);
+    for (const c of (data as any[]) ?? []) {
+      const dd = { ...((c.datos_adicionales as any) ?? {}) };
+      if (dd.imagen) { delete dd.imagen; await supabase.from("credenciales").update({ datos_adicionales: dd }).eq("id", c.id); }
+    }
+  }
+
+  // Deja una foto existente como principal (la que va en la credencial).
+  async function hacerPrincipal(ruta: string) {
+    const nuevas = [ruta, ...rutas.filter((r) => r !== ruta)];
+    const { error: e } = await supabase.from(tabla).update({ fotografias: nuevas, actualizado_en: new Date().toISOString() }).eq("id", id);
+    if (e) { setError(e.message); return; }
+    setRutas(nuevas);
+    await invalidarCredenciales();
+  }
 
   async function cargarFotos() {
     const { data, error } = await supabase
@@ -80,7 +102,9 @@ export default function FotosPanel({ tabla, id }: { tabla: TablaConFotos; id: st
       return;
     }
 
-    const nuevas = [...rutas, ruta];
+    // En Personas la foto nueva se vuelve la principal (índice 0) para que se use
+    // en la credencial; en el resto se agrega al final como antes.
+    const nuevas = esPersona ? [ruta, ...rutas] : [...rutas, ruta];
     const { error: errUpd } = await supabase
       .from(tabla)
       .update({ fotografias: nuevas, actualizado_en: new Date().toISOString() })
@@ -94,6 +118,7 @@ export default function FotosPanel({ tabla, id }: { tabla: TablaConFotos; id: st
       return;
     }
     setRutas(nuevas);
+    await invalidarCredenciales();
   }
 
   async function quitar(ruta: string) {
@@ -113,6 +138,7 @@ export default function FotosPanel({ tabla, id }: { tabla: TablaConFotos; id: st
     // Se quita la referencia del registro; el objeto queda en Storage.
     await supabase.storage.from(BUCKET).remove([ruta]);
     setRutas(nuevas);
+    await invalidarCredenciales();
   }
 
   return (
@@ -132,20 +158,27 @@ export default function FotosPanel({ tabla, id }: { tabla: TablaConFotos; id: st
       </div>
       <p style={{ fontSize: 12, color: "#888" }}>
         En dispositivos móviles el botón permite tomar la foto directamente con la cámara.
+        {esPersona && " La foto marcada como “En credencial” es la que se imprime en la credencial."}
       </p>
 
       {rutas.length === 0 ? (
         <p style={{ color: "#555" }}>Sin fotografías todavía.</p>
       ) : (
         <div className="galeria">
-          {rutas.map((ruta) => (
+          {rutas.map((ruta, i) => (
             <figure key={ruta} className="galeria-item">
               <a href={urlPublica(ruta)} target="_blank" rel="noreferrer">
                 <img src={urlPublica(ruta)} alt="Fotografía del registro" />
               </a>
-              <button className="secundario" onClick={() => quitar(ruta)}>
-                Quitar
-              </button>
+              {esPersona && i === 0 && (
+                <span style={{ fontSize: 11, fontWeight: 700, color: "#0a7c2f" }}>★ En credencial</span>
+              )}
+              <div className="form-fila" style={{ gap: 6, justifyContent: "center" }}>
+                {esPersona && i !== 0 && (
+                  <button className="secundario" onClick={() => hacerPrincipal(ruta)}>Usar en credencial</button>
+                )}
+                <button className="secundario" onClick={() => quitar(ruta)}>Quitar</button>
+              </div>
             </figure>
           ))}
         </div>
