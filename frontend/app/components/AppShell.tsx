@@ -37,13 +37,13 @@ const GRUPOS: { grupo: string; items: { href: string; label: string; ico: string
       { href: "/chat", label: "Chats", ico: "💬" },
       { href: "/directorio", label: "Directorio de autoridades", ico: "📇" },
       { href: "/evidencias", label: "Evidencias", ico: "📎" },
-      { href: "/sitios", label: "Sitios / Puestos", ico: "📍" },
       { href: "/alertas", label: "Alerta general", ico: "🚨" },
     ],
   },
   {
     grupo: "Vigilancia en sitio",
     items: [
+      { href: "/sitios", label: "Sitios", ico: "📍" },
       { href: "/puntos-control", label: "Puntos de control", ico: "🚩" },
       { href: "/rondines/programados", label: "Programar rondín", ico: "🗓" },
       { href: "/tareas", label: "Tareas", ico: "✔" },
