@@ -179,10 +179,6 @@ export default function TurnoDetallePage() {
   // Solo personal con cuenta de rol coordinador / supervisor.
   const coordinadores = guardias.filter((g) => rolPorPersonal[g.id] === "coordinador");
   const supervisores = guardias.filter((g) => rolPorPersonal[g.id] === "supervisor");
-  const lista = guardias.filter((g) => {
-    const t = filtro.trim().toLowerCase();
-    return !t || nombre(g).toLowerCase().includes(t) || (g.categoria ?? "").toLowerCase().includes(t);
-  });
 
   // Roster para el modo VISTA: agrupado por sitio, supervisor arriba y guardias debajo.
   const guardiaPorId = new Map(guardias.map((g) => [g.id, g]));
@@ -282,60 +278,60 @@ export default function TurnoDetallePage() {
           {coordinadores.length === 0 && <span className="dash-sub" style={{ color: "#8a1220" }}>No hay personal con rol coordinador y cuenta ligada.</span>}
         </label>
       </div>
-      {sitiosActivos.length > 0 ? (
-        <table style={{ maxWidth: 640, marginTop: 8 }}>
-          <thead><tr><th>Sitio</th><th>Supervisor</th></tr></thead>
-          <tbody>
-            {sitiosActivos.map((sid) => (
-              <tr key={sid}>
-                <td>{sitioNombre(sid)}</td>
-                <td>
-                  <select value={superv[sid] ?? ""} disabled={!puedeEditar} onChange={(e) => setSuperv((s) => ({ ...s, [sid]: e.target.value }))}>
-                    <option value="">— Supervisor —</option>
-                    {supervisores.map((g) => <option key={g.id} value={g.id}>{nombre(g)}</option>)}
-                  </select>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <h3 style={{ marginTop: 16 }}>Personal del turno</h3>
+      <p className="dash-sub">Agrupado por sitio: elige el <b>supervisor</b> de cada sitio y ajusta los <b>guardias</b> (mover de sitio o quitar). Para sumar personal usa el panel <b>Disponibles</b> (＋) a la derecha.</p>
+      {sitiosRoster.length === 0 ? (
+        <p className="dash-sub" style={{ marginTop: 10 }}>Aún no hay personal en el turno. Agrégalos desde <b>Disponibles</b> (＋) y luego asígnales sitio y supervisor.</p>
       ) : (
-        <p className="dash-sub">Marca guardias y asígnales sitio (abajo) para definir el supervisor de cada sitio.</p>
-      )}
-
-      <h3 style={{ marginTop: 16 }}>Guardias del turno</h3>
-      <p className="dash-sub">Marca los guardias que integran el turno y asigna a cada uno su sitio/puesto{turno.sitio?.nombre ? ` (por defecto: ${turno.sitio.nombre})` : ""}. Se pueden agregar o quitar guardias mientras el turno esté en borrador o activo.</p>
-      <input placeholder="Filtrar guardia…" value={filtro} onChange={(e) => setFiltro(e.target.value)} style={{ maxWidth: 320, marginBottom: 10 }} />
-      <table>
-        <thead><tr><th style={{ width: 40 }}></th><th>Guardia</th><th>Categoría</th><th>Sitio / puesto</th></tr></thead>
-        <tbody>
-          {lista.map((g) => {
-            const s = sel[g.id] ?? { checked: false, sitio_id: "" };
+        <div style={{ display: "grid", gap: 12, marginTop: 10 }}>
+          {sitiosRoster.map((sid) => {
+            const gs = asignados.filter(([, v]) => (v.sitio_id || "__sin__") === sid).map(([pid]) => guardiaPorId.get(pid)).filter(Boolean) as any[];
             return (
-              <tr key={g.id} style={s.checked ? { background: "rgba(62,116,112,.08)" } : undefined}>
-                <td><input type="checkbox" checked={s.checked} disabled={!puedeEditar} onChange={() => toggle(g.id)} /></td>
-                <td>{nombre(g)}</td>
-                <td>{g.categoria ?? "—"}</td>
-                <td>
-                  <select value={s.sitio_id} disabled={!s.checked || !puedeEditar} onChange={(e) => setSitio(g.id, e.target.value)}>
-                    <option value="">— Sitio —</option>
-                    {sitios.map((si) => <option key={si.id} value={si.id}>{si.nombre}{si.cliente?.razon_social ? ` · ${si.cliente.razon_social}` : ""}</option>)}
-                  </select>
-                </td>
-              </tr>
+              <div key={sid} style={{ border: "1px solid var(--sc-card-line)", borderRadius: 10, overflow: "hidden" }}>
+                <div style={{ background: "var(--sc-btn-soft,#f6ede1)", padding: "7px 12px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                  <b>{sid === "__sin__" ? "Sin sitio asignado" : sitioNombre(sid)}</b>
+                  <span className="dash-sub" style={{ fontSize: 12 }}>({gs.length} guardia{gs.length === 1 ? "" : "s"})</span>
+                  {sid !== "__sin__" && (
+                    <label className="dash-sub" style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>Supervisor
+                      <select value={superv[sid] ?? ""} disabled={!puedeEditar} onChange={(e) => setSuperv((s) => ({ ...s, [sid]: e.target.value }))}>
+                        <option value="">— Supervisor —</option>
+                        {supervisores.map((g) => <option key={g.id} value={g.id}>{nombre(g)}</option>)}
+                      </select>
+                    </label>
+                  )}
+                </div>
+                <table style={{ margin: 0 }}>
+                  <tbody>
+                    {gs.map((g) => (
+                      <tr key={g.id}>
+                        <td>{nombre(g)}{g.categoria ? <span className="dash-sub"> · {g.categoria}</span> : null}</td>
+                        <td style={{ width: 200 }}>
+                          <select value={sel[g.id]?.sitio_id ?? ""} disabled={!puedeEditar} onChange={(e) => setSitio(g.id, e.target.value)}>
+                            <option value="">— Sitio —</option>
+                            {sitios.map((si) => <option key={si.id} value={si.id}>{si.nombre}</option>)}
+                          </select>
+                        </td>
+                        <td style={{ width: 70 }}><button className="secundario" style={{ padding: "2px 8px" }} disabled={!puedeEditar} onClick={() => toggle(g.id)}>Quitar</button></td>
+                      </tr>
+                    ))}
+                    {gs.length === 0 && <tr><td className="dash-sub">Sin guardias en este sitio.</td></tr>}
+                  </tbody>
+                </table>
+              </div>
             );
           })}
-          {lista.length === 0 && <tr><td colSpan={4} className="dash-sub">Sin guardias.</td></tr>}
-        </tbody>
-      </table>
+        </div>
+      )}
       </div>
 
       {/* Panel de disponibles (sin conflicto de fatiga) — base del relevo. */}
       <aside style={{ width: 300, flex: "0 0 auto", border: "1px solid var(--sc-card-line)", borderRadius: 10, padding: 12, position: "sticky", top: 12 }}>
         <h3 style={{ marginTop: 0, marginBottom: 4 }}>Disponibles</h3>
         <p className="dash-sub" style={{ fontSize: 12, marginTop: 0 }}>Personal activo que no está en el turno y no rompe la regla de fatiga. Úsalos para cubrir faltas.</p>
+        <input placeholder="Filtrar…" value={filtro} onChange={(e) => setFiltro(e.target.value)} style={{ width: "100%", marginBottom: 8 }} />
         {(() => {
-          const libres = disponibles.filter((d) => !sel[d.personal_id]?.checked);
+          const t = filtro.trim().toLowerCase();
+          const libres = disponibles.filter((d) => !sel[d.personal_id]?.checked && (!t || (d.nombre ?? "").toLowerCase().includes(t)));
           const sups = libres.filter((d) => d.rol === "supervisor");
           const guas = libres.filter((d) => d.rol !== "supervisor");
           if (libres.length === 0) return <p className="dash-sub">Nadie disponible sin conflicto de fatiga.</p>;
