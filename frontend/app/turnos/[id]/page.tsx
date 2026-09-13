@@ -30,6 +30,7 @@ export default function TurnoDetallePage() {
   const [superv, setSuperv] = useState<Record<string, string>>({});      // sitio_id -> personal del supervisor
   const [rolPorPersonal, setRolPorPersonal] = useState<Record<string, string>>({}); // personal.id -> rol de su cuenta
   const [editando, setEditando] = useState(false);                       // vista (roster) vs. edición
+  const [disponibles, setDisponibles] = useState<any[]>([]);             // personal disponible (sin conflicto de fatiga)
 
   async function cargar() {
     const { data: t } = await supabase.from("turnos")
@@ -62,6 +63,10 @@ export default function TurnoDetallePage() {
     const sm: Record<string, string> = {};
     ((ts as any[]) ?? []).forEach((r) => { if (r.sitio_id) sm[r.sitio_id] = r.supervisor_personal_id; });
     setSuperv(sm);
+
+    // Personal disponible (sin conflicto de fatiga) para relevo/ajustes.
+    const { data: disp } = await supabase.rpc("rpc_guardias_disponibles", { p_turno: params.id });
+    setDisponibles((disp as any[]) ?? []);
   }
 
   useEffect(() => { cargar(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [params.id]);
@@ -77,6 +82,11 @@ export default function TurnoDetallePage() {
   }
   function setSitio(pid: string, sitio_id: string) {
     setSel((s) => ({ ...s, [pid]: { ...s[pid], sitio_id } }));
+  }
+  // Alta rápida desde el panel de disponibles: marca al guardia (prellena el sitio
+  // del turno si existe). Al guardar se inserta en turno_guardias.
+  function agregarGuardia(pid: string) {
+    setSel((s) => ({ ...s, [pid]: { checked: true, sitio_id: s[pid]?.sitio_id || turno?.sitio_id || "" } }));
   }
 
   async function guardar() {
@@ -258,7 +268,9 @@ export default function TurnoDetallePage() {
         </div>
       )}
 
-      {editando && (<>
+      {editando && (
+      <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap", marginTop: 4 }}>
+      <div style={{ flex: 1, minWidth: 340 }}>
       <h3 style={{ marginTop: 16 }}>Supervisión del turno</h3>
       <p className="dash-sub">El <b>coordinador</b> cubre todo el turno; cada <b>sitio</b> tiene su supervisor (una misma persona puede cubrir varios). Deben ser personal con <b>cuenta ligada</b> (Gestión del sistema → Usuarios y roles → “Guardia (app)”) para integrarse a las alertas de relevo.</p>
       <div className="form-grid" style={{ maxWidth: 520 }}>
@@ -316,7 +328,41 @@ export default function TurnoDetallePage() {
           {lista.length === 0 && <tr><td colSpan={4} className="dash-sub">Sin guardias.</td></tr>}
         </tbody>
       </table>
-      </>)}
+      </div>
+
+      {/* Panel de disponibles (sin conflicto de fatiga) — base del relevo. */}
+      <aside style={{ width: 300, flex: "0 0 auto", border: "1px solid var(--sc-card-line)", borderRadius: 10, padding: 12, position: "sticky", top: 12 }}>
+        <h3 style={{ marginTop: 0, marginBottom: 4 }}>Disponibles</h3>
+        <p className="dash-sub" style={{ fontSize: 12, marginTop: 0 }}>Personal activo que no está en el turno y no rompe la regla de fatiga. Úsalos para cubrir faltas.</p>
+        {(() => {
+          const libres = disponibles.filter((d) => !sel[d.personal_id]?.checked);
+          const sups = libres.filter((d) => d.rol === "supervisor");
+          const guas = libres.filter((d) => d.rol !== "supervisor");
+          if (libres.length === 0) return <p className="dash-sub">Nadie disponible sin conflicto de fatiga.</p>;
+          return (
+            <>
+              {sups.length > 0 && (
+                <div style={{ marginBottom: 10 }}>
+                  <div className="dash-sub" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", fontWeight: 700 }}>Supervisores</div>
+                  {sups.map((d) => (
+                    <div key={d.personal_id} style={{ padding: "5px 0", borderBottom: "1px solid var(--sc-card-line)", fontSize: 13 }}>{d.nombre}</div>
+                  ))}
+                </div>
+              )}
+              <div className="dash-sub" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", fontWeight: 700 }}>Guardias ({guas.length})</div>
+              <div style={{ maxHeight: 420, overflowY: "auto" }}>
+                {guas.map((d) => (
+                  <div key={d.personal_id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0", borderBottom: "1px solid var(--sc-card-line)", fontSize: 13 }}>
+                    <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.nombre}</span>
+                    <button className="secundario" style={{ padding: "2px 8px" }} onClick={() => agregarGuardia(d.personal_id)}>＋</button>
+                  </div>
+                ))}
+              </div>
+            </>
+          );
+        })()}
+      </aside>
+      </div>)}
     </main>
   );
 }
