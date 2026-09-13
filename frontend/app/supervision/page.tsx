@@ -5,13 +5,8 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import MapaReportes, { type ReporteMapa } from "@/app/components/MapaReportes";
 import SesionesRondinPage from "@/app/rondines/sesiones/page";
+import { rangoDiaLocal, hoyLocal } from "@/lib/fechas";
 
-const TZ_MTY = "-06:00"; // Monterrey (sin horario de verano) — para acotar el día local
-const hoyISO = () => {
-  // "Hoy" en hora local, no en UTC (toISOString daría el día UTC).
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-};
 function nombreGuardia(p: any): string {
   const x = p?.persona ?? p;
   return x ? `${x.nombre ?? ""} ${x.apellido_paterno ?? ""} ${x.apellido_materno ?? ""}`.trim() : "—";
@@ -29,7 +24,7 @@ interface Paso {
 // sitio → guardia opcional); mapa con puntos por guardia (clic → registro) e
 // historial agrupado por sitio y guardia, colapsable.
 function SupervisionEnVivo() {
-  const [fecha, setFecha] = useState(hoyISO());
+  const [fecha, setFecha] = useState(hoyLocal());
   const [clientes, setClientes] = useState<any[]>([]);
   const [sitios, setSitios] = useState<any[]>([]);
   const [guardias, setGuardias] = useState<any[]>([]);
@@ -62,10 +57,7 @@ function SupervisionEnVivo() {
     if (!sitioId) { setPasos([]); setRuta([]); return; }
     (async () => {
       setCargando(true);
-      // fecha_hora es timestamptz: hay que acotar el día en hora LOCAL (Monterrey,
-      // UTC−6 sin horario de verano). Sin el offset, PostgREST lo interpreta en UTC
-      // y un rondín nocturno "cae" en el día siguiente (bug de fechas). TZ_MTY.
-      const desde = `${fecha}T00:00:00${TZ_MTY}`, hasta = `${fecha}T23:59:59.999${TZ_MTY}`;
+      const { desde, hasta } = rangoDiaLocal(fecha); // día local Monterrey (ver lib/fechas)
       const { data: pts } = await supabase.from("puntos_control").select("id").eq("sitio_id", sitioId).eq("estatus", "activo");
       const ids = ((pts as any[]) ?? []).map((p) => p.id);
       if (ids.length === 0) { setPasos([]); setRuta([]); setCargando(false); return; }

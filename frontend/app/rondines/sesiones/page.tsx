@@ -6,13 +6,13 @@ import { supabase } from "@/lib/supabaseClient";
 import MapaTrazaLiberty, { type PuntoMapa } from "@/app/components/MapaTrazaLiberty";
 import { type ReporteMapa } from "@/app/components/MapaReportes";
 import { detectarParadas, metricasRuta, distM, type Parada } from "@/lib/rondinMetricas";
+import { rangoDiaLocal, hoyLocal } from "@/lib/fechas";
 
 // Sesiones de rondín (trazabilidad, Fase 1A). Lista histórica con filtros y, al
 // elegir una sesión, su TRAZA GPS (recorrido_gps) + CHECKS (rondines) sobre el
 // mapa, con indicadores de cumplimiento. La sesión se abre/cierra sola por
 // geocerca (ver migración 0095). Reusa MapaReportes (ruta + pines).
 
-const hoyISO = () => new Date().toISOString().slice(0, 10);
 const nombreGuardia = (p: any): string => {
   const x = p?.persona ?? p;
   return x ? `${x.nombre ?? ""} ${x.apellido_paterno ?? ""} ${x.apellido_materno ?? ""}`.trim() : "—";
@@ -40,7 +40,7 @@ interface Sesion {
 }
 
 export default function SesionesRondinPage() {
-  const [fecha, setFecha] = useState(hoyISO());
+  const [fecha, setFecha] = useState(hoyLocal());
   const [clientes, setClientes] = useState<any[]>([]);
   const [sitios, setSitios] = useState<any[]>([]);
   const [guardias, setGuardias] = useState<any[]>([]);
@@ -83,7 +83,7 @@ export default function SesionesRondinPage() {
     setCargando(true);
     // Cancela sesiones "de presencia" (abiertas sin ningún check y ya vencidas).
     await supabase.rpc("rpc_rondin_barrer_vencidas").then(() => undefined, () => undefined);
-    const desde = `${fecha}T00:00:00`, hasta = `${fecha}T23:59:59.999`;
+    const { desde, hasta } = rangoDiaLocal(fecha); // día local Monterrey (evita corte en UTC)
     let q = supabase.from("sesiones_rondin")
       .select("id, folio, estado, iniciada_en, finalizada_en, cumplimiento_pct, checkpoints_esperados, checkpoints_visitados, distancia_m, duracion_min, personal_id, sitio_id, sitio:sitios(nombre, rondin_corredor_m), guardia:personal(persona:personas(nombre, apellido_paterno, apellido_materno))")
       .eq("estatus", "activo").gte("iniciada_en", desde).lte("iniciada_en", hasta)
