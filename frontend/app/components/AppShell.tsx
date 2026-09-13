@@ -22,7 +22,7 @@ const TITULOS_TOP: Record<string, string> = {
 
 // Módulos que NO se pueden ocultar (para no dejar al usuario sin forma de volver a
 // mostrar los demás): inicio y la propia Configuración.
-export const SIEMPRE_VISIBLE = ["/", "/configuracion", "/admin"];
+export const SIEMPRE_VISIBLE = ["/", "/admin", "/configuracion", "/configuracion/parametros", "/configuracion/empresa", "/configuracion/version"];
 
 export const GRUPOS: { grupo: string; items: { href: string; label: string; ico: string; nueva?: boolean }[] }[] = [
   {
@@ -103,9 +103,9 @@ export const GRUPOS: { grupo: string; items: { href: string; label: string; ico:
     grupo: "Configuración",
     items: [
       { href: "/admin", label: "Gestión del sistema", ico: "🛠" },
-      { href: "/configuracion", label: "Parámetros", ico: "⚙" },
-      { href: "/configuracion", label: "Mi empresa", ico: "🏛" },
-      { href: "/configuracion", label: "Versión del sistema", ico: "ℹ" },
+      { href: "/configuracion/parametros", label: "Parámetros", ico: "⚙" },
+      { href: "/configuracion/empresa", label: "Mi empresa", ico: "🏛" },
+      { href: "/configuracion/version", label: "Versión del sistema", ico: "ℹ" },
     ],
   },
 ];

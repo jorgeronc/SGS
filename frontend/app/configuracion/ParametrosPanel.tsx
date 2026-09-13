@@ -18,10 +18,13 @@ const VACIA: ConfigSistema = {
   geofence_margen_m: 20,
 };
 
-// Parámetros de configuración del sistema (datos de la Corporación).
-// La jurisdicción rige la búsqueda de domicilios en el CAD. Edición: admin.
-// Se muestra dentro de la pantalla Configuración (pestaña "Parámetros del sistema").
-export default function ParametrosPanel() {
+// Configuración del sistema (una sola fila config_sistema). Se puede mostrar por
+// secciones: "empresa" (Corporación/Jurisdicción/Contacto) o "gps" (Rastreo GPS),
+// o "todo". Siempre carga y GUARDA la fila completa, así separar en páginas no
+// pierde datos. Edición: admin.
+export default function ParametrosPanel({ seccion = "todo" }: { seccion?: "empresa" | "gps" | "todo" }) {
+  const verEmpresa = seccion === "empresa" || seccion === "todo";
+  const verGps = seccion === "gps" || seccion === "todo";
   const [cfg, setCfg] = useState<ConfigSistema>(VACIA);
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
@@ -75,15 +78,18 @@ export default function ParametrosPanel() {
 
   return (
     <>
-      <p style={{ fontSize: 13, color: "#555" }}>
-        Datos de la Corporación. La <strong>jurisdicción</strong> rige dónde se buscan los
-        domicilios escritos en el campo “Lugar del incidente” del CAD. Solo administrador.
-      </p>
+      {verEmpresa && (
+        <p style={{ fontSize: 13, color: "#555" }}>
+          Datos de tu empresa. La <strong>jurisdicción</strong> rige dónde se buscan los
+          domicilios escritos en el campo “Lugar del incidente” del CAD. Solo administrador.
+        </p>
+      )}
 
       {cargando ? (
         <p>Cargando...</p>
       ) : (
         <form onSubmit={guardar}>
+          {verEmpresa && (<>
           <div className="dash-eyebrow">Corporación</div>
           <div className="form-grid">
             <label>Corporación
@@ -116,7 +122,9 @@ export default function ParametrosPanel() {
               <input value={cfg.correo ?? ""} onChange={(e) => set("correo", e.target.value)} placeholder="Correo institucional" />
             </label>
           </div>
+          </>)}
 
+          {verGps && (<>
           <div className="dash-eyebrow">Rastreo GPS de guardias (app móvil)</div>
           <p style={{ fontSize: 12, color: "#777", margin: "0 0 8px" }}>
             El móvil lee estos valores al iniciar sesión y reporta la ubicación del guardia. En el
@@ -140,6 +148,8 @@ export default function ParametrosPanel() {
                 onChange={(e) => set("geofence_margen_m", Number(e.target.value))} placeholder="20" />
             </label>
           </div>
+          <p style={{ fontSize: 12, color: "#888", margin: "6px 0 0" }}>Más adelante se agregarán aquí parámetros de APIs externas (por ejemplo, un VMS de cámaras).</p>
+          </>)}
 
           <div className="form-fila" style={{ marginTop: 12 }}>
             <button type="submit" disabled={guardando}>{guardando ? "Guardando…" : "Guardar configuración"}</button>
