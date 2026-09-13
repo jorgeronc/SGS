@@ -31,6 +31,8 @@ export default function TurnoDetallePage() {
   const [rolPorPersonal, setRolPorPersonal] = useState<Record<string, string>>({}); // personal.id -> rol de su cuenta
   const [editando, setEditando] = useState(false);                       // vista (roster) vs. edición
   const [disponibles, setDisponibles] = useState<any[]>([]);             // personal disponible (sin conflicto de fatiga)
+  const [disponiblesError, setDisponiblesError] = useState<string | null>(null);
+  const [miembros, setMiembros] = useState<Set<string>>(new Set());      // personal_id que está/estuvo en el turno (BD)
 
   async function cargar() {
     const { data: t } = await supabase.from("turnos")
@@ -65,8 +67,14 @@ export default function TurnoDetallePage() {
     setSuperv(sm);
 
     // Personal disponible (sin conflicto de fatiga) para relevo/ajustes.
-    const { data: disp } = await supabase.rpc("rpc_guardias_disponibles", { p_turno: params.id });
+    const { data: disp, error: eDisp } = await supabase.rpc("rpc_guardias_disponibles", { p_turno: params.id });
     setDisponibles((disp as any[]) ?? []);
+    setDisponiblesError(eDisp?.message ?? null);
+    // Miembros del turno en BD: si se quitan localmente, deben volver a Disponibles.
+    const mem = new Set<string>();
+    ((tg as any[]) ?? []).forEach((r) => mem.add(r.personal_id));
+    ((ts as any[]) ?? []).forEach((r) => { if (r.supervisor_personal_id) mem.add(r.supervisor_personal_id); });
+    setMiembros(mem);
   }
 
   useEffect(() => { cargar(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [params.id]);
@@ -328,29 +336,34 @@ export default function TurnoDetallePage() {
       <aside style={{ width: 300, flex: "0 0 auto", border: "1px solid var(--sc-card-line)", borderRadius: 10, padding: 12, position: "sticky", top: 12 }}>
         <h3 style={{ marginTop: 0, marginBottom: 4 }}>Disponibles</h3>
         <p className="dash-sub" style={{ fontSize: 12, marginTop: 0 }}>Personal activo que no está en el turno y no rompe la regla de fatiga. Úsalos para cubrir faltas.</p>
+        {disponiblesError && <p className="dash-sub" style={{ color: "#b00020" }}>No se pudo cargar disponibles: {disponiblesError} — ¿corriste la migración 0116?</p>}
         <input placeholder="Filtrar…" value={filtro} onChange={(e) => setFiltro(e.target.value)} style={{ width: "100%", marginBottom: 8 }} />
         {(() => {
           const t = filtro.trim().toLowerCase();
-          const libres = disponibles.filter((d) => !sel[d.personal_id]?.checked && (!t || (d.nombre ?? "").toLowerCase().includes(t)));
-          const sups = libres.filter((d) => d.rol === "supervisor");
-          const guas = libres.filter((d) => d.rol !== "supervisor");
-          if (libres.length === 0) return <p className="dash-sub">Nadie disponible sin conflicto de fatiga.</p>;
+          const dispSet = new Set(disponibles.map((d) => d.personal_id));
+          // Disponibles = fatiga-OK del RPC + miembros quitados localmente (re-agregables),
+          // menos los que siguen marcados; filtrados por texto.
+          const libres = guardias.filter((g) =>
+            !sel[g.id]?.checked && (dispSet.has(g.id) || miembros.has(g.id)) && (!t || nombre(g).toLowerCase().includes(t)));
+          const sups = libres.filter((g) => rolPorPersonal[g.id] === "supervisor");
+          const guas = libres.filter((g) => rolPorPersonal[g.id] !== "supervisor");
+          if (libres.length === 0) return <p className="dash-sub">Nadie disponible.</p>;
           return (
             <>
               {sups.length > 0 && (
                 <div style={{ marginBottom: 10 }}>
-                  <div className="dash-sub" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", fontWeight: 700 }}>Supervisores</div>
-                  {sups.map((d) => (
-                    <div key={d.personal_id} style={{ padding: "5px 0", borderBottom: "1px solid var(--sc-card-line)", fontSize: 13 }}>{d.nombre}</div>
+                  <div className="dash-sub" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", fontWeight: 700 }}>Supervisores ({sups.length})</div>
+                  {sups.map((g) => (
+                    <div key={g.id} style={{ padding: "5px 0", borderBottom: "1px solid var(--sc-card-line)", fontSize: 13 }}>{nombre(g)}</div>
                   ))}
                 </div>
               )}
               <div className="dash-sub" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", fontWeight: 700 }}>Guardias ({guas.length})</div>
               <div style={{ maxHeight: 420, overflowY: "auto" }}>
-                {guas.map((d) => (
-                  <div key={d.personal_id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0", borderBottom: "1px solid var(--sc-card-line)", fontSize: 13 }}>
-                    <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.nombre}</span>
-                    <button className="secundario" style={{ padding: "2px 8px" }} onClick={() => agregarGuardia(d.personal_id)}>＋</button>
+                {guas.map((g) => (
+                  <div key={g.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0", borderBottom: "1px solid var(--sc-card-line)", fontSize: 13 }}>
+                    <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{nombre(g)}</span>
+                    <button className="secundario" style={{ padding: "2px 8px" }} onClick={() => agregarGuardia(g.id)}>＋</button>
                   </div>
                 ))}
               </div>
