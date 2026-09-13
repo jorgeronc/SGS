@@ -54,17 +54,23 @@ async function personalDeCuenta(): Promise<string | null> {
 async function turnoCubreAhora(personalId: string): Promise<boolean> {
   const now = new Date();
   const fechas = [ymd(masDias(now, -1)), ymd(now)]; // incluye ayer por turnos nocturnos
-  const [{ data: tg }, { data: ts }] = await Promise.all([
+  const [{ data: tg }, { data: ts }, { data: tsup }] = await Promise.all([
     supabase.from("turno_guardias")
       .select("turno:turnos(fecha, hora_inicio, hora_fin, estado)")
       .eq("personal_id", personalId).eq("estatus", "activo"),
+    // Compat: supervisor en la cabecera (turnos.supervisor_id, deprecado).
     supabase.from("turnos")
       .select("fecha, hora_inicio, hora_fin, estado")
       .eq("supervisor_id", personalId).eq("estado", "activo").in("fecha", fechas),
+    // Modelo actual: supervisor POR SITIO (turno_supervisores).
+    supabase.from("turno_supervisores")
+      .select("turno:turnos(fecha, hora_inicio, hora_fin, estado)")
+      .eq("supervisor_personal_id", personalId).eq("estatus", "activo"),
   ]);
   const turnos: any[] = [
     ...(((tg as any[]) ?? []).map((r) => r.turno).filter(Boolean)),
     ...(((ts as any[]) ?? [])),
+    ...(((tsup as any[]) ?? []).map((r) => r.turno).filter(Boolean)),
   ].filter((t) => t?.estado === "activo" && fechas.includes(t.fecha));
   return turnos.some((t) => ventanaCubre(t, now));
 }
