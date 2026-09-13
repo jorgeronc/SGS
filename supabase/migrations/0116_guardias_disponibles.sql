@@ -78,8 +78,8 @@ begin
     left join personas pe on pe.id = p.persona_id
     left join usuarios_perfil up on up.id = p.usuario_id
     where p.estatus = 'activo' and p.estado_laboral = 'activo'
-      and p.id not in (select personal_id from turno_guardias where turno_id = p_turno and estatus = 'activo')
-      and p.id not in (select supervisor_personal_id from turno_supervisores where turno_id = p_turno and estatus = 'activo')
+      and p.id not in (select tg.personal_id from turno_guardias tg where tg.turno_id = p_turno and tg.estatus = 'activo')
+      and p.id not in (select ts.supervisor_personal_id from turno_supervisores ts where ts.turno_id = p_turno and ts.estatus = 'activo')
   ) x
   where v_new is null or x.run <= v_max
   order by x.rol, x.nombre;
