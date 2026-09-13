@@ -9,3 +9,11 @@ scripts/supabase.local.json
 
 .vercel
 .env*
+
+# Secretos / claves que NO deben commitearse (CSO finding #2)
+mobile/codemagic_private_key
+mobile/codemagic_private_key.pub
+mobile/google-services.json
+
+# Reportes de seguridad locales (CSO) — no publicar
+.gstack/
