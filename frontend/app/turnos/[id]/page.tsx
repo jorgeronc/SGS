@@ -28,6 +28,7 @@ export default function TurnoDetallePage() {
   const [filtro, setFiltro] = useState("");
   const [coordinadorId, setCoordinadorId] = useState<string>("");        // personal del coordinador del turno
   const [superv, setSuperv] = useState<Record<string, string>>({});      // sitio_id -> personal del supervisor
+  const [rolPorPersonal, setRolPorPersonal] = useState<Record<string, string>>({}); // personal.id -> rol de su cuenta
 
   async function cargar() {
     const { data: t } = await supabase.from("turnos")
@@ -36,15 +37,21 @@ export default function TurnoDetallePage() {
     setTurno(t);
     setCoordinadorId((t as any)?.coordinador_id ?? "");
 
-    const [{ data: gs }, { data: ss }, { data: tg }, { data: ts }] = await Promise.all([
-      supabase.from("personal").select("id, categoria, persona:personas(nombre, apellido_paterno, apellido_materno)")
+    const [{ data: gs }, { data: ss }, { data: tg }, { data: ts }, { data: perfiles }] = await Promise.all([
+      supabase.from("personal").select("id, categoria, usuario_id, persona:personas(nombre, apellido_paterno, apellido_materno)")
         .eq("estatus", "activo").eq("estado_laboral", "activo"),
       supabase.from("sitios").select("id, nombre, cliente:clientes(razon_social)").eq("estatus", "activo").order("nombre"),
       supabase.from("turno_guardias").select("personal_id, sitio_id").eq("turno_id", params.id),
       supabase.from("turno_supervisores").select("sitio_id, supervisor_personal_id").eq("turno_id", params.id).eq("estatus", "activo"),
+      supabase.from("usuarios_perfil").select("id, rol"),
     ]);
     setGuardias((gs as any[]) ?? []);
     setSitios((ss as any[]) ?? []);
+    // Rol de cada personal (por su cuenta ligada) para filtrar coordinador/supervisor.
+    const rolPorUsuario = new Map<string, string>(((perfiles as any[]) ?? []).map((p) => [p.id, p.rol]));
+    const rmap: Record<string, string> = {};
+    ((gs as any[]) ?? []).forEach((g) => { if (g.usuario_id && rolPorUsuario.has(g.usuario_id)) rmap[g.id] = rolPorUsuario.get(g.usuario_id)!; });
+    setRolPorPersonal(rmap);
     const inicial: Record<string, Sel> = {};
     ((gs as any[]) ?? []).forEach((g) => { inicial[g.id] = { checked: false, sitio_id: "" }; });
     ((tg as any[]) ?? []).forEach((r) => { inicial[r.personal_id] = { checked: true, sitio_id: r.sitio_id ?? "" }; });
@@ -71,14 +78,23 @@ export default function TurnoDetallePage() {
 
   async function guardar() {
     setGuardando(true); setError(null); setMensaje(null);
+
+    // Sitios con supervisor asignado. El supervisor forma parte del turno vía
+    // turno_supervisores (abajo) + la cabecera; NO se mete en turno_guardias (no es
+    // guardia de posición y dispararía el anti-fatiga).
+    const sitiosSel = Array.from(new Set(Object.values(sel).filter((v) => v.checked && v.sitio_id).map((v) => v.sitio_id)));
+    const conSup = sitiosSel.filter((sid) => superv[sid]);
+
+    // Deseados = guardias marcados (por checkbox), cada uno con su sitio.
+    const deseados = new Map<string, string | null>();
+    for (const [pid, v] of Object.entries(sel)) if (v.checked) deseados.set(pid, v.sitio_id || null);
+
     // Estado actual en BD.
     const { data: actualDb } = await supabase.from("turno_guardias").select("personal_id, sitio_id").eq("turno_id", params.id);
     const enDb = new Map<string, string | null>(((actualDb as any[]) ?? []).map((r) => [r.personal_id, r.sitio_id]));
-    const deseados = Object.entries(sel).filter(([, v]) => v.checked);
 
     const inserts: any[] = [];
-    for (const [pid, v] of deseados) {
-      const nuevoSitio = v.sitio_id || null;
+    for (const [pid, nuevoSitio] of deseados) {
       if (!enDb.has(pid)) {
         inserts.push({ turno_id: params.id, personal_id: pid, sitio_id: nuevoSitio });
       } else if ((enDb.get(pid) ?? null) !== nuevoSitio) {
@@ -90,16 +106,16 @@ export default function TurnoDetallePage() {
       const { error } = await supabase.from("turno_guardias").insert(inserts);
       if (error) { setError(error.message); setGuardando(false); return; }
     }
-    // Quitar los que ya no están marcados.
-    const quitar = [...enDb.keys()].filter((pid) => !sel[pid]?.checked);
+    // Quitar los que ya no están (ni marcados ni supervisores).
+    const quitar = [...enDb.keys()].filter((pid) => !deseados.has(pid));
     if (quitar.length) {
       await supabase.from("turno_guardias").delete().eq("turno_id", params.id).in("personal_id", quitar);
     }
 
-    // Coordinador del turno + supervisor por sitio (turno_supervisores).
-    await supabase.from("turnos").update({ coordinador_id: coordinadorId || null, actualizado_en: new Date().toISOString() }).eq("id", params.id);
-    const sitiosSel = Array.from(new Set(Object.values(sel).filter((v) => v.checked && v.sitio_id).map((v) => v.sitio_id)));
-    const conSup = sitiosSel.filter((sid) => superv[sid]);
+    // Coordinador + supervisor principal en la cabecera (para que el supervisor se
+    // muestre como parte del turno) + supervisor por sitio (turno_supervisores).
+    const supPrincipal = conSup.length ? superv[conSup[0]] : null;
+    await supabase.from("turnos").update({ coordinador_id: coordinadorId || null, supervisor_id: supPrincipal, actualizado_en: new Date().toISOString() }).eq("id", params.id);
     if (conSup.length) {
       const filas = conSup.map((sid) => ({ turno_id: params.id, sitio_id: sid, supervisor_personal_id: superv[sid], estatus: "activo", actualizado_en: new Date().toISOString() }));
       const { error: eSup } = await supabase.from("turno_supervisores").upsert(filas, { onConflict: "turno_id,sitio_id" });
@@ -147,6 +163,9 @@ export default function TurnoDetallePage() {
   const seleccionados = Object.values(sel).filter((v) => v.checked).length;
   const sitiosActivos = Array.from(new Set(Object.values(sel).filter((v) => v.checked && v.sitio_id).map((v) => v.sitio_id)));
   const sitioNombre = (sid: string) => sitios.find((s) => s.id === sid)?.nombre ?? sid;
+  // Solo personal con cuenta de rol coordinador / supervisor.
+  const coordinadores = guardias.filter((g) => rolPorPersonal[g.id] === "coordinador");
+  const supervisores = guardias.filter((g) => rolPorPersonal[g.id] === "supervisor");
   const lista = guardias.filter((g) => {
     const t = filtro.trim().toLowerCase();
     return !t || nombre(g).toLowerCase().includes(t) || (g.categoria ?? "").toLowerCase().includes(t);
@@ -186,8 +205,9 @@ export default function TurnoDetallePage() {
         <label>Coordinador del turno
           <select value={coordinadorId} disabled={!puedeEditar} onChange={(e) => setCoordinadorId(e.target.value)}>
             <option value="">— Sin coordinador —</option>
-            {guardias.map((g) => <option key={g.id} value={g.id}>{nombre(g)}</option>)}
+            {coordinadores.map((g) => <option key={g.id} value={g.id}>{nombre(g)}</option>)}
           </select>
+          {coordinadores.length === 0 && <span className="dash-sub" style={{ color: "#8a1220" }}>No hay personal con rol coordinador y cuenta ligada.</span>}
         </label>
       </div>
       {sitiosActivos.length > 0 ? (
@@ -200,7 +220,7 @@ export default function TurnoDetallePage() {
                 <td>
                   <select value={superv[sid] ?? ""} disabled={!puedeEditar} onChange={(e) => setSuperv((s) => ({ ...s, [sid]: e.target.value }))}>
                     <option value="">— Supervisor —</option>
-                    {guardias.map((g) => <option key={g.id} value={g.id}>{nombre(g)}</option>)}
+                    {supervisores.map((g) => <option key={g.id} value={g.id}>{nombre(g)}</option>)}
                   </select>
                 </td>
               </tr>
