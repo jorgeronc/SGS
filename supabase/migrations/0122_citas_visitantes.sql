@@ -92,22 +92,23 @@ language sql volatile as $$
 $$;
 
 -- 1) Crear cita + link (solo autenticados). Devuelve folio y token.
+drop function if exists rpc_generar_cita_visitante(uuid, timestamptz, text, uuid);
 create or replace function rpc_generar_cita_visitante(
   p_sitio uuid, p_fecha_hora timestamptz, p_motivo text, p_solicitante uuid
-) returns table(id uuid, folio text, token text)
+) returns table(folio text, token text)
 language plpgsql security definer set search_path = public as $$
-declare v_uid uuid := auth.uid(); v_pid uuid; v_tok text; v_id uuid; v_folio text;
+declare v_uid uuid := auth.uid(); v_pid uuid; v_tok text; v_folio text;
 begin
   if v_uid is null then raise exception 'No autenticado.'; end if;
   if p_sitio is null or p_fecha_hora is null then raise exception 'Faltan sitio o fecha/hora de la cita.'; end if;
-  select id into v_pid from personal where usuario_id = v_uid limit 1;
+  select p.id into v_pid from personal p where p.usuario_id = v_uid limit 1;
   v_tok := fn_token_visita();
   insert into citas_visitantes (sitio_id, fecha_hora_cita, motivo, solicitante_personal_id,
                                 creado_por, creado_por_personal_id, token, token_expira)
   values (p_sitio, p_fecha_hora, nullif(btrim(p_motivo),''), p_solicitante,
           v_uid, v_pid, v_tok, greatest(now(), p_fecha_hora) + interval '2 days')
-  returning citas_visitantes.id, citas_visitantes.folio into v_id, v_folio;
-  return query select v_id, v_folio, v_tok;
+  returning citas_visitantes.folio into v_folio;
+  return query select v_folio, v_tok;
 end $$;
 grant execute on function rpc_generar_cita_visitante(uuid, timestamptz, text, uuid) to authenticated;
 
