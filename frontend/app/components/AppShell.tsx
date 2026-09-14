@@ -62,7 +62,8 @@ export const GRUPOS: { grupo: string; items: { href: string; label: string; ico:
     grupo: "Control de Acceso",
     items: [
       { href: "/accesos", label: "Bitácora de accesos", ico: "🚧" },
-      { href: "/citas", label: "Citas", ico: "📅" },
+      { href: "/citas", label: "Citas CEDIS", ico: "📅" },
+      { href: "/citas-visitantes", label: "Citas visitantes", ico: "🧑‍💼" },
       { href: "/credenciales", label: "Credenciales", ico: "🎫" },
       { href: "/transportistas", label: "Proveedores", ico: "🚚" },
       { href: "/zonas", label: "Zonas de control", ico: "🚷" },
@@ -142,7 +143,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }, [session, pathname]);
 
   useEffect(() => {
-    if (!cargando && !session && !PUBLICAS.includes(pathname)) {
+    if (!cargando && !session && !PUBLICAS.includes(pathname) && !pathname.startsWith("/visita/")) {
       router.replace("/login");
     }
   }, [cargando, session, pathname, router]);
@@ -210,7 +211,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   // Rutas a pantalla completa (mapa de despacho, vistas de impresión de PDF).
-  if (LIMPIAS.includes(pathname) || pathname.endsWith("/imprimir")) {
+  if (LIMPIAS.includes(pathname) || pathname.endsWith("/imprimir") || pathname.startsWith("/visita/")) {
     return <>{children}</>;
   }
 
