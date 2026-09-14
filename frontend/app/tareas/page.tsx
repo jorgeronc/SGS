@@ -90,6 +90,7 @@ function NuevaTarea({ onCreado }: { onCreado: () => void }) {
         vigencia_desde: desde ? new Date(desde).toISOString() : new Date().toISOString(),
         vigencia_hasta: hasta ? new Date(hasta).toISOString() : null,
         prioridad,
+        sitio_id: sitioSel || null, // se fija desde el inicio (evita un UPDATE extra en la RPC)
       })
       .select("id")
       .single();
