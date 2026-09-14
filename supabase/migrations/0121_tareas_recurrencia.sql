@@ -20,11 +20,15 @@ create index if not exists idx_tareas_es_plantilla on tareas (es_plantilla) wher
 comment on column tareas.recurrencia is 'Regla de recurrencia (solo en plantillas): {modo:diaria|semana|turno, dias:[1..7], alcance, guardias:[uuid]}.';
 
 -- Las plantillas no son tareas vigentes "de trabajo" (no aparecen en el móvil ni tablero).
-create or replace view tareas_vigentes as
+-- DROP + CREATE (no "create or replace"): al agregar columnas a tareas, t.* corre la
+-- posición de la columna "vigente" y "create or replace view" no permite renombrar.
+drop view if exists tareas_vigentes;
+create view tareas_vigentes as
   select t.*, (t.vigencia_hasta is null or t.vigencia_hasta > now()) as vigente
   from tareas t
   where t.estatus = 'activo' and not t.es_plantilla
     and (t.vigencia_hasta is null or t.vigencia_hasta > now() - interval '24 hours');
+grant select on tareas_vigentes to authenticated, anon;
 
 -- Generador de instancias de tareas recurrentes para una fecha (local Monterrey).
 create or replace function rpc_generar_tareas_recurrentes(p_fecha date default (now() at time zone 'America/Monterrey')::date)
