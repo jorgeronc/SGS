@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import ListaMaestra from "@/app/components/ListaMaestra";
 import { CatalogoSelect } from "@/app/components/CatalogoSelect";
-import DireccionGeocode from "@/app/components/DireccionGeocode";
+import MapaPicker from "@/app/components/MapaPicker";
 
 const BUCKET = "fotos";
 
@@ -45,13 +45,14 @@ function NuevaTarea({ onCreado }: { onCreado: () => void }) {
   const [guardiaSel, setGuardiaSel] = useState<string[]>([]);
 
   useEffect(() => {
-    supabase.from("sitios").select("id, nombre").eq("estatus", "activo").order("nombre")
+    supabase.from("sitios").select("id, nombre, latitud, longitud").eq("estatus", "activo").order("nombre")
       .then(({ data }) => setSitios((data as any[]) ?? []));
   }, []);
 
   // Guardias con turno vigente HOY en el sitio elegido (para "específicos").
   useEffect(() => {
     setGuardiaSel([]); setGuardiasSitio([]);
+    setLat(""); setLng(""); // el punto en el mapa se elige por sitio
     if (!sitioSel) return;
     const hoy = new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD local
     supabase.from("turno_guardias")
@@ -128,6 +129,10 @@ function NuevaTarea({ onCreado }: { onCreado: () => void }) {
   const chip = (on: boolean): React.CSSProperties => ({ padding: "6px 12px", borderRadius: 16, fontSize: 12.5, fontWeight: 600, cursor: "pointer", border: on ? "1.5px solid var(--sc-btn,#f4a03f)" : "1px solid var(--sc-card-line)", background: on ? "var(--sc-btn,#f4a03f)" : "transparent", color: on ? "#fff" : "var(--sc-text)" });
   const seg = (on: boolean): React.CSSProperties => ({ padding: "8px 14px", borderRadius: 9, fontWeight: 700, fontSize: 13, cursor: "pointer", border: on ? "1.5px solid var(--sc-btn,#f4a03f)" : "1px solid var(--sc-card-line)", background: on ? "var(--sc-btn,#f4a03f)" : "transparent", color: on ? "#fff" : "var(--sc-text)" });
 
+  // Centro del mapa = ubicación del sitio elegido (para volar con ~500 m de diámetro).
+  const sc = sitios.find((s) => s.id === sitioSel);
+  const sitioCentro = sc && sc.latitud != null && sc.longitud != null ? { lat: Number(sc.latitud), lng: Number(sc.longitud) } : null;
+
   return (
     <form onSubmit={crear}>
       <div className="form-grid">
@@ -142,8 +147,8 @@ function NuevaTarea({ onCreado }: { onCreado: () => void }) {
         <label>Vigente desde
           <input type="datetime-local" value={desde} onChange={(e) => cambiarDesde(e.target.value)} />
         </label>
-        <label>Vigente hasta <span className="dash-sub">(auto +30 min)</span>
-          <input type="datetime-local" value={hasta} onChange={(e) => { setHasta(e.target.value); setHastaManual(true); }} />
+        <label>Vigente hasta
+          <input type="datetime-local" value={hasta} title="Se prellenA a +30 min del inicio; puedes cambiarlo" onChange={(e) => { setHasta(e.target.value); setHastaManual(true); }} />
         </label>
       </div>
 
@@ -151,13 +156,55 @@ function NuevaTarea({ onCreado }: { onCreado: () => void }) {
       <input value={asunto} onChange={(e) => setAsunto(e.target.value)} style={{ width: "100%" }}
         placeholder="Ej. Revisar clima de la cafetería" />
 
-      <label className="dash-sub" style={{ display: "block", marginTop: 8 }}>Lugar / área (opcional)</label>
-      <DireccionGeocode
-        direccion={direccion} lat={lat} lng={lng}
-        onDireccion={setDireccion}
-        onCoords={(la, lo) => { setLat(la); setLng(lo); }}
-        size={100}
+      {/* Sitio: dónde se aplica la tarea */}
+      <label className="dash-sub" style={{ display: "block", marginTop: 8 }}>Sitio (dónde se aplica la tarea)
+        <select value={sitioSel} onChange={(e) => setSitioSel(e.target.value)} style={{ width: "100%" }}>
+          <option value="">— Selecciona el sitio —</option>
+          {sitios.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+        </select>
+      </label>
+
+      {/* A quién se asigna: todos los del sitio o guardias específicos */}
+      {sitioSel && (
+        <div style={{ marginTop: 8 }}>
+          <div className="dash-sub" style={{ fontWeight: 700, marginBottom: 6 }}>¿A quién se asigna?</div>
+          <div style={{ display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
+            <span style={seg(alcance === "todos")} onClick={() => setAlcance("todos")}>👥 Todos los del sitio (hoy)</span>
+            <span style={seg(alcance === "especificos")} onClick={() => setAlcance("especificos")}>👷 Guardias específicos</span>
+          </div>
+          {alcance === "especificos" && (
+            <div>
+              <div className="dash-sub" style={{ marginBottom: 4 }}>Guardias con turno vigente hoy en este sitio:</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, maxHeight: 160, overflow: "auto" }}>
+                {guardiasSitio.length === 0 && <span className="dash-sub">Este sitio no tiene guardias con turno vigente hoy.</span>}
+                {guardiasSitio.map((g) => {
+                  const on = guardiaSel.includes(g.id);
+                  return (
+                    <button type="button" key={g.id} style={chip(on)}
+                      onClick={() => setGuardiaSel((p) => on ? p.filter((x) => x !== g.id) : [...p, g.id])}>
+                      {nombreGuardia(g)}
+                    </button>
+                  );
+                })}
+              </div>
+              {guardiaSel.length > 0 && <p className="dash-sub" style={{ marginTop: 4 }}>{guardiaSel.length} guardia(s) seleccionado(s).</p>}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Lugar: mapa (opcional). Al elegir el sitio vuela a su área (~500 m). */}
+      <label className="dash-sub" style={{ display: "block", marginTop: 8 }}>Lugar en el sitio (opcional — clic en el mapa para señalar dónde)</label>
+      <MapaPicker
+        lat={lat ? Number(lat) : null}
+        lng={lng ? Number(lng) : null}
+        onPick={(la, lo) => { setLat(String(la)); setLng(String(lo)); }}
+        centro={sitioCentro}
+        radioGeocerca={250}
+        className="mapbox"
       />
+      {!sitioCentro && <p className="dash-sub" style={{ fontSize: 12 }}>Elige un sitio para centrar el mapa en su área.</p>}
+      {lat && lng && <p className="dash-sub" style={{ fontSize: 12 }}>Punto señalado: {Number(lat).toFixed(5)}, {Number(lng).toFixed(5)} <button type="button" className="secundario" style={{ padding: "1px 8px", marginLeft: 6 }} onClick={() => { setLat(""); setLng(""); }}>quitar</button></p>}
 
       <label className="dash-sub" style={{ display: "block", marginTop: 8 }}>Instrucciones</label>
       <textarea
@@ -167,49 +214,12 @@ function NuevaTarea({ onCreado }: { onCreado: () => void }) {
         onChange={(e) => setInstrucciones(e.target.value)}
       />
 
-      <label className="dash-sub" style={{ display: "block", marginTop: 8 }}>Fotografías (opcional)</label>
+      <label className="dash-sub" style={{ display: "block", marginTop: 8 }}>Fotografías de instrucción (opcional — se envían al guardia)</label>
       <input type="file" accept="image/*" capture="environment" multiple
         onChange={(e) => setFotos(Array.from(e.target.files ?? []))} />
       {fotos.length > 0 && (
         <p className="dash-sub">{fotos.length} archivo(s): {fotos.map((f) => f.name).join(", ")}</p>
       )}
-
-      {/* Asignación: sitio primero; luego todos sus guardias o específicos */}
-      <div style={{ marginTop: 12 }}>
-        <div className="dash-sub" style={{ fontWeight: 700, marginBottom: 6 }}>¿A quién se asigna?</div>
-        <label className="dash-sub" style={{ display: "block", marginBottom: 8 }}>Sitio
-          <select value={sitioSel} onChange={(e) => setSitioSel(e.target.value)} style={{ width: "100%" }}>
-            <option value="">— Selecciona el sitio —</option>
-            {sitios.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-          </select>
-        </label>
-        {sitioSel && (
-          <>
-            <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-              <span style={seg(alcance === "todos")} onClick={() => setAlcance("todos")}>👥 Todos los del sitio (hoy)</span>
-              <span style={seg(alcance === "especificos")} onClick={() => setAlcance("especificos")}>👷 Guardias específicos</span>
-            </div>
-            {alcance === "especificos" && (
-              <div>
-                <div className="dash-sub" style={{ marginBottom: 4 }}>Guardias con turno vigente hoy en este sitio:</div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, maxHeight: 160, overflow: "auto" }}>
-                  {guardiasSitio.length === 0 && <span className="dash-sub">Este sitio no tiene guardias con turno vigente hoy.</span>}
-                  {guardiasSitio.map((g) => {
-                    const on = guardiaSel.includes(g.id);
-                    return (
-                      <button type="button" key={g.id} style={chip(on)}
-                        onClick={() => setGuardiaSel((p) => on ? p.filter((x) => x !== g.id) : [...p, g.id])}>
-                        {nombreGuardia(g)}
-                      </button>
-                    );
-                  })}
-                </div>
-                {guardiaSel.length > 0 && <p className="dash-sub" style={{ marginTop: 4 }}>{guardiaSel.length} guardia(s) seleccionado(s).</p>}
-              </div>
-            )}
-          </>
-        )}
-      </div>
 
       {error && <p style={{ color: "#b00020" }}>{error}</p>}
       <div style={{ marginTop: 10 }}>
@@ -235,6 +245,7 @@ export default function TareasPage() {
       subtitulo="Tareas para los guardias: revisar áreas, verificar reportes, apoyos y novedades"
       tabla="tareas"
       modulo="tareas"
+      orderBy="folio"
       select="id, folio, tipo, asunto, direccion, prioridad, estado, vigencia_desde, vigencia_hasta, fotografias, estatus, creado_en"
       miniatura={(r) => r.fotografias}
       placeholderBuscar="Buscar folio, tipo, asunto o lugar…"
@@ -251,8 +262,8 @@ export default function TareasPage() {
       textoBusqueda={(r) => `${r.folio ?? ""} ${r.tipo ?? ""} ${r.asunto ?? ""} ${r.direccion ?? ""}`}
       detalleHref={(r) => `/tareas/${r.id}`}
       filtros={[
-        { k: "vigentes", label: "Vigentes", test: (r) => !r.vigencia_hasta || new Date(r.vigencia_hasta) > new Date() },
         { k: "todos", label: "Todas" },
+        { k: "vigentes", label: "Vigentes", test: (r) => !r.vigencia_hasta || new Date(r.vigencia_hasta) > new Date() },
         { k: "abiertas", label: "Abiertas", test: (r) => r.estado === "abierta" },
         { k: "completadas", label: "Completadas", test: (r) => r.estado === "completada" },
       ]}
