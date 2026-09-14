@@ -21,10 +21,9 @@ const ACCIONES = [
   "LOGOUT",
 ];
 
-function jsonCorto(v: unknown): string {
+function jsonFull(v: unknown): string {
   if (v == null) return "";
-  const s = JSON.stringify(v);
-  return s.length > 80 ? s.slice(0, 80) + "…" : s;
+  try { return JSON.stringify(v, null, 2); } catch { return String(v); }
 }
 
 export default function BitacoraPage() {
@@ -32,6 +31,11 @@ export default function BitacoraPage() {
   const [usuarios, setUsuarios] = useState<Record<string, string>>({});
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [miRol, setMiRol] = useState("");
+  const [retencion, setRetencion] = useState<number | null>(null);
+  const [retEd, setRetEd] = useState("");
+  const [retMsg, setRetMsg] = useState<string | null>(null);
+  const esAdmin = miRol === "administrador";
 
   const [tipoAccion, setTipoAccion] = useState("");
   const [modulo, setModulo] = useState("");
@@ -45,10 +49,45 @@ export default function BitacoraPage() {
     // Como administrador se pueden leer todos los perfiles; se mapea id -> nombre.
     const { data } = await supabase.from("usuarios_perfil").select("id, nombre, rol");
     const mapa: Record<string, string> = {};
+    const rolPorId: Record<string, string> = {};
     ((data as any[]) ?? []).forEach((u) => {
       mapa[u.id] = u.nombre ? `${u.nombre} (${u.rol})` : u.rol;
+      rolPorId[u.id] = u.rol;
     });
     setUsuarios(mapa);
+    const { data: au } = await supabase.auth.getUser();
+    if (au?.user) setMiRol(rolPorId[au.user.id] ?? "");
+    // Parámetro de retención (informativo; WORM).
+    const { data: cfg } = await supabase.from("config_sistema").select("bitacora_retencion_dias").eq("id", true).maybeSingle();
+    const dias = (cfg as any)?.bitacora_retencion_dias ?? 365;
+    setRetencion(dias); setRetEd(String(dias));
+  }
+
+  async function guardarRetencion() {
+    setRetMsg(null);
+    const n = Number(retEd);
+    if (!Number.isFinite(n) || n < 1) { setRetMsg("Indica un número de días válido."); return; }
+    const { error } = await supabase.from("config_sistema").update({ bitacora_retencion_dias: Math.round(n) }).eq("id", true);
+    if (error) { setRetMsg(error.message); return; }
+    setRetencion(Math.round(n)); setRetMsg("Guardado.");
+  }
+
+  // Descarga CSV/Excel de lo cargado (solo administrador). Registra EXPORTAR.
+  async function exportarCSV() {
+    const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const cab = ["Fecha", "Usuario", "Acción", "Entidad", "Entidad ID", "Módulo", "IP", "Dispositivo", "Antes", "Después"];
+    const filas = visibles.map((e) => [
+      new Date(e.creado_en).toLocaleString(), usuario(e.usuario_id), e.tipo_accion, e.entidad_tipo,
+      e.entidad_id ?? "", e.modulo ?? "", e.ip_address ?? "", e.computadora_id ?? "",
+      jsonFull(e.valores_anteriores), jsonFull(e.valores_nuevos),
+    ]);
+    const csv = [cab, ...filas].map((r) => r.map(esc).join(",")).join("\r\n");
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `bitacora-${new Date().toISOString().slice(0, 10)}.csv`; a.click();
+    URL.revokeObjectURL(url);
+    await supabase.rpc("rpc_registrar_bitacora", { p_tipo_accion: "EXPORTAR", p_entidad_tipo: "bitacora", p_entidad_id: null, p_modulo: "bitacora" });
   }
 
   async function cargarBitacora() {
@@ -120,6 +159,25 @@ export default function BitacoraPage() {
         consultas). Solo visible para supervisor/administrador.
       </p>
 
+      <div className="form-fila" style={{ alignItems: "center", gap: 12, flexWrap: "wrap", margin: "6px 0 4px" }}>
+        <span className="dash-sub">
+          Retención: <b>{retencion ?? "…"} días</b> <span style={{ fontSize: 12 }}>(la bitácora es inmutable; el parámetro es informativo, no se purga)</span>
+        </span>
+        {esAdmin && (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <input type="number" min={1} value={retEd} onChange={(e) => setRetEd(e.target.value)} style={{ width: 90 }} />
+            <button type="button" className="secundario" onClick={guardarRetencion}>Guardar días</button>
+            {retMsg && <span className="dash-sub" style={{ color: retMsg === "Guardado." ? "#0a7c2f" : "#b00020" }}>{retMsg}</span>}
+          </span>
+        )}
+        <span style={{ flex: 1 }} />
+        {esAdmin ? (
+          <button type="button" className="qbtn2 primary" onClick={exportarCSV} disabled={visibles.length === 0}>⬇️ Descargar CSV / Excel</button>
+        ) : (
+          <span className="dash-sub" style={{ fontSize: 12 }}>Solo el administrador puede descargar.</span>
+        )}
+      </div>
+
       <div className="form-fila" style={{ flexWrap: "wrap", alignItems: "flex-end", gap: 10 }}>
         <label className="dash-sub" style={{ display: "flex", flexDirection: "column", gap: 2 }}>Desde
           <input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
@@ -189,14 +247,16 @@ export default function BitacoraPage() {
                       <details>
                         <summary style={{ cursor: "pointer" }}>ver</summary>
                         {e.valores_anteriores ? (
-                          <pre style={{ whiteSpace: "pre-wrap", fontSize: 11 }}>
-                            antes: {jsonCorto(e.valores_anteriores)}
-                          </pre>
+                          <div style={{ fontSize: 11 }}>
+                            <div style={{ fontWeight: 700, marginTop: 4 }}>Antes</div>
+                            <pre style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 280, overflow: "auto", margin: 0, background: "var(--sc-btn-soft,#f6ede1)", padding: 6, borderRadius: 6 }}>{jsonFull(e.valores_anteriores)}</pre>
+                          </div>
                         ) : null}
                         {e.valores_nuevos ? (
-                          <pre style={{ whiteSpace: "pre-wrap", fontSize: 11 }}>
-                            después: {jsonCorto(e.valores_nuevos)}
-                          </pre>
+                          <div style={{ fontSize: 11 }}>
+                            <div style={{ fontWeight: 700, marginTop: 4 }}>Después</div>
+                            <pre style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 280, overflow: "auto", margin: 0, background: "var(--sc-btn-soft,#f6ede1)", padding: 6, borderRadius: 6 }}>{jsonFull(e.valores_nuevos)}</pre>
+                          </div>
                         ) : null}
                       </details>
                     ) : (

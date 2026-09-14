@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import FotosPanel from "@/app/components/FotosPanel";
@@ -45,11 +45,18 @@ export default function TareaDetallePage({ params }: { params: { id: string } })
   const [sitioSel, setSitioSel] = useState("");
   const [guardiaSel, setGuardiaSel] = useState<string[]>([]);
 
+  const consultadoRef = useRef<string | null>(null);
+
   const cargar = useCallback(async () => {
     setCargando(true);
     const { data, error: err } = await supabase.from("tareas").select("*").eq("id", params.id).maybeSingle();
     if (err) { setError(err.message); setCargando(false); return; }
     setTarea(data);
+    // Auditoría: registra el registro CONSULTADO (con snapshot) una vez por apertura.
+    if (data && consultadoRef.current !== params.id) {
+      consultadoRef.current = params.id;
+      supabase.rpc("rpc_registrar_bitacora", { p_tipo_accion: "CONSULTAR", p_entidad_tipo: "tareas", p_entidad_id: params.id, p_modulo: "tareas", p_valores: data as any });
+    }
 
     const { data: asig } = await supabase
       .from("tarea_asignaciones")
