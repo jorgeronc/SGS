@@ -23,7 +23,6 @@ function NuevaCitaVisitante({ onCreado }: { onCreado: () => void }) {
   const [fecha, setFecha] = useState(dtLocal(new Date(Date.now() + 3600000)));
   const [mismaPersona, setMismaPersona] = useState(false);
   const [solicitanteSel, setSolicitanteSel] = useState("");
-  const [motivo, setMotivo] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [creando, setCreando] = useState(false);
   const [resultado, setResultado] = useState<{ folio: string; link: string } | null>(null);
@@ -53,7 +52,7 @@ function NuevaCitaVisitante({ onCreado }: { onCreado: () => void }) {
     setCreando(true);
     const { data, error: err } = await supabase.rpc("rpc_generar_cita_visitante", {
       p_sitio: sitioSel, p_fecha_hora: new Date(fecha).toISOString(),
-      p_motivo: motivo || null, p_solicitante: solicitante,
+      p_motivo: null, p_solicitante: solicitante,
     });
     setCreando(false);
     if (err) { setError(err.message); return; }
@@ -61,7 +60,7 @@ function NuevaCitaVisitante({ onCreado }: { onCreado: () => void }) {
     if (!row?.token) { setError("No se pudo generar el link."); return; }
     const link = `${window.location.origin}/visita/${row.token}`;
     setResultado({ folio: row.folio, link });
-    setSitioSel(""); setMotivo(""); setSolicitanteSel(""); setMismaPersona(false);
+    setSitioSel(""); setSolicitanteSel(""); setMismaPersona(false);
     setFecha(dtLocal(new Date(Date.now() + 3600000)));
     onCreado();
   }
@@ -85,20 +84,20 @@ function NuevaCitaVisitante({ onCreado }: { onCreado: () => void }) {
         <label>Fecha y hora de la cita
           <input type="datetime-local" value={fecha} onChange={(e) => setFecha(e.target.value)} />
         </label>
-        <label>Solicitado por (empleado/guardia)
-          <select value={solicitanteSel} disabled={mismaPersona} onChange={(e) => setSolicitanteSel(e.target.value)}>
+      </div>
+      <div style={{ maxWidth: 520, marginTop: 10 }}>
+        <label style={{ display: "block" }}>Solicitado por (empleado/guardia)
+          <select value={solicitanteSel} disabled={mismaPersona} onChange={(e) => setSolicitanteSel(e.target.value)} style={{ width: "100%" }}>
             <option value="">{mismaPersona ? (miNombre || "Yo") : "— Selecciona —"}</option>
             {personal.map((p) => <option key={p.id} value={p.id}>{nombrePersonal(p)}</option>)}
           </select>
-          <label className="dash-sub" style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, fontWeight: 400 }}>
-            <input type="checkbox" checked={mismaPersona} disabled={!miPersonalId} onChange={(e) => setMismaPersona(e.target.checked)} />
-            El mismo que registra{miNombre ? ` (${miNombre})` : ""}
-          </label>
         </label>
-        <label>Motivo <span className="dash-sub">(opcional)</span>
-          <input type="text" value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Ej. Entrevista, proveedor…" />
+        <label className="dash-sub" style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, fontWeight: 400, cursor: miPersonalId ? "pointer" : "default" }}>
+          <input type="checkbox" checked={mismaPersona} disabled={!miPersonalId} onChange={(e) => setMismaPersona(e.target.checked)} />
+          <span>El mismo que registra{miNombre ? ` (${miNombre})` : ""}</span>
         </label>
       </div>
+      <p className="dash-sub" style={{ fontSize: 12, marginTop: 8 }}>El <b>motivo</b> lo captura el visitante en el formulario del link.</p>
 
       {error && <p style={{ color: "#b00020" }}>{error}</p>}
       <div style={{ marginTop: 10 }}>
