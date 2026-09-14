@@ -76,6 +76,7 @@ export default function SupervisionScreen() {
   const [sitio, setSitio] = useState<Sitio | null>(null);
   const [fecha, setFecha] = useState<Date>(new Date());
   const [pasos, setPasos] = useState<Paso[]>([]);
+  const [tareasComp, setTareasComp] = useState<{ id: string; folio: string | null; tipo: string | null; hora: string }[]>([]);
   const [cargando, setCargando] = useState(false);
 
   // Modo sitio
@@ -140,20 +141,28 @@ export default function SupervisionScreen() {
 
   // Rondines del guardia en la fecha elegida (cronológico) — modo guardia.
   useEffect(() => {
-    if (modo !== "guardia" || !guardiaId) { setPasos([]); return; }
+    if (modo !== "guardia" || !guardiaId) { setPasos([]); setTareasComp([]); return; }
     (async () => {
       setCargando(true);
       const f = fmtFecha(fecha);
-      const { data } = await supabase.from("rondines")
-        .select("id, fecha_hora, novedad, dentro_geocerca, distancia_m, punto:puntos_control(nombre, sitio:sitios(nombre))")
-        .eq("personal_id", guardiaId).eq("estatus", "activo")
-        .gte("fecha_hora", `${f}T00:00:00${TZ_MTY}`).lte("fecha_hora", `${f}T23:59:59.999${TZ_MTY}`)
-        .order("fecha_hora", { ascending: true });
+      const desde = `${f}T00:00:00${TZ_MTY}`, hasta = `${f}T23:59:59.999${TZ_MTY}`;
+      const [{ data }, { data: tc }] = await Promise.all([
+        supabase.from("rondines")
+          .select("id, fecha_hora, novedad, dentro_geocerca, distancia_m, punto:puntos_control(nombre, sitio:sitios(nombre))")
+          .eq("personal_id", guardiaId).eq("estatus", "activo")
+          .gte("fecha_hora", desde).lte("fecha_hora", hasta).order("fecha_hora", { ascending: true }),
+        // Tareas que ESTE guardia completó ese día (parte de su rondín/actividad).
+        supabase.from("tarea_asignaciones")
+          .select("id, respondido_en, tarea:tareas(folio, tipo)")
+          .eq("personal_id", guardiaId).eq("respuesta", "completada")
+          .gte("respondido_en", desde).lte("respondido_en", hasta).order("respondido_en", { ascending: true }),
+      ]);
       setPasos(((data as any[]) ?? []).map((r) => ({
         id: r.id, fecha_hora: r.fecha_hora, novedad: r.novedad,
         punto: r.punto?.nombre ?? "Punto", sitio: r.punto?.sitio?.nombre ?? "",
         dentro: r.dentro_geocerca, distancia: r.distancia_m,
       })));
+      setTareasComp(((tc as any[]) ?? []).map((r) => ({ id: r.id, folio: r.tarea?.folio ?? null, tipo: r.tarea?.tipo ?? "Tarea", hora: r.respondido_en })));
       setCargando(false);
     })();
   }, [modo, guardiaId, fecha]);
@@ -269,6 +278,23 @@ export default function SupervisionScreen() {
                   style={{ flex: 1 }}
                   contentContainerStyle={{ padding: 16, paddingTop: 6 }}
                   ListEmptyComponent={<Text style={styles.sub}>Sin rondines en esta fecha.</Text>}
+                  ListFooterComponent={
+                    tareasComp.length ? (
+                      <View style={{ marginTop: 8 }}>
+                        <Text style={styles.seccionMini}>Tareas completadas ({tareasComp.length})</Text>
+                        {tareasComp.map((tc) => (
+                          <View key={tc.id} style={styles.tlItem}>
+                            <View style={[styles.dot, { backgroundColor: T.ok }]} />
+                            <View style={styles.tlBody}>
+                              <Text style={styles.tlPunto}>{tc.folio ? `${tc.folio} · ` : ""}{tc.tipo}</Text>
+                              <Text style={styles.tlMeta}>Completada {new Date(tc.hora).toLocaleString()}</Text>
+                            </View>
+                            <Ionicons name="flag" size={16} color={T.ok} />
+                          </View>
+                        ))}
+                      </View>
+                    ) : null
+                  }
                   renderItem={({ item, index }) => {
                     const fuera = item.dentro === false;
                     return (
@@ -365,4 +391,5 @@ const styles = StyleSheet.create({
   tlBody: { flex: 1 },
   tlPunto: { color: T.text, fontSize: 15, fontWeight: "700" },
   tlMeta: { color: T.textDim, fontSize: 12.5, marginTop: 2 },
+  seccionMini: { color: T.textDim, fontSize: 12, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 10, marginTop: 4 },
 });

@@ -116,6 +116,18 @@ export async function getSitiosAsignados(personalId: string): Promise<SitioAsign
   return Array.from(new Map(rows.map((r) => [r.sitio_id, { id: r.sitio_id, nombre: r.sitio?.nombre ?? null }])).values());
 }
 
+// Sitios que el SUPERVISOR cubre en su turno vigente (turno_supervisores del turno
+// activo, fecha ayer/hoy). Base para ver tareas/incidentes de sus guardias.
+export async function getSitiosSupervisados(personalId: string): Promise<string[]> {
+  const fechas = fechasRelevantes();
+  const { data } = await supabase
+    .from("turno_supervisores")
+    .select("sitio_id, turno:turnos(estado, fecha)")
+    .eq("supervisor_personal_id", personalId).eq("estatus", "activo");
+  const rows = ((data as any[]) ?? []).filter((r) => r.turno?.estado === "activo" && fechas.includes(r.turno?.fecha) && r.sitio_id);
+  return Array.from(new Set(rows.map((r) => r.sitio_id as string)));
+}
+
 // "Mi unidad": la patrulla que el elemento está operando en el turno actual.
 // El oficial la elige en Perfil (a partir del rol de servicio vigente) y desde
 // ahí puede fijar su estatus operativo. Los Despachos se filtran a esta patrulla.

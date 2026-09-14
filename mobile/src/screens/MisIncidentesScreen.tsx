@@ -4,6 +4,7 @@ import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { supabase } from "../lib/supabase";
 import { getMiOficialValido } from "../lib/oficial";
+import { getSitiosSupervisados } from "../lib/unidad";
 import { getRolActual, esMando } from "../lib/rol";
 import { T, UI } from "../theme";
 
@@ -41,14 +42,8 @@ export default function MisIncidentesScreen() {
     const desde = new Date(Date.now() - dias * 86400000).toISOString();
     let filas: any[] = [];
     if (modo === "guardias") {
-      // Sitios de los turnos donde soy supervisor → incidencias de esos sitios.
-      const { data: ts } = await supabase.from("turnos").select("id").eq("supervisor_id", pid ?? "");
-      const turnoIds = ((ts as any[]) ?? []).map((t) => t.id);
-      let sitioIds: string[] = [];
-      if (turnoIds.length) {
-        const { data: tg } = await supabase.from("turno_guardias").select("sitio_id").in("turno_id", turnoIds);
-        sitioIds = Array.from(new Set(((tg as any[]) ?? []).map((x) => x.sitio_id).filter(Boolean)));
-      }
+      // Solo los sitios que el supervisor cubre en su TURNO ACTIVO (turno_supervisores).
+      const sitioIds = pid ? await getSitiosSupervisados(pid) : [];
       if (sitioIds.length) {
         const { data } = await supabase.from("llamadas_cad").select(sel)
           .in("sitio_id", sitioIds).gte("fecha_recepcion", desde).order("fecha_recepcion", { ascending: false }).limit(100);
