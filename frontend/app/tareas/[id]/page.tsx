@@ -5,6 +5,10 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import FotosPanel from "@/app/components/FotosPanel";
 import MapaUbicacion from "@/app/components/MapaUbicacion";
+import { CatalogoSelect } from "@/app/components/CatalogoSelect";
+import { urlFoto } from "@/lib/fotos";
+
+const dtLocal = (s: string | null) => (s ? new Date(new Date(s).getTime() - new Date(s).getTimezoneOffset() * 60000).toISOString().slice(0, 16) : "");
 
 const RESPUESTAS: Record<string, { label: string; color: string }> = {
   pendiente:  { label: "Pendiente",  color: "#777" },
@@ -12,8 +16,6 @@ const RESPUESTAS: Record<string, { label: string; color: string }> = {
   atendiendo: { label: "Atendiendo", color: "#b06a00" },
   completada: { label: "Completada", color: "#0a7c2f" },
 };
-
-const ESTADOS = ["abierta", "en_proceso", "completada", "vencida"];
 
 function nombreGuardia(a: any): string {
   const per = a.personal;
@@ -25,9 +27,15 @@ function nombreGuardia(a: any): string {
 export default function TareaDetallePage({ params }: { params: { id: string } }) {
   const [tarea, setTarea] = useState<any | null>(null);
   const [asignaciones, setAsignaciones] = useState<any[]>([]);
+  const [evidencias, setEvidencias] = useState<any[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mensaje, setMensaje] = useState<string | null>(null);
+
+  // Edición de los datos de la tarea.
+  const [editando, setEditando] = useState(false);
+  const [borrador, setBorrador] = useState<any>({});
+  const [guardandoEd, setGuardandoEd] = useState(false);
 
   // Asignar más guardias (por sitio o por guardias).
   const [agregando, setAgregando] = useState(false);
@@ -50,6 +58,14 @@ export default function TareaDetallePage({ params }: { params: { id: string } })
       .eq("estatus", "activo")
       .order("creado_en");
     setAsignaciones((asig as any[]) ?? []);
+
+    // Evidencia devuelta por el guardia (fotos/video), ligada a la tarea. Solo lectura.
+    const { data: ev } = await supabase.from("evidencias")
+      .select("id, folio, tipo, descripcion, fotografias, datos_adicionales, creado_en")
+      .eq("estatus", "activo")
+      .contains("datos_adicionales", { origen_tipo: "tarea", origen_id: params.id })
+      .order("creado_en", { ascending: false });
+    setEvidencias((ev as any[]) ?? []);
     setCargando(false);
   }, [params.id]);
 
@@ -63,13 +79,27 @@ export default function TareaDetallePage({ params }: { params: { id: string } })
       .then(({ data }) => setGuardias((data as any[]) ?? []));
   }, []);
 
-  async function cambiarEstado(nuevo: string) {
-    const { error: err } = await supabase
-      .from("tareas")
-      .update({ estado: nuevo, actualizado_en: new Date().toISOString() })
-      .eq("id", params.id);
-    setMensaje(err ? err.message : `Tarea marcada como ${nuevo}.`);
-    if (!err) cargar();
+  function iniciarEdicion() {
+    setBorrador({
+      tipo: tarea.tipo ?? "", prioridad: tarea.prioridad ?? "media", asunto: tarea.asunto ?? "",
+      instrucciones: tarea.instrucciones ?? "",
+      vigencia_desde: dtLocal(tarea.vigencia_desde), vigencia_hasta: dtLocal(tarea.vigencia_hasta),
+    });
+    setMensaje(null); setEditando(true);
+  }
+  async function guardarTarea() {
+    setGuardandoEd(true); setMensaje(null);
+    const upd: Record<string, any> = {
+      tipo: borrador.tipo || null, prioridad: borrador.prioridad || "media",
+      asunto: borrador.asunto || null, instrucciones: borrador.instrucciones || null,
+      vigencia_desde: borrador.vigencia_desde ? new Date(borrador.vigencia_desde).toISOString() : null,
+      vigencia_hasta: borrador.vigencia_hasta ? new Date(borrador.vigencia_hasta).toISOString() : null,
+      actualizado_en: new Date().toISOString(),
+    };
+    const { error: err } = await supabase.from("tareas").update(upd).eq("id", params.id);
+    setGuardandoEd(false);
+    if (err) { setMensaje(err.message); return; }
+    setEditando(false); setMensaje("Cambios guardados."); cargar();
   }
 
   async function agregarGuardias() {
@@ -94,39 +124,69 @@ export default function TareaDetallePage({ params }: { params: { id: string } })
   if (!tarea) return <main className="contenedor"><p>Tarea no encontrada.</p></main>;
 
   const vencida = tarea.vigencia_hasta && new Date(tarea.vigencia_hasta) < new Date();
+  const completada = asignaciones.find((a) => a.respuesta === "completada");
+  const atendiendo = asignaciones.find((a) => a.respuesta === "atendiendo");
 
   return (
     <main className="contenedor">
       <p><Link href="/tareas">← Tareas</Link></p>
       <h1 className="dash-h1">{tarea.folio ?? "Tarea"} · {tarea.tipo}</h1>
       <p className="dash-sub">
-        Prioridad {tarea.prioridad} · Estado {tarea.estado}
+        Estado: <b>{tarea.estado}</b>
+        {completada ? <> · Completada por <b>{nombreGuardia(completada)}</b></> : atendiendo ? <> · Atendiendo: <b>{nombreGuardia(atendiendo)}</b></> : null}
         {tarea.estatus === "cancelado" ? " · CANCELADA" : ""}
       </p>
 
-      <h3>Datos de la tarea</h3>
-      <dl className="sc-kv">
-        <dt>Asunto</dt><dd>{tarea.asunto ?? "—"}</dd>
-        <dt>Vigente desde</dt><dd>{new Date(tarea.vigencia_desde).toLocaleString()}</dd>
-        <dt>Vigente hasta</dt>
-        <dd style={vencida ? { color: "#b00020", fontWeight: 700 } : undefined}>
-          {tarea.vigencia_hasta ? `${new Date(tarea.vigencia_hasta).toLocaleString()}${vencida ? " (vencida)" : ""}` : "Sin vencimiento"}
-        </dd>
-        <dt>Lugar / área</dt><dd>{tarea.direccion ?? "—"}</dd>
-      </dl>
-
-      <h3>Instrucciones</h3>
-      <p style={{ whiteSpace: "pre-wrap" }}>{tarea.instrucciones || "—"}</p>
-
-      <h3>Cambiar estado</h3>
-      <div className="form-fila">
-        {ESTADOS.map((e) => (
-          <button key={e} className={e === tarea.estado ? "" : "secundario"} onClick={() => cambiarEstado(e)}>
-            {e}
-          </button>
-        ))}
+      <div className="form-fila" style={{ gap: 10, margin: "6px 0" }}>
+        {!editando ? (
+          <button onClick={iniciarEdicion} disabled={tarea.estatus === "cancelado"}>✏️ Editar</button>
+        ) : (
+          <>
+            <button onClick={guardarTarea} disabled={guardandoEd}>{guardandoEd ? "Guardando…" : "💾 Guardar cambios"}</button>
+            <button className="secundario" onClick={() => { setEditando(false); setMensaje(null); }}>Cancelar</button>
+          </>
+        )}
       </div>
       {mensaje && <p style={{ color: "#0a7c2f" }}>{mensaje}</p>}
+
+      <h3>Datos de la tarea</h3>
+      {!editando ? (
+        <dl className="sc-kv">
+          <dt>Tipo</dt><dd>{tarea.tipo ?? "—"}</dd>
+          <dt>Prioridad</dt><dd>{tarea.prioridad ?? "—"}</dd>
+          <dt>Asunto</dt><dd>{tarea.asunto ?? "—"}</dd>
+          <dt>Vigente desde</dt><dd>{new Date(tarea.vigencia_desde).toLocaleString()}</dd>
+          <dt>Vigente hasta</dt>
+          <dd style={vencida ? { color: "#b00020", fontWeight: 700 } : undefined}>
+            {tarea.vigencia_hasta ? `${new Date(tarea.vigencia_hasta).toLocaleString()}${vencida ? " (vencida)" : ""}` : "Sin vencimiento"}
+          </dd>
+          <dt>Lugar / área</dt><dd>{tarea.direccion ?? "—"}</dd>
+          <dt>Instrucciones</dt><dd style={{ whiteSpace: "pre-wrap" }}>{tarea.instrucciones || "—"}</dd>
+        </dl>
+      ) : (
+        <div className="form-grid">
+          <label>Tipo
+            <CatalogoSelect categoria="tipo_tarea" value={borrador.tipo} onChange={(v) => setBorrador((b: any) => ({ ...b, tipo: v }))} placeholder="— Selecciona —" />
+          </label>
+          <label>Prioridad
+            <select value={borrador.prioridad} onChange={(e) => setBorrador((b: any) => ({ ...b, prioridad: e.target.value }))}>
+              <option value="alta">alta</option><option value="media">media</option><option value="baja">baja</option>
+            </select>
+          </label>
+          <label>Vigente desde
+            <input type="datetime-local" value={borrador.vigencia_desde} onChange={(e) => setBorrador((b: any) => ({ ...b, vigencia_desde: e.target.value }))} />
+          </label>
+          <label>Vigente hasta
+            <input type="datetime-local" value={borrador.vigencia_hasta} onChange={(e) => setBorrador((b: any) => ({ ...b, vigencia_hasta: e.target.value }))} />
+          </label>
+          <label style={{ gridColumn: "1 / -1" }}>Asunto
+            <input value={borrador.asunto} onChange={(e) => setBorrador((b: any) => ({ ...b, asunto: e.target.value }))} />
+          </label>
+          <label style={{ gridColumn: "1 / -1" }}>Instrucciones
+            <textarea style={{ minHeight: 80, resize: "vertical" }} value={borrador.instrucciones} onChange={(e) => setBorrador((b: any) => ({ ...b, instrucciones: e.target.value }))} />
+          </label>
+        </div>
+      )}
 
       <h3>Guardias asignados ({asignaciones.length})</h3>
       <table className="sc-table">
@@ -190,7 +250,33 @@ export default function TareaDetallePage({ params }: { params: { id: string } })
       <h3>Ubicación</h3>
       <MapaUbicacion latitud={tarea.latitud} longitud={tarea.longitud} />
 
-      <h3>Fotografía</h3>
+      <h3>Evidencia del guardia ({evidencias.length})</h3>
+      <p className="dash-sub" style={{ fontSize: 12 }}>Fotos y videos que el guardia sube desde el móvil. Quedan ligadas a la tarea y no se pueden eliminar desde aquí.</p>
+      {evidencias.length === 0 ? (
+        <p className="dash-sub">Sin evidencia todavía.</p>
+      ) : (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+          {evidencias.map((ev) => {
+            const foto = Array.isArray(ev.fotografias) ? ev.fotografias[0] : null;
+            const video = ev.datos_adicionales?.video_url ?? ev.datos_adicionales?.video ?? null;
+            return (
+              <figure key={ev.id} style={{ margin: 0, width: 150 }}>
+                {foto ? (
+                  <a href={urlFoto(foto) ?? undefined} target="_blank" rel="noreferrer"><img src={urlFoto(foto) ?? undefined} alt="Evidencia" style={{ width: 150, height: 110, objectFit: "cover", borderRadius: 8 }} /></a>
+                ) : video ? (
+                  <a href={urlFoto(video) ?? undefined} target="_blank" rel="noreferrer" style={{ display: "grid", placeItems: "center", width: 150, height: 110, borderRadius: 8, background: "#0b1220", color: "#fff" }}>▶ Video</a>
+                ) : (
+                  <div style={{ width: 150, height: 110, borderRadius: 8, background: "var(--sc-btn-soft,#f6ede1)", display: "grid", placeItems: "center", fontSize: 12 }}>{ev.tipo ?? "Evidencia"}</div>
+                )}
+                <figcaption className="dash-sub" style={{ fontSize: 11, marginTop: 2 }}>{ev.folio ?? ev.tipo ?? "Evidencia"} · {new Date(ev.creado_en).toLocaleDateString()}</figcaption>
+              </figure>
+            );
+          })}
+        </div>
+      )}
+
+      <h3>Fotografías de instrucción</h3>
+      <p className="dash-sub" style={{ fontSize: 12 }}>Imágenes que acompañan la indicación (se envían al guardia).</p>
       <FotosPanel tabla="tareas" id={params.id} />
     </main>
   );
