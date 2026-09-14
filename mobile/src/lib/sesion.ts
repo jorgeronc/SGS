@@ -20,7 +20,7 @@ function esGateado(rol: string | null): boolean {
   return rol === "guardia" || rol === "supervisor";
 }
 
-const ymd = (d: Date) => d.toISOString().slice(0, 10);
+const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; // LOCAL (no UTC)
 const masDias = (d: Date, n: number) => new Date(d.getTime() + n * 86400000);
 
 // Date local a partir de 'YYYY-MM-DD' + 'HH:MM[:SS]'.

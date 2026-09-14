@@ -1,51 +1,58 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "./supabase";
 
-// Fecha de HOY en zona LOCAL (no UTC). Con toISOString(), por la tarde/noche en
-// MX (UTC−6) "hoy" saltaba al día siguiente y no empataba con turnos.fecha, así
-// que sitio/turno salían vacíos aunque el turno estuviera activo.
-const hoyLocal = (): string => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-};
-const horaLocal = (): string => {
-  const d = new Date();
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}`;
+// Fechas relevantes: AYER y HOY en zona LOCAL. Se incluye ayer porque un turno que
+// cruza medianoche (p. ej. 16:00–00:00 o 00:00–08:00) se guarda con la fecha de su
+// INICIO; comparar solo contra "hoy" dejaba sin sitio/turno a esos guardias aunque
+// el turno estuviera vigente. (Debe coincidir con el gate de sesión en sesion.ts.)
+const pad = (n: number) => String(n).padStart(2, "0");
+const ymd = (d: Date): string => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const fechasRelevantes = (): string[] => {
+  const n = new Date();
+  return [ymd(new Date(n.getTime() - 86400000)), ymd(n)];
 };
 
-// ¿la hora actual cae dentro de la franja [hi, hf] del turno? (soporta cruce de medianoche)
-function dentroVentana(hi?: string | null, hf?: string | null, ahora?: string): boolean {
-  if (!hi || !hf || !ahora) return false;
-  const a = ahora.slice(0, 8), i = hi.slice(0, 8), f = hf.slice(0, 8);
-  return f >= i ? a >= i && a <= f : a >= i || a <= f;
+// Date LOCAL a partir de 'YYYY-MM-DD' + 'HH:MM[:SS]'.
+function combinar(fecha: string, hora?: string | null): Date {
+  const [y, m, d] = fecha.split("-").map(Number);
+  const [hh = 0, mm = 0, ss = 0] = (hora || "00:00:00").split(":").map(Number);
+  return new Date(y, (m ?? 1) - 1, d ?? 1, hh, mm, ss, 0);
 }
 
-// De varios turno_guardias activos HOY, elige el VIGENTE por franja horaria; si
-// ninguno coincide, el de inicio más reciente ya comenzado; si no, el más reciente.
-// (El turno anterior puede seguir con estado 'activo' si no se cerró; por eso no
-// basta con el primero que empate fecha+estado.)
-function elegirTurnoRow(rows: any[], ahora: string): any | null {
+// ¿la ventana REAL [inicio, fin) del turno (con su fecha) contiene "ahora"?
+// Maneja el cruce de medianoche sumando un día al fin.
+function ventanaCubre(t: any, ahora: Date): boolean {
+  if (!t?.fecha) return false;
+  const inicio = combinar(t.fecha, t.hora_inicio ?? "00:00:00");
+  let fin = combinar(t.fecha, t.hora_fin ?? "23:59:59");
+  if (fin <= inicio) fin = new Date(fin.getTime() + 86400000);
+  return ahora >= inicio && ahora <= fin;
+}
+
+// De varios turno_guardias, elige el VIGENTE por su ventana REAL; si ninguno cubre
+// la hora, el ya iniciado más reciente; si no, el más reciente por inicio.
+function elegirTurnoRow(rows: any[], ahora: Date): any | null {
   if (!rows.length) return null;
-  const hi = (r: any) => (r.turno?.hora_inicio ?? "").slice(0, 8);
-  const orden = (arr: any[]) => arr.slice().sort((a, b) => hi(b).localeCompare(hi(a)));
-  const enVentana = rows.filter((r) => dentroVentana(r.turno?.hora_inicio, r.turno?.hora_fin, ahora));
-  if (enVentana.length) return orden(enVentana)[0];
-  const iniciados = rows.filter((r) => hi(r) && hi(r) <= ahora.slice(0, 8));
+  const ini = (r: any) => combinar(r.turno?.fecha, r.turno?.hora_inicio).getTime();
+  const orden = (arr: any[]) => arr.slice().sort((a, b) => ini(b) - ini(a));
+  const cubre = rows.filter((r) => ventanaCubre(r.turno, ahora));
+  if (cubre.length) return orden(cubre)[0];
+  const iniciados = rows.filter((r) => ini(r) <= ahora.getTime());
   if (iniciados.length) return orden(iniciados)[0];
   return orden(rows)[0];
 }
 
 // "Unidad" del guardia TOMADA DEL SISTEMA (no elegida): es el sitio/puesto que
-// tiene asignado en su turno activo de hoy (turno_guardias → sitios). Si es
-// supervisor o no está en un turno activo, devuelve null ("sin unidad").
+// tiene asignado en su turno vigente (turno_guardias → sitios). Si es supervisor o
+// no está en un turno vigente, devuelve null ("sin unidad").
 export async function getUnidadDelSistema(personalId: string): Promise<string | null> {
-  const hoy = hoyLocal(), ahora = horaLocal();
+  const ahora = new Date(), fechas = fechasRelevantes();
   const { data } = await supabase
     .from("turno_guardias")
     .select("sitio:sitios(nombre, folio), turno:turnos(estado, fecha, hora_inicio, hora_fin)")
     .eq("personal_id", personalId)
     .eq("estatus", "activo");
-  const activos = ((data as any[]) ?? []).filter((r) => r.turno?.estado === "activo" && r.turno?.fecha === hoy);
+  const activos = ((data as any[]) ?? []).filter((r) => r.turno?.estado === "activo" && fechas.includes(r.turno?.fecha));
   const fila = elegirTurnoRow(activos, ahora);
   const s = fila?.sitio;
   return s ? (s.nombre || s.folio || null) : null;
@@ -53,25 +60,60 @@ export async function getUnidadDelSistema(personalId: string): Promise<string | 
 
 export interface TurnoVigente { fecha: string; horaInicio: string | null; horaFin: string | null; }
 
-// Turno vigente hoy del elemento: como guardia (turno_guardias) o como supervisor
-// (turnos.supervisor_id). Devuelve fecha y franja horaria para mostrar el horario.
+// Turno vigente del elemento: como guardia (turno_guardias) o como supervisor
+// (turnos.supervisor_id o turno_supervisores). Devuelve fecha y franja horaria.
 export async function getTurnoVigente(personalId: string): Promise<TurnoVigente | null> {
-  const hoy = hoyLocal(), ahora = horaLocal();
+  const ahora = new Date(), fechas = fechasRelevantes();
   const { data: tg } = await supabase
     .from("turno_guardias")
     .select("turno:turnos(fecha, hora_inicio, hora_fin, estado)")
     .eq("personal_id", personalId)
     .eq("estatus", "activo");
-  const activos = ((tg as any[]) ?? []).filter((r) => r.turno?.estado === "activo" && r.turno?.fecha === hoy);
+  const activos = ((tg as any[]) ?? []).filter((r) => r.turno?.estado === "activo" && fechas.includes(r.turno?.fecha));
   let t: any = elegirTurnoRow(activos, ahora)?.turno;
   if (!t) {
-    const { data: ts } = await supabase
-      .from("turnos")
-      .select("fecha, hora_inicio, hora_fin, estado")
-      .eq("supervisor_id", personalId).eq("estado", "activo").eq("fecha", hoy).limit(1);
-    t = ((ts as any[]) ?? [])[0];
+    // Supervisor por sitio (turno_supervisores) o cabecera (supervisor_id).
+    const [{ data: tsup }, { data: ts }] = await Promise.all([
+      supabase.from("turno_supervisores").select("turno:turnos(fecha, hora_inicio, hora_fin, estado)")
+        .eq("supervisor_personal_id", personalId).eq("estatus", "activo"),
+      supabase.from("turnos").select("fecha, hora_inicio, hora_fin, estado")
+        .eq("supervisor_id", personalId).eq("estado", "activo").in("fecha", fechas),
+    ]);
+    const sup = [
+      ...(((tsup as any[]) ?? []).map((r) => r.turno).filter(Boolean)),
+      ...(((ts as any[]) ?? [])),
+    ].filter((x) => x?.estado === "activo" && fechas.includes(x.fecha));
+    t = elegirTurnoRow(sup.map((x) => ({ turno: x })), ahora)?.turno;
   }
   return t ? { fecha: t.fecha, horaInicio: t.hora_inicio ?? null, horaFin: t.hora_fin ?? null } : null;
+}
+
+export interface SitioAsignado { id: string; nombre: string | null; }
+
+// Sitio (id + nombre) que el guardia tiene asignado en su turno vigente. Usa la
+// misma lógica robusta (ayer+hoy, ventana real) para no fallar por zona horaria ni
+// con turnos que cruzan medianoche.
+export async function getSitioAsignado(personalId: string): Promise<SitioAsignado | null> {
+  const ahora = new Date(), fechas = fechasRelevantes();
+  const { data } = await supabase
+    .from("turno_guardias")
+    .select("sitio_id, sitio:sitios(nombre), turno:turnos(estado, fecha, hora_inicio, hora_fin)")
+    .eq("personal_id", personalId).eq("estatus", "activo");
+  const activos = ((data as any[]) ?? []).filter((r) => r.turno?.estado === "activo" && fechas.includes(r.turno?.fecha) && r.sitio_id);
+  const fila = elegirTurnoRow(activos, ahora);
+  return fila?.sitio_id ? { id: fila.sitio_id, nombre: fila.sitio?.nombre ?? null } : null;
+}
+
+// Todos los sitios distintos que el guardia tiene asignados en turnos vigentes
+// (para pantallas que dejan elegir el sitio, p. ej. Incidente).
+export async function getSitiosAsignados(personalId: string): Promise<SitioAsignado[]> {
+  const fechas = fechasRelevantes();
+  const { data } = await supabase
+    .from("turno_guardias")
+    .select("sitio_id, sitio:sitios(nombre), turno:turnos(estado, fecha)")
+    .eq("personal_id", personalId).eq("estatus", "activo");
+  const rows = ((data as any[]) ?? []).filter((r) => r.turno?.estado === "activo" && fechas.includes(r.turno?.fecha) && r.sitio_id);
+  return Array.from(new Map(rows.map((r) => [r.sitio_id, { id: r.sitio_id, nombre: r.sitio?.nombre ?? null }])).values());
 }
 
 // "Mi unidad": la patrulla que el elemento está operando en el turno actual.

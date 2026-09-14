@@ -10,6 +10,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import { decode } from "base64-arraybuffer";
 import { supabase, BUCKET_FOTOS } from "../lib/supabase";
 import { getMiOficialValido } from "../lib/oficial";
+import { getSitiosAsignados } from "../lib/unidad";
 import { getRolActual, esMando } from "../lib/rol";
 import BodycamBoton from "../components/BodycamBoton";
 import { asociarBodycamActual } from "../lib/bodycamHd";
@@ -69,13 +70,7 @@ export default function IncidenteScreen() {
       setSitios((ss as any[]) ?? []);
       return;
     }
-    const hoy = new Date().toISOString().slice(0, 10);
-    const { data: tg } = await supabase.from("turno_guardias")
-      .select("sitio_id, sitios(nombre), turnos!inner(fecha, estado, estatus)")
-      .eq("personal_id", g.personalId)
-      .eq("turnos.fecha", hoy).eq("turnos.estado", "activo").eq("turnos.estatus", "activo");
-    const rows = ((tg as any[]) ?? []).filter((r) => r.sitio_id);
-    const uniq = Array.from(new Map(rows.map((r) => [r.sitio_id, { id: r.sitio_id, nombre: r.sitios?.nombre ?? "Sitio" }])).values());
+    const uniq = (await getSitiosAsignados(g.personalId)).map((s) => ({ id: s.id, nombre: s.nombre ?? "Sitio" }));
     setSitios(uniq);
     if (uniq.length === 1) { setSitioId(uniq[0].id); setSitioNombre(uniq[0].nombre); }
   }

@@ -10,6 +10,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import { decode } from "base64-arraybuffer";
 import { supabase, BUCKET_FOTOS } from "../lib/supabase";
 import { getMiOficialValido } from "../lib/oficial";
+import { getSitioAsignado } from "../lib/unidad";
 import { leerNfc, nfcDisponible } from "../lib/nfc";
 import { urlFoto } from "../lib/fotos";
 import { T, UI } from "../theme";
@@ -105,16 +106,11 @@ export default function AccesoCasetaScreen() {
     const g = await getMiOficialValido();
     setPersonalId(g?.personalId ?? null);
     if (!g) return;
-    const hoy = new Date().toISOString().slice(0, 10);
-    const { data: tg } = await supabase.from("turno_guardias")
-      .select("sitio_id, sitios(nombre), turnos!inner(fecha, estado, estatus)")
-      .eq("personal_id", g.personalId)
-      .eq("turnos.fecha", hoy).eq("turnos.estado", "activo").eq("turnos.estatus", "activo").limit(1);
-    const row = ((tg as any[]) ?? [])[0];
-    if (row?.sitio_id) {
-      setSitioId(row.sitio_id); setSitioNombre(row.sitios?.nombre ?? null);
+    const sa = await getSitioAsignado(g.personalId);
+    if (sa) {
+      setSitioId(sa.id); setSitioNombre(sa.nombre);
       const { data: c } = await supabase.from("puntos_control").select("id, nombre")
-        .eq("sitio_id", row.sitio_id).eq("tipo_punto", "caseta").eq("estatus", "activo").limit(1);
+        .eq("sitio_id", sa.id).eq("tipo_punto", "caseta").eq("estatus", "activo").limit(1);
       if (((c as any[]) ?? [])[0]) setPuntoId((c as any[])[0].id);
     }
   }
