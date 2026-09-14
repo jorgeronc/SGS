@@ -43,6 +43,9 @@ function NuevaTarea({ onCreado }: { onCreado: () => void }) {
   const [alcance, setAlcance] = useState<"todos" | "especificos">("todos");
   const [guardiasSitio, setGuardiasSitio] = useState<any[]>([]);
   const [guardiaSel, setGuardiaSel] = useState<string[]>([]);
+  // Repetición: ninguna (tarea única) o plantilla recurrente.
+  const [repeticion, setRepeticion] = useState<"ninguna" | "diaria" | "semana" | "turno">("ninguna");
+  const [dias, setDias] = useState<number[]>([]); // ISO 1..7 (Lun..Dom) para 'semana'
 
   useEffect(() => {
     supabase.from("sitios").select("id, nombre, latitud, longitud").eq("estatus", "activo").order("nombre")
@@ -76,7 +79,13 @@ function NuevaTarea({ onCreado }: { onCreado: () => void }) {
     if (!tipo) { setError("Selecciona el tipo de tarea."); return; }
     if (!sitioSel) { setError("Elige el sitio al que se asigna la tarea."); return; }
     if (alcance === "especificos" && guardiaSel.length === 0) { setError("Elige al menos un guardia, o cambia a «Todos»."); return; }
+    if (repeticion === "semana" && dias.length === 0) { setError("Elige al menos un día de la semana."); return; }
     setGuardando(true);
+
+    const recurrente = repeticion !== "ninguna";
+    const recurrencia = recurrente
+      ? { modo: repeticion, dias: repeticion === "semana" ? dias : undefined, alcance, guardias: alcance === "especificos" ? guardiaSel : undefined }
+      : null;
 
     const { data, error: err } = await supabase
       .from("tareas")
@@ -91,6 +100,8 @@ function NuevaTarea({ onCreado }: { onCreado: () => void }) {
         vigencia_hasta: hasta ? new Date(hasta).toISOString() : null,
         prioridad,
         sitio_id: sitioSel || null, // se fija desde el inicio (evita un UPDATE extra en la RPC)
+        es_plantilla: recurrente,
+        recurrencia,
       })
       .select("id")
       .single();
@@ -110,20 +121,28 @@ function NuevaTarea({ onCreado }: { onCreado: () => void }) {
       }
     }
 
-    // Asigna: siempre el sitio; si hay guardias específicos, solo esos (si no, todos).
-    const { data: n, error: errAsig } = await supabase.rpc("rpc_asignar_tarea_guardias", {
-      p_tarea_id: tareaId,
-      p_personal: alcance === "especificos" ? guardiaSel : null,
-      p_sitio: sitioSel,
-    });
-    setGuardando(false);
-    if (errAsig) { setError(`Tarea creada, pero falló la asignación: ${errAsig.message}`); return; }
-    if (!n) { setError("Tarea creada, pero no se asignó a nadie (¿el sitio no tiene guardias con turno vigente hoy?)."); return; }
+    if (recurrente) {
+      // Plantilla: no se asigna directo; el generador crea las instancias del día.
+      const { error: errGen } = await supabase.rpc("rpc_generar_tareas_recurrentes", {});
+      setGuardando(false);
+      if (errGen) { setError(`Plantilla creada, pero falló la generación: ${errGen.message}`); return; }
+    } else {
+      // Asigna: siempre el sitio; si hay guardias específicos, solo esos (si no, todos).
+      const { data: n, error: errAsig } = await supabase.rpc("rpc_asignar_tarea_guardias", {
+        p_tarea_id: tareaId,
+        p_personal: alcance === "especificos" ? guardiaSel : null,
+        p_sitio: sitioSel,
+      });
+      setGuardando(false);
+      if (errAsig) { setError(`Tarea creada, pero falló la asignación: ${errAsig.message}`); return; }
+      if (!n) { setError("Tarea creada, pero no se asignó a nadie (¿el sitio no tiene guardias con turno vigente hoy?)."); return; }
+    }
 
     setTipo(""); setAsunto(""); setInstrucciones("");
     setDireccion(""); setLat(""); setLng("");
     const ahora = dtLocal(new Date()); setDesde(ahora); setHasta(mas30(ahora)); setHastaManual(false);
     setPrioridad("media"); setSitioSel(""); setAlcance("todos"); setGuardiaSel([]); setFotos([]);
+    setRepeticion("ninguna"); setDias([]);
     onCreado();
   }
 
@@ -194,6 +213,29 @@ function NuevaTarea({ onCreado }: { onCreado: () => void }) {
         </div>
       )}
 
+      {/* Repetición: una vez o plantilla recurrente */}
+      <div style={{ marginTop: 8 }}>
+        <div className="dash-sub" style={{ fontWeight: 700, marginBottom: 6 }}>Repetición</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {([["ninguna", "Una vez"], ["diaria", "Diaria"], ["semana", "Días de semana"], ["turno", "Por turno"]] as const).map(([k, l]) => (
+            <span key={k} style={seg(repeticion === k)} onClick={() => setRepeticion(k)}>{l}</span>
+          ))}
+        </div>
+        {repeticion === "semana" && (
+          <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+            {([[1, "Lun"], [2, "Mar"], [3, "Mié"], [4, "Jue"], [5, "Vie"], [6, "Sáb"], [7, "Dom"]] as const).map(([n, l]) => {
+              const on = dias.includes(n);
+              return <button type="button" key={n} style={chip(on)} onClick={() => setDias((p) => on ? p.filter((x) => x !== n) : [...p, n])}>{l}</button>;
+            })}
+          </div>
+        )}
+        {repeticion !== "ninguna" && (
+          <p className="dash-sub" style={{ fontSize: 12, marginTop: 6 }}>
+            Se crea una <b>plantilla</b>; el sistema genera y asigna las tareas {repeticion === "diaria" ? "cada día" : repeticion === "semana" ? "en los días elegidos" : "por cada turno del sitio"} automáticamente. La ventana desde/hasta define el horario de cada ocurrencia{repeticion === "turno" ? " (en «Por turno» se usa el horario de cada turno)" : ""}.
+          </p>
+        )}
+      </div>
+
       {/* Lugar: mapa (opcional). Al elegir el sitio vuela a su área (~500 m). */}
       <label className="dash-sub" style={{ display: "block", marginTop: 8 }}>Lugar en el sitio (opcional — clic en el mapa para señalar dónde)</label>
       <MapaPicker
@@ -225,7 +267,7 @@ function NuevaTarea({ onCreado }: { onCreado: () => void }) {
       {error && <p style={{ color: "#b00020" }}>{error}</p>}
       <div style={{ marginTop: 10 }}>
         <button type="submit" disabled={guardando}>
-          {guardando ? "Creando…" : "Crear tarea y notificar"}
+          {guardando ? "Creando…" : repeticion === "ninguna" ? "Crear tarea y notificar" : "Crear plantilla y generar"}
         </button>
         <span className="dash-sub" style={{ marginLeft: 10 }}>El guardia la verá en el móvil, en «Mis tareas».</span>
       </div>
@@ -247,7 +289,7 @@ export default function TareasPage() {
       tabla="tareas"
       modulo="tareas"
       orderBy="folio"
-      select="id, folio, tipo, asunto, direccion, prioridad, estado, vigencia_desde, vigencia_hasta, fotografias, estatus, creado_en"
+      select="id, folio, tipo, asunto, direccion, prioridad, estado, vigencia_desde, vigencia_hasta, fotografias, es_plantilla, recurrencia, estatus, creado_en"
       miniatura={(r) => r.fotografias}
       placeholderBuscar="Buscar folio, tipo, asunto o lugar…"
       columnas={[
@@ -263,10 +305,11 @@ export default function TareasPage() {
       textoBusqueda={(r) => `${r.folio ?? ""} ${r.tipo ?? ""} ${r.asunto ?? ""} ${r.direccion ?? ""}`}
       detalleHref={(r) => `/tareas/${r.id}`}
       filtros={[
-        { k: "todos", label: "Todas" },
-        { k: "vigentes", label: "Vigentes", test: (r) => !r.vigencia_hasta || new Date(r.vigencia_hasta) > new Date() },
-        { k: "abiertas", label: "Abiertas", test: (r) => r.estado === "abierta" },
-        { k: "completadas", label: "Completadas", test: (r) => r.estado === "completada" },
+        { k: "todos", label: "Todas", test: (r) => !r.es_plantilla },
+        { k: "vigentes", label: "Vigentes", test: (r) => !r.es_plantilla && (!r.vigencia_hasta || new Date(r.vigencia_hasta) > new Date()) },
+        { k: "abiertas", label: "Abiertas", test: (r) => !r.es_plantilla && r.estado === "abierta" },
+        { k: "completadas", label: "Completadas", test: (r) => !r.es_plantilla && r.estado === "completada" },
+        { k: "plantillas", label: "Plantillas", test: (r) => r.es_plantilla },
       ]}
       filtrosAvanzados={[
         { campo: "tipo", label: "Tipo", tipo: "texto" },
