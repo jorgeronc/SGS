@@ -190,18 +190,25 @@ export default function TurnoDetallePage() {
   async function copiar() {
     if (!copiaFecha) { setError("Indica la fecha de destino."); return; }
     setGuardando(true); setError(null);
-    // Cabecera nueva (borrador) con los mismos datos y nueva fecha.
+    // Cabecera nueva (borrador) con los mismos datos y nueva fecha (incluye coordinador).
     const { data: nuevo, error } = await supabase.from("turnos").insert({
-      supervisor_id: turno.supervisor_id, fecha: copiaFecha, estado: "borrador",
+      supervisor_id: turno.supervisor_id, coordinador_id: turno.coordinador_id ?? null,
+      fecha: copiaFecha, estado: "borrador",
       tipo_turno: turno.tipo_turno ?? null, hora_inicio: turno.hora_inicio ?? null, hora_fin: turno.hora_fin ?? null,
     }).select("id").single();
     if (error) { setError(error.message); setGuardando(false); return; }
-    // Copiar guardias (los guardados en BD).
-    const { data: tg } = await supabase.from("turno_guardias").select("personal_id, sitio_id").eq("turno_id", params.id);
-    const filas = ((tg as any[]) ?? []).map((r) => ({ turno_id: (nuevo as any).id, personal_id: r.personal_id, sitio_id: r.sitio_id }));
+    const nuevoId = (nuevo as any).id as string;
+    // Copiar guardias y supervisión por sitio (todo lo guardado en BD).
+    const [{ data: tg }, { data: ts }] = await Promise.all([
+      supabase.from("turno_guardias").select("personal_id, sitio_id").eq("turno_id", params.id),
+      supabase.from("turno_supervisores").select("sitio_id, supervisor_personal_id").eq("turno_id", params.id).eq("estatus", "activo"),
+    ]);
+    const filas = ((tg as any[]) ?? []).map((r) => ({ turno_id: nuevoId, personal_id: r.personal_id, sitio_id: r.sitio_id }));
     if (filas.length) await supabase.from("turno_guardias").insert(filas);
+    const filasSup = ((ts as any[]) ?? []).map((r) => ({ turno_id: nuevoId, sitio_id: r.sitio_id, supervisor_personal_id: r.supervisor_personal_id, estatus: "activo" }));
+    if (filasSup.length) await supabase.from("turno_supervisores").insert(filasSup);
     setGuardando(false);
-    router.push(`/turnos/${(nuevo as any).id}`);
+    router.push(`/turnos/${nuevoId}`);
   }
 
   if (!turno) return <main className="contenedor">{error ? <p style={{ color: "#b00020" }}>{error}</p> : <p>Cargando…</p>}</main>;
@@ -316,17 +323,19 @@ export default function TurnoDetallePage() {
       </div>
       <h3 style={{ marginTop: 16 }}>Personal del turno</h3>
       <p className="dash-sub">Agrupado por sitio: elige el <b>supervisor</b> de cada sitio y ajusta los <b>guardias</b> (mover de sitio o quitar). Para sumar personal usa el panel <b>Disponibles</b> (＋) a la derecha.</p>
-      {sitiosRoster.length === 0 ? (
-        <p className="dash-sub" style={{ marginTop: 10 }}>Aún no hay personal en el turno. Agrégalos desde <b>Disponibles</b> (＋) y luego asígnales sitio y supervisor.</p>
-      ) : (
-        <div style={{ display: "grid", gap: 12, marginTop: 10 }}>
-          {sitiosRoster.map((sid) => {
+      <div
+        onDragOver={(e) => { e.preventDefault(); setSobre("__zona__"); }}
+        onDragLeave={() => setSobre((s) => (s === "__zona__" ? null : s))}
+        onDrop={(e) => { e.preventDefault(); setSobre(null); const d = e.dataTransfer.getData("sgsdnd"); if (d) { const [pid, rol] = d.split("|"); soltarEnSitio(pid, rol, "__sin__"); } }}
+        style={{ display: "grid", gap: 12, marginTop: 10, minHeight: 64, padding: 10, borderRadius: 10, border: sobre === "__zona__" ? "2px dashed var(--sc-btn,#f4a03f)" : "1px dashed var(--sc-card-line)" }}>
+        {sitiosRoster.length === 0 && <p className="dash-sub" style={{ margin: 0 }}>Arrastra guardias o supervisores aquí (o usa ＋ en Disponibles); luego asígnales sitio y supervisor.</p>}
+        {sitiosRoster.map((sid) => {
             const gs = asignados.filter(([, v]) => (v.sitio_id || "__sin__") === sid).map(([pid]) => guardiaPorId.get(pid)).filter(Boolean) as any[];
             return (
               <div key={sid}
                 onDragOver={(e) => { e.preventDefault(); setSobre(sid); }}
                 onDragLeave={() => setSobre((s) => (s === sid ? null : s))}
-                onDrop={(e) => { e.preventDefault(); setSobre(null); const d = e.dataTransfer.getData("sgsdnd"); if (d) { const [pid, rol] = d.split("|"); soltarEnSitio(pid, rol, sid); } }}
+                onDrop={(e) => { e.preventDefault(); e.stopPropagation(); setSobre(null); const d = e.dataTransfer.getData("sgsdnd"); if (d) { const [pid, rol] = d.split("|"); soltarEnSitio(pid, rol, sid); } }}
                 style={{ border: sobre === sid ? "2px dashed var(--sc-btn,#f4a03f)" : "1px solid var(--sc-card-line)", borderRadius: 10, overflow: "hidden" }}>
                 <div style={{ background: "var(--sc-btn-soft,#f6ede1)", padding: "7px 12px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                   <b>{sid === "__sin__" ? "Sin sitio asignado" : sitioNombre(sid)}</b>
@@ -381,7 +390,6 @@ export default function TurnoDetallePage() {
             );
           })}
         </div>
-      )}
       </div>
 
       {/* Panel de disponibles (sin conflicto de fatiga) — base del relevo. */}
