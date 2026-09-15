@@ -7,7 +7,7 @@ import { supabase } from "@/lib/supabaseClient";
 // Formulario PÚBLICO (sin login) que abre el visitante con su link de un solo uso.
 // Lee la cita por token (RPC pública) y registra sus datos en maestros; al enviar,
 // el token se destruye en el servidor.
-interface Cita { folio: string; sitio: string; fecha_hora_cita: string; solicitante: string | null; estado: string; }
+interface Cita { folio: string; sitio: string; fecha_hora_cita: string; estado: string; }
 
 export default function VisitaPage() {
   const params = useParams<{ token: string }>();
@@ -25,7 +25,6 @@ export default function VisitaPage() {
       const { data } = await supabase.rpc("rpc_cita_visitante_por_token", { p_token: token });
       const c = ((data as any[]) ?? [])[0] ?? null;
       setCita(c);
-      if (c?.solicitante) setF((p) => ({ ...p, persona_visita: c.solicitante }));
       setCargando(false);
     })();
   }, [token]);
@@ -86,7 +85,6 @@ export default function VisitaPage() {
           <div style={{ color: "#f4a03f", fontSize: 12, letterSpacing: ".4px", textTransform: "uppercase" }}>Registro de visita</div>
           <div style={{ color: "#fff", fontSize: 18, fontWeight: 700, marginTop: 2 }}>{cita.sitio}</div>
           <div style={{ color: "#cfe0ee", fontSize: 13, marginTop: 6 }}>📅 Cita: {new Date(cita.fecha_hora_cita).toLocaleString()} · Folio {cita.folio}</div>
-          {cita.solicitante ? <div style={{ color: "#cfe0ee", fontSize: 13, marginTop: 2 }}>👤 Te recibe: {cita.solicitante}</div> : null}
         </div>
         <div style={{ padding: "14px 18px 18px" }}>
           <label style={label}>Nombre(s) *<input style={input} value={f.nombre} onChange={(e) => set("nombre", e.target.value)} /></label>

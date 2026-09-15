@@ -131,8 +131,9 @@ export default function CitasVisitantesPage() {
       subtitulo="Agenda de visitas por sitio: entrevistas, proveedores y citas. El visitante registra sus datos por un link de un solo uso."
       tabla="citas_visitantes"
       modulo="citas_visitantes"
-      orderBy="folio"
-      select="id, folio, fecha_hora_cita, estado, empresa, telefono, estatus, creado_en, sitio:sitios(nombre), persona:personas(nombre, apellido_paterno, apellido_materno)"
+      orderBy="fecha_hora_cita"
+      agruparPor={(r) => r.sitio?.nombre ?? "Sin sitio"}
+      select="id, folio, fecha_hora_cita, estado, empresa, telefono, motivo, persona_visita_texto, estatus, creado_en, sitio:sitios(nombre), persona:personas(nombre, apellido_paterno, apellido_materno), vehiculo:vehiculos(marca, modelo, placas)"
       placeholderBuscar="Buscar folio, sitio o visitante…"
       columnas={[
         { header: "Folio", campo: "folio", celda: (r) => r.folio ?? "—" },
@@ -155,11 +156,19 @@ export default function CitasVisitantesPage() {
           <dl className="sc-kv">
             <dt>Sitio</dt><dd>{r.sitio?.nombre ?? "—"}</dd>
             <dt>Cita</dt><dd>{r.fecha_hora_cita ? new Date(r.fecha_hora_cita).toLocaleString() : "—"}</dd>
-            <dt>Visitante</dt><dd>{r.persona ? nombrePersonal(r) : "— pendiente —"}</dd>
-            <dt>Teléfono</dt><dd>{r.telefono ?? "—"}</dd>
-            <dt>Empresa</dt><dd>{r.empresa ?? "—"}</dd>
             <dt>Estado</dt><dd>{ESTADO_LBL[r.estado] ?? r.estado}</dd>
+            {r.estado === "registrada" && (
+              <>
+                <dt>Visitante</dt><dd>{nombrePersonal(r)}</dd>
+                <dt>Teléfono</dt><dd>{r.telefono ?? "—"}</dd>
+                <dt>Motivo</dt><dd>{r.motivo ?? "—"}</dd>
+                <dt>Persona a la que visita</dt><dd>{r.persona_visita_texto ?? "—"}</dd>
+                <dt>Empresa</dt><dd>{r.empresa ?? "—"}</dd>
+                <dt>Vehículo</dt><dd>{r.vehiculo ? `${r.vehiculo.marca ?? ""} ${r.vehiculo.modelo ?? ""} · ${r.vehiculo.placas ?? ""}`.trim() : "—"}</dd>
+              </>
+            )}
           </dl>
+          {r.estado !== "registrada" && <p className="dash-sub">Pendiente de registro — el visitante aún no completa sus datos.</p>}
         </>
       )}
       nuevo={(onCreado) => <NuevaCitaVisitante onCreado={onCreado} />}

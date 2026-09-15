@@ -113,19 +113,17 @@ end $$;
 grant execute on function rpc_generar_cita_visitante(uuid, timestamptz, text, uuid) to authenticated;
 
 -- 2) Leer cita por token (PÚBLICO). Solo datos de presentación; solo si vigente.
+-- Por SEGURIDAD NO se devuelve a quién visita ni el solicitante: el visitante debe
+-- capturar la "persona a la que visita" con la información que ya tiene.
+drop function if exists rpc_cita_visitante_por_token(text);
 create or replace function rpc_cita_visitante_por_token(p_token text)
-returns table(folio text, sitio text, fecha_hora_cita timestamptz, solicitante text, estado text)
+returns table(folio text, sitio text, fecha_hora_cita timestamptz, estado text)
 language plpgsql security definer set search_path = public as $$
 begin
   return query
-  select c.folio, s.nombre,
-         c.fecha_hora_cita,
-         trim(coalesce(pe.nombre,'') || ' ' || coalesce(pe.apellido_paterno,'')) as solicitante,
-         c.estado
+  select c.folio, s.nombre, c.fecha_hora_cita, c.estado
     from citas_visitantes c
     join sitios s on s.id = c.sitio_id
-    left join personal p on p.id = c.solicitante_personal_id
-    left join personas pe on pe.id = p.persona_id
    where c.token = p_token and c.estatus = 'activo' and c.estado = 'pendiente'
      and (c.token_expira is null or c.token_expira > now())
    limit 1;
