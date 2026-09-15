@@ -16,6 +16,7 @@ const VACIA: ConfigSistema = {
   gps_intervalo_seg: 60,
   gps_ventana_seg: 180,
   geofence_margen_m: 20,
+  bitacora_retencion_dias: 365,
 };
 
 // Configuración del sistema (una sola fila config_sistema). Se puede mostrar por
@@ -67,6 +68,7 @@ export default function ParametrosPanel({ seccion = "todo" }: { seccion?: "empre
         gps_intervalo_seg: Math.min(3600, Math.max(10, Number(cfg.gps_intervalo_seg) || 60)),
         gps_ventana_seg: Math.min(7200, Math.max(30, Number(cfg.gps_ventana_seg) || 180)),
         geofence_margen_m: Math.min(500, Math.max(0, Number(cfg.geofence_margen_m) || 20)),
+        bitacora_retencion_dias: Math.min(3650, Math.max(1, Number(cfg.bitacora_retencion_dias) || 365)),
         actualizado_en: new Date().toISOString(),
       })
       .eq("id", true);
@@ -149,6 +151,17 @@ export default function ParametrosPanel({ seccion = "todo" }: { seccion?: "empre
             </label>
           </div>
           <p style={{ fontSize: 12, color: "#888", margin: "6px 0 0" }}>Más adelante se agregarán aquí parámetros de APIs externas (por ejemplo, un VMS de cámaras).</p>
+
+          <div className="dash-eyebrow" style={{ marginTop: 18 }}>Bitácora de auditoría</div>
+          <p style={{ fontSize: 12, color: "#777", margin: "0 0 8px" }}>
+            Días de bitácora a conservar (informativo; la bitácora es inmutable y no se purga automáticamente).
+          </p>
+          <div className="form-grid">
+            <label>Días de retención de bitácora
+              <input type="number" min={1} max={3650} value={cfg.bitacora_retencion_dias ?? 365}
+                onChange={(e) => set("bitacora_retencion_dias", Number(e.target.value))} placeholder="365" />
+            </label>
+          </div>
           </>)}
 
           <div className="form-fila" style={{ marginTop: 12 }}>

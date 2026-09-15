@@ -13,6 +13,7 @@ export interface ConfigSistema {
   gps_intervalo_seg: number;
   gps_ventana_seg: number;
   geofence_margen_m: number;
+  bitacora_retencion_dias?: number;
 }
 
 let cache: ConfigSistema | null = null;

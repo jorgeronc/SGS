@@ -32,9 +32,6 @@ export default function BitacoraPage() {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [miRol, setMiRol] = useState("");
-  const [retencion, setRetencion] = useState<number | null>(null);
-  const [retEd, setRetEd] = useState("");
-  const [retMsg, setRetMsg] = useState<string | null>(null);
   const esAdmin = miRol === "administrador";
 
   const [tipoAccion, setTipoAccion] = useState("");
@@ -57,19 +54,6 @@ export default function BitacoraPage() {
     setUsuarios(mapa);
     const { data: au } = await supabase.auth.getUser();
     if (au?.user) setMiRol(rolPorId[au.user.id] ?? "");
-    // Parámetro de retención (informativo; WORM).
-    const { data: cfg } = await supabase.from("config_sistema").select("bitacora_retencion_dias").eq("id", true).maybeSingle();
-    const dias = (cfg as any)?.bitacora_retencion_dias ?? 365;
-    setRetencion(dias); setRetEd(String(dias));
-  }
-
-  async function guardarRetencion() {
-    setRetMsg(null);
-    const n = Number(retEd);
-    if (!Number.isFinite(n) || n < 1) { setRetMsg("Indica un número de días válido."); return; }
-    const { error } = await supabase.from("config_sistema").update({ bitacora_retencion_dias: Math.round(n) }).eq("id", true);
-    if (error) { setRetMsg(error.message); return; }
-    setRetencion(Math.round(n)); setRetMsg("Guardado.");
   }
 
   // Descarga CSV/Excel de lo cargado (solo administrador). Registra EXPORTAR.
@@ -160,16 +144,6 @@ export default function BitacoraPage() {
       </p>
 
       <div className="form-fila" style={{ alignItems: "center", gap: 12, flexWrap: "wrap", margin: "6px 0 4px" }}>
-        <span className="dash-sub">
-          Retención: <b>{retencion ?? "…"} días</b> <span style={{ fontSize: 12 }}>(la bitácora es inmutable; el parámetro es informativo, no se purga)</span>
-        </span>
-        {esAdmin && (
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-            <input type="number" min={1} value={retEd} onChange={(e) => setRetEd(e.target.value)} style={{ width: 90 }} />
-            <button type="button" className="secundario" onClick={guardarRetencion}>Guardar días</button>
-            {retMsg && <span className="dash-sub" style={{ color: retMsg === "Guardado." ? "#0a7c2f" : "#b00020" }}>{retMsg}</span>}
-          </span>
-        )}
         <span style={{ flex: 1 }} />
         {esAdmin ? (
           <button type="button" className="qbtn2 primary" onClick={exportarCSV} disabled={visibles.length === 0}>⬇️ Descargar CSV / Excel</button>
@@ -185,23 +159,29 @@ export default function BitacoraPage() {
         <label className="dash-sub" style={{ display: "flex", flexDirection: "column", gap: 2 }}>Hasta
           <input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
         </label>
-        <select value={tipoAccion} onChange={(e) => setTipoAccion(e.target.value)}>
-          <option value="">(todas las acciones)</option>
-          {ACCIONES.map((a) => (
-            <option key={a} value={a}>{a}</option>
-          ))}
-        </select>
-        <input placeholder="Filtrar por módulo" value={modulo} onChange={(e) => setModulo(e.target.value)} />
-        <input placeholder="Buscar por usuario" value={usuarioF} onChange={(e) => setUsuarioF(e.target.value)} />
-        <select value={limite} onChange={(e) => setLimite(Number(e.target.value))}>
-          <option value={50}>50 registros</option>
-          <option value={100}>100 registros</option>
-          <option value={250}>250 registros</option>
-          <option value={500}>500 registros</option>
-        </select>
+        <label className="dash-sub" style={{ display: "flex", flexDirection: "column", gap: 2 }}>Acción
+          <select value={tipoAccion} onChange={(e) => setTipoAccion(e.target.value)}>
+            <option value="">(todas)</option>
+            {ACCIONES.map((a) => <option key={a} value={a}>{a}</option>)}
+          </select>
+        </label>
+        <label className="dash-sub" style={{ display: "flex", flexDirection: "column", gap: 2 }}>Módulo
+          <input placeholder="Filtrar por módulo" value={modulo} onChange={(e) => setModulo(e.target.value)} />
+        </label>
+        <label className="dash-sub" style={{ display: "flex", flexDirection: "column", gap: 2 }}>Usuario
+          <input placeholder="Buscar por usuario" value={usuarioF} onChange={(e) => setUsuarioF(e.target.value)} />
+        </label>
+        <label className="dash-sub" style={{ display: "flex", flexDirection: "column", gap: 2 }}>Registros
+          <select value={limite} onChange={(e) => setLimite(Number(e.target.value))}>
+            <option value={50}>50</option>
+            <option value={100}>100</option>
+            <option value={250}>250</option>
+            <option value={500}>500</option>
+          </select>
+        </label>
         <button type="button" onClick={cargarBitacora}>Aplicar filtros</button>
       </div>
-      <p className="dash-sub">Fecha, módulo y acción filtran en la base; usuario y el orden de columnas se aplican sobre lo cargado.</p>
+      <p className="dash-sub">Fecha, módulo y acción filtran en la base; usuario y el orden de columnas se aplican sobre lo cargado. La retención de la bitácora se configura en Configuración → Parámetros.</p>
 
       {error && <p style={{ color: "#b00020" }}>{error}</p>}
 
