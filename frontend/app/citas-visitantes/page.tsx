@@ -143,7 +143,7 @@ export default function CitasVisitantesPage() {
         { header: "Estado", campo: "estado", celda: (r) => ESTADO_LBL[r.estado] ?? r.estado },
       ]}
       textoBusqueda={(r) => `${r.folio ?? ""} ${r.sitio?.nombre ?? ""} ${r.persona ? nombrePersonal(r) : ""} ${r.empresa ?? ""}`}
-      detalleHref={() => "#"}
+      detalleHref={(r) => `/citas-visitantes/${r.id}`}
       filtros={[
         { k: "todos", label: "Todas" },
         { k: "pendiente", label: "Pendientes", test: (r) => r.estado === "pendiente" },
