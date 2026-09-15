@@ -39,14 +39,9 @@ export default function CitaVisitanteDetallePage() {
   // Envía los datos de la cita al alta de credencial (tipo Visitante). El guardia
   // elige sitio/zona y toma la foto; la empresa va en "Referencia".
   function emitirCredencial() {
-    const p = new URLSearchParams();
-    p.set("cat", "Visitante");
-    if (c.persona_id) p.set("pid", c.persona_id);
-    if (c.persona?.nombre) p.set("nombre", c.persona.nombre);
-    if (c.persona?.apellido_paterno) p.set("ap", c.persona.apellido_paterno);
-    if (c.persona?.apellido_materno) p.set("am", c.persona.apellido_materno);
-    if (c.empresa) p.set("ref", c.empresa);
-    router.push(`/credenciales?${p.toString()}`);
+    // Se pasa el folio (id de la cita); el alta de credenciales lo preselecciona y
+    // trae los datos del visitante. El guardia elige sitio/zona y toma la foto.
+    router.push(`/credenciales?cat=Visitante&folio=${encodeURIComponent(c.id)}`);
   }
   const card: React.CSSProperties = { border: "1px solid var(--sc-card-line)", borderRadius: 12, padding: "12px 16px", marginTop: 10, background: "var(--sc-content)" };
 

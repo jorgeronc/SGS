@@ -19,6 +19,8 @@ const localDT = (d: Date) => { const p = (n: number) => String(n).padStart(2, "0
 // Vence a 1 año (empleado/guardia/servicio) o al fin del/los día(s) de visita.
 const finAnio = () => { const d = new Date(); d.setDate(d.getDate() + 365); return localDT(d); };
 const finVisita = (dias: number) => { const d = new Date(); d.setDate(d.getDate() + Math.max(1, dias) - 1); d.setHours(23, 59, 0, 0); return localDT(d); };
+// Visitante: el QR es válido 12 h desde la emisión; después el código es inválido.
+const mas12h = () => { const d = new Date(); d.setHours(d.getHours() + 12); return localDT(d); };
 
 // Panel admin: carga de PLANTILLA (imagen de fondo) por categoría de credencial.
 function PlantillasPanel() {
@@ -184,6 +186,8 @@ function NuevaCredencial({ onCreado }: { onCreado: () => void }) {
   const [zonas, setZonas] = useState<any[]>([]);
   const [selSitios, setSelSitios] = useState<string[]>([]);
   const [selZonas, setSelZonas] = useState<string[]>([]);
+  const [citasVisita, setCitasVisita] = useState<any[]>([]); // citas de visitante registradas (para elegir por folio)
+  const [folioVisita, setFolioVisita] = useState("");        // cita de visitante elegida (id)
   const [error, setError] = useState<string | null>(null);
   const [creando, setCreando] = useState(false);
   const set = (k: string, v: string) => setF((p) => ({ ...p, [k]: v }));
@@ -191,33 +195,49 @@ function NuevaCredencial({ onCreado }: { onCreado: () => void }) {
   // Vigencia por defecto según el tipo: 1 año (empleado/guardia/servicio) o por
   // día(s) de visita (visitante, editable con el selector de días).
   useEffect(() => {
-    setF((p) => ({ ...p, vigencia_fin: p.categoria === "Visitante" ? finVisita(dias) : finAnio() }));
+    setF((p) => ({ ...p, vigencia_fin: p.categoria === "Visitante" ? mas12h() : finAnio() }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [f.categoria, dias]);
+  }, [f.categoria]);
 
   useEffect(() => {
     supabase.from("personas").select("id, nombre, apellido_paterno, apellido_materno, datos_adicionales").order("nombre").limit(500)
       .then(({ data }) => setPersonas((data as any[]) ?? []));
     supabase.from("sitios").select("id, nombre").eq("estatus", "activo").order("nombre").then(({ data }) => setSitios((data as any[]) ?? []));
-    supabase.from("zonas").select("id, nombre").eq("estatus", "activo").order("nombre").then(({ data }) => setZonas((data as any[]) ?? []));
+    supabase.from("zonas").select("id, nombre, sitio_id").eq("estatus", "activo").order("nombre").then(({ data }) => setZonas((data as any[]) ?? []));
+    // Citas de visitante REGISTRADAS: el visitante presenta su folio y el guardia lo elige.
+    supabase.from("citas_visitantes")
+      .select("id, folio, empresa, persona_id, persona:personas(nombre, apellido_paterno, apellido_materno)")
+      .eq("estado", "registrada").eq("estatus", "activo").order("registrado_en", { ascending: false }).limit(200)
+      .then(({ data }) => setCitasVisita((data as any[]) ?? []));
     set("codigo", `CR-${crypto.randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase()}`);
-    // Prefill desde una cita de visitante (?cat=Visitante&pid=&nombre=&ap=&am=&ref=).
+    // Prefill desde una cita de visitante: ?cat=Visitante&folio=<id>. El guardia
+    // también puede elegir el folio en el selector de abajo.
     try {
       const p = new URLSearchParams(window.location.search);
-      if (p.get("nombre") || p.get("pid")) {
-        setF((prev) => ({
-          ...prev,
-          categoria: p.get("cat") || prev.categoria,
-          persona_id: p.get("pid") || prev.persona_id,
-          nombre: p.get("nombre") || prev.nombre,
-          apellido_paterno: p.get("ap") || prev.apellido_paterno,
-          apellido_materno: p.get("am") || prev.apellido_materno,
-          referencia: p.get("ref") || prev.referencia,
-        }));
-      }
+      if (p.get("cat") === "Visitante") setF((prev) => ({ ...prev, categoria: "Visitante" }));
+      if (p.get("folio")) setFolioVisita(p.get("folio") as string);
     } catch { /* */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Al elegir la cita (folio), trae los datos del visitante desde la cita.
+  useEffect(() => {
+    if (!folioVisita) return;
+    const cv = citasVisita.find((x) => x.id === folioVisita);
+    if (!cv) return;
+    setF((prev) => ({
+      ...prev, categoria: "Visitante", persona_id: cv.persona_id ?? "",
+      nombre: cv.persona?.nombre ?? "", apellido_paterno: cv.persona?.apellido_paterno ?? "",
+      apellido_materno: cv.persona?.apellido_materno ?? "", referencia: cv.empresa ?? "",
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [folioVisita, citasVisita]);
+
+  // Al cambiar los sitios, deja solo las zonas seleccionadas que pertenezcan a ellos.
+  useEffect(() => {
+    setSelZonas((prev) => prev.filter((zid) => zonas.some((z) => z.id === zid && selSitios.includes(z.sitio_id))));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selSitios]);
 
   // Para Empleado/Guardia, prellena el código con el número del elemento (lo que
   // el guardia validará contra la lista de personal al escanear el QR).
@@ -304,6 +324,15 @@ function NuevaCredencial({ onCreado }: { onCreado: () => void }) {
         )}
       </div>
       {f.categoria === "Visitante" && (
+        <>
+        <div className="form-fila" style={{ alignItems: "flex-end" }}>
+          <label className="dash-sub" style={{ display: "flex", flexDirection: "column", flex: 1 }}>Folio de visita (lo presenta el visitante)
+            <select value={folioVisita} onChange={(e) => setFolioVisita(e.target.value)}>
+              <option value="">— Elige el folio de la cita —</option>
+              {citasVisita.map((cv) => <option key={cv.id} value={cv.id}>{cv.folio} · {`${cv.persona?.nombre ?? ""} ${cv.persona?.apellido_paterno ?? ""}`.trim()}</option>)}
+            </select>
+          </label>
+        </div>
         <div className="form-fila" style={{ alignItems: "flex-end" }}>
           <label className="dash-sub" style={{ display: "flex", flexDirection: "column", flex: 2 }}>Nombre(s) <span style={{ color: "#e11d48" }}>*</span>
             <input value={f.nombre} onChange={(e) => set("nombre", e.target.value)} />
@@ -315,6 +344,7 @@ function NuevaCredencial({ onCreado }: { onCreado: () => void }) {
             <input value={f.apellido_materno} onChange={(e) => set("apellido_materno", e.target.value)} />
           </label>
         </div>
+        </>
       )}
       <div className="form-fila">
         <label className="dash-sub" style={{ display: "flex", flexDirection: "column", flex: 1 }}>Referencia (empresa, contrato, etc.)
@@ -329,13 +359,20 @@ function NuevaCredencial({ onCreado }: { onCreado: () => void }) {
             <button type="button" key={s.id} style={chip(on)} onClick={() => setSelSitios((p) => on ? p.filter((x) => x !== s.id) : [...p, s.id])}>{s.nombre}</button>
           ); })}
         </div>
-        <div className="dash-sub" style={{ fontWeight: 700, margin: "10px 0 4px" }}>Acceso a zonas</div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-          {zonas.length === 0 && <span className="dash-sub">Sin zonas activas.</span>}
-          {zonas.map((z) => { const on = selZonas.includes(z.id); return (
-            <button type="button" key={z.id} style={chip(on)} onClick={() => setSelZonas((p) => on ? p.filter((x) => x !== z.id) : [...p, z.id])}>{z.nombre}</button>
-          ); })}
-        </div>
+        {selSitios.length > 0 && (
+          <>
+            <div className="dash-sub" style={{ fontWeight: 700, margin: "10px 0 4px" }}>Acceso a zonas (del sitio seleccionado)</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {(() => {
+                const zs = zonas.filter((z) => selSitios.includes(z.sitio_id));
+                if (zs.length === 0) return <span className="dash-sub">El sitio seleccionado no tiene zonas.</span>;
+                return zs.map((z) => { const on = selZonas.includes(z.id); return (
+                  <button type="button" key={z.id} style={chip(on)} onClick={() => setSelZonas((p) => on ? p.filter((x) => x !== z.id) : [...p, z.id])}>{z.nombre}</button>
+                ); });
+              })()}
+            </div>
+          </>
+        )}
       </div>
       {f.categoria !== "Visitante" && f.persona_id && (
         <div style={{ marginTop: 8 }}>
@@ -375,18 +412,12 @@ function NuevaCredencial({ onCreado }: { onCreado: () => void }) {
         <label className="dash-sub" style={{ display: "flex", flexDirection: "column" }}>Emisión
           <input type="datetime-local" value={f.fecha_emision} onChange={(e) => set("fecha_emision", e.target.value)} />
         </label>
-        {f.categoria === "Visitante" ? (
-          <label className="dash-sub" style={{ display: "flex", flexDirection: "column" }}>Días de vigencia
-            <input type="number" min={1} max={90} value={dias} onChange={(e) => setDias(Math.max(1, Number(e.target.value) || 1))} style={{ width: 96 }} />
-          </label>
-        ) : (
-          <label className="dash-sub" style={{ display: "flex", flexDirection: "column" }}>Vence
-            <input type="datetime-local" value={f.vigencia_fin} onChange={(e) => set("vigencia_fin", e.target.value)} />
-          </label>
-        )}
+        <label className="dash-sub" style={{ display: "flex", flexDirection: "column" }}>Vence
+          <input type="datetime-local" value={f.vigencia_fin} disabled={f.categoria === "Visitante"} onChange={(e) => set("vigencia_fin", e.target.value)} />
+        </label>
         <button type="submit" disabled={creando}>{creando ? "Emitiendo…" : "Emitir credencial"}</button>
       </div>
-      {f.categoria === "Visitante" && <div className="dash-sub" style={{ fontSize: 12, marginTop: 4 }}>Vigencia hasta: {f.vigencia_fin ? new Date(f.vigencia_fin).toLocaleString() : "—"} ({dias} día{dias === 1 ? "" : "s"}).</div>}
+      {f.categoria === "Visitante" && <div className="dash-sub" style={{ fontSize: 12, marginTop: 4 }}>El código QR del visitante es válido <b>12 horas</b> desde la emisión (vence: {f.vigencia_fin ? new Date(f.vigencia_fin).toLocaleString() : "—"}); después el sistema lo marca inválido.</div>}
       <div style={{ marginTop: 6, background: "var(--sc-surface-2, #f3f6f9)", border: "1px solid var(--sc-card-line, #e2e6ec)", borderRadius: 8, padding: 8 }}>
         <div className="dash-sub" style={{ fontSize: 12.5, color: "#0b3d66", fontWeight: 700 }}>
           {f.categoria} · Contenido ({tipoLabel(f.tipo)}): <code>{f.codigo || "—"}</code>

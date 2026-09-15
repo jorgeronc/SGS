@@ -161,7 +161,7 @@ export default function AccesoCasetaScreen() {
 
     if (!enr) { setCred(null); Alert.alert("Sin coincidencia", "No se encontró credencial ni un elemento con ese código/número. Puedes registrar al visitante manualmente."); return; }
     if (enr.personalActivo === false) Alert.alert("Elemento inactivo", "El elemento existe pero no está activo.");
-    else if (!enr.vigente) Alert.alert("Credencial vencida", "La credencial existe pero está vencida.");
+    else if (!enr.vigente) Alert.alert("Código inválido", "La credencial no es válida o venció (el pase de visitante dura 12 h). Revisar con seguridad.");
     setCred(enr);
   }, []);
 
