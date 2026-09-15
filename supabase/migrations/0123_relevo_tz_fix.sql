@@ -19,7 +19,7 @@ begin
   v_margen := coalesce(v_margen, 15); v_geo := coalesce(v_geo, 20);
 
   for r in
-    select distinct t.id as turno_id, tg.sitio_id,
+    select distinct t.id as turno_id, tg.sitio_id, t.fecha as fecha, t.tipo_turno as tipo,
            (t.fecha + t.hora_inicio) at time zone 'America/Monterrey' as ini,
            (t.fecha + t.hora_fin + case when t.hora_fin < t.hora_inicio then interval '1 day' else interval '0 day' end)
              at time zone 'America/Monterrey' as fin
@@ -58,12 +58,16 @@ begin
 
       if v_gap.id is null then
         insert into chat_canales (nombre, tema, estado)
-          values (coalesce(v_nombre,'Sitio') || ' - posición sin cobertura', 'Guardia ausente: ' || v_ausente, 'abierto')
+          values (coalesce(v_nombre,'Sitio') || ' - posición sin cobertura',
+                  'Guardia ausente: ' || v_ausente || ' · Turno ' || coalesce(nullif(r.tipo,''),'—') || ' · ' || to_char(r.fecha, 'DD/MM/YYYY'),
+                  'abierto')
           returning id into v_canal;
         perform fn_relevo_miembros(v_canal, r.turno_id, r.sitio_id);
         insert into chat_mensajes (canal_id, usuario_id, tipo, cuerpo)
           values (v_canal, null, 'sistema',
-            'Brecha de relevo: ' || coalesce(v_nombre,'sitio') || ' sin guardia en posición. Esperado: ' || v_ausente ||
+            'Brecha de relevo: ' || coalesce(v_nombre,'sitio') ||
+            ' · Turno ' || coalesce(nullif(r.tipo,''),'—') || ' · Fecha ' || to_char(r.fecha, 'DD/MM/YYYY') ||
+            '. Sin guardia en posición. Esperado: ' || v_ausente ||
             '. Hora de cambio: ' || to_char(r.ini at time zone 'America/Monterrey', 'HH24:MI') || '.');
         insert into relevo_gaps (turno_id, sitio_id, fecha, canal_id, estado)
           values (r.turno_id, r.sitio_id, v_hoy, v_canal, 'abierto');

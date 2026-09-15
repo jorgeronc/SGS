@@ -280,7 +280,16 @@ export default function ChatPage() {
                     <span style={{ fontWeight: 800 }}>{canalSel.nombre}</span>
                     {canalSel.tema && <span style={{ fontWeight: 400, color: "#555" }}>{"  "}{canalSel.tema}</span>}
                   </div>
-                  <div style={{ fontSize: 12, color: "#777" }}>{miembros.length} integrante(s){cerrado ? " · cerrado" : ""}</div>
+                  <details style={{ fontSize: 12, color: "#777" }}>
+                    <summary style={{ cursor: "pointer" }}>{miembros.length} integrante(s){cerrado ? " · cerrado" : ""}</summary>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 4 }}>
+                      {miembros.map((m) => (
+                        <span key={m.usuario_id} style={{ color: colorUsuario(m.usuario_id), fontWeight: 700 }}>
+                          {nombreDe(m.usuario_id)}{m.es_admin ? " ★" : ""}
+                        </span>
+                      ))}
+                    </div>
+                  </details>
                 </div>
                 {(adminDe.has(canalSel.id) || esMando) && (
                   <div style={{ display: "flex", gap: 8, flex: "0 0 auto" }}>
