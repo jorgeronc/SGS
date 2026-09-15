@@ -201,6 +201,21 @@ function NuevaCredencial({ onCreado }: { onCreado: () => void }) {
     supabase.from("sitios").select("id, nombre").eq("estatus", "activo").order("nombre").then(({ data }) => setSitios((data as any[]) ?? []));
     supabase.from("zonas").select("id, nombre").eq("estatus", "activo").order("nombre").then(({ data }) => setZonas((data as any[]) ?? []));
     set("codigo", `CR-${crypto.randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase()}`);
+    // Prefill desde una cita de visitante (?cat=Visitante&pid=&nombre=&ap=&am=&ref=).
+    try {
+      const p = new URLSearchParams(window.location.search);
+      if (p.get("nombre") || p.get("pid")) {
+        setF((prev) => ({
+          ...prev,
+          categoria: p.get("cat") || prev.categoria,
+          persona_id: p.get("pid") || prev.persona_id,
+          nombre: p.get("nombre") || prev.nombre,
+          apellido_paterno: p.get("ap") || prev.apellido_paterno,
+          apellido_materno: p.get("am") || prev.apellido_materno,
+          referencia: p.get("ref") || prev.referencia,
+        }));
+      }
+    } catch { /* */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -385,12 +400,14 @@ function NuevaCredencial({ onCreado }: { onCreado: () => void }) {
 
 export default function CredencialesPage() {
   const [k, setK] = useState(0);
+  const prefillNueva = typeof window !== "undefined" && (() => { try { const p = new URLSearchParams(window.location.search); return p.has("nombre") || p.has("pid"); } catch { return false; } })();
   return (
     <div>
       <PlantillasPanel />
       <ImportarEmpleados onListo={() => setK((x) => x + 1)} />
       <ListaMaestra
         key={k}
+        nuevoAbierto={prefillNueva}
         titulo="Credenciales"
         subtitulo="Credenciales por tipo (Empleado, Guardia, Visitante, Servicio) con QR/NFC; se validan en la caseta y se imprimen con su plantilla."
         tabla="credenciales"
