@@ -31,8 +31,8 @@ function NuevaCitaVisitante({ onCreado }: { onCreado: () => void }) {
   useEffect(() => {
     supabase.from("sitios").select("id, nombre").eq("estatus", "activo").order("nombre").then(({ data }) => setSitios((data as any[]) ?? []));
     supabase.from("personal").select("id, usuario_id, persona:personas(nombre, apellido_paterno, apellido_materno)")
-      .eq("estatus", "activo").eq("estado_laboral", "activo").order("id").limit(500)
-      .then(({ data }) => setPersonal((data as any[]) ?? []));
+      .eq("estatus", "activo").eq("estado_laboral", "activo").limit(500)
+      .then(({ data }) => setPersonal(((data as any[]) ?? []).sort((a, b) => nombrePersonal(a).localeCompare(nombrePersonal(b), "es", { sensitivity: "base" }))));
     supabase.auth.getUser().then(({ data }) => {
       const uid = data.user?.id;
       if (!uid) return;
