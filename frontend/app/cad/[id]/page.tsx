@@ -97,6 +97,7 @@ export default function IncidenciaDetallePage() {
 
   async function guardar() {
     if (!llamada) return;
+    if (!ed.tipo) { setError("Selecciona el tipo de incidencia."); return; }
     if (ed.telefono && ed.telefono.length !== 10) { setError("El teléfono debe tener 10 dígitos."); return; }
     setGuardando(true); setError(null); setMensaje(null);
     const cierre = ed.estado_despacho === "resuelta" ? (llamada.fecha_cierre ?? new Date().toISOString()) : null;
@@ -144,6 +145,17 @@ export default function IncidenciaDetallePage() {
   }
 
   useEffect(() => { cargarLlamada(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [params.id]);
+
+  // El rollup automático (trigger) puede cambiar el estado del reporte cuando un
+  // despacho pasa a "en sitio" o todos quedan "liberada". Reflejamos ese cambio en
+  // el encabezado (pill + stepper) sin tocar el formulario de edición en curso.
+  useEffect(() => {
+    if (!params.id) return;
+    const canal = supabase.channel(`cad-llamada:${params.id}`)
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "llamadas_cad", filter: `id=eq.${params.id}` }, (payload) => setLlamada(payload.new as LlamadaCad))
+      .subscribe();
+    return () => { supabase.removeChannel(canal); };
+  }, [params.id]);
 
   async function cerrarReporte() {
     if (!llamada) return;

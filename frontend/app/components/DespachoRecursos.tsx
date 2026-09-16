@@ -12,6 +12,7 @@ interface Recurso { key: string; tipo: string; nombre: string; sub?: string; per
 interface Desp { id: string; recurso_tipo: string | null; recurso_nombre: string | null; estado: string; es_contacto: boolean; personal_id: string | null; autoridad_id: string | null }
 
 const EST_DESP = ["asignada", "en_ruta", "en_sitio", "liberada"];
+const EST_DESP_LABEL: Record<string, string> = { asignada: "Asignada", en_ruta: "En ruta", en_sitio: "En sitio", liberada: "Liberada" };
 const nom = (p: any) => [p?.persona?.nombre, p?.persona?.apellido_paterno].filter(Boolean).join(" ") || "Elemento";
 
 export default function DespachoRecursos({ llamadaId, sitioId, editable, onDespacho }: { llamadaId: string; sitioId: string | null; editable: boolean; onDespacho?: () => void }) {
@@ -79,16 +80,43 @@ export default function DespachoRecursos({ llamadaId, sitioId, editable, onDespa
 
   const porKey = useMemo(() => new Map([...guardias, ...propios, ...autoridades].map((r) => [r.key, r])), [guardias, propios, autoridades]);
 
+  // Recursos ya despachados (activos): para no despacharlos dos veces.
+  const despPersonal = useMemo(() => new Set(desp.filter((d) => d.personal_id).map((d) => d.personal_id as string)), [desp]);
+  const despAutoridad = useMemo(() => new Set(desp.filter((d) => d.autoridad_id).map((d) => d.autoridad_id as string)), [desp]);
+  const despPropio = useMemo(() => new Set(desp.filter((d) => !d.personal_id && !d.autoridad_id && d.recurso_tipo === "recurso_propio" && d.recurso_nombre).map((d) => d.recurso_nombre as string)), [desp]);
+  const yaDespachado = useCallback((r: Recurso) => (!!r.personalId && despPersonal.has(r.personalId)) || (!!r.autoridadId && despAutoridad.has(r.autoridadId)) || (r.tipo === "recurso_propio" && despPropio.has(r.nombre)), [despPersonal, despAutoridad, despPropio]);
+
   async function despachar(rs: Recurso[]) {
-    if (!rs.length || !editable) return;
-    const rows = rs.map((r) => ({ llamada_id: llamadaId, personal_id: r.personalId ?? null, autoridad_id: r.autoridadId ?? null, recurso_tipo: r.tipo, recurso_nombre: r.nombre, es_contacto: r.tipo === "autoridad", estado: "asignada" }));
+    if (!editable) return;
+    // No despachar dos veces el mismo recurso (ya despachado o repetido en el lote).
+    const vistos = new Set<string>();
+    const nuevos = rs.filter((r) => {
+      if (yaDespachado(r)) return false;
+      const k = r.personalId ?? r.autoridadId ?? `prop:${r.nombre}`;
+      if (vistos.has(k)) return false; vistos.add(k); return true;
+    });
+    if (!nuevos.length) { setMsg("Ese recurso ya está despachado."); return; }
+    const rows = nuevos.map((r) => ({ llamada_id: llamadaId, personal_id: r.personalId ?? null, autoridad_id: r.autoridadId ?? null, recurso_tipo: r.tipo, recurso_nombre: r.nombre, es_contacto: r.tipo === "autoridad", estado: "asignada" }));
     const { error } = await supabase.from("despachos").insert(rows);
     if (error) { setMsg(error.message); return; }
     // Al asignar un recurso, el incidente pasa a "en despacho" (si seguía en recibida).
     await supabase.from("llamadas_cad").update({ estado_despacho: "despachada", actualizado_en: new Date().toISOString() }).eq("id", llamadaId).eq("estado_despacho", "recibida");
     setSel(new Set()); setMsg(null); cargarDesp(); onDespacho?.();
   }
-  async function cambiarEstado(id: string, estado: string) { await supabase.from("despachos").update({ estado, actualizado_en: new Date().toISOString() }).eq("id", id); cargarDesp(); }
+  async function cambiarEstado(id: string, estado: string) {
+    const { error } = await supabase.from("despachos").update({ estado, actualizado_en: new Date().toISOString() }).eq("id", id);
+    if (error) { setMsg(error.message); return; }
+    setMsg(null); cargarDesp(); onDespacho?.();
+  }
+  // Cancelar/deshacer un despacho (queda en el historial, con motivo y operador).
+  async function cancelar(d: Desp) {
+    if (!editable) return;
+    const motivo = window.prompt("Motivo de la cancelación de este despacho (opcional):", "");
+    if (motivo === null) return;
+    const { error } = await supabase.rpc("rpc_cancelar_despacho", { p_id: d.id, p_motivo: motivo || null });
+    if (error) { setMsg(error.message); return; }
+    setMsg(null); cargarDesp(); onDespacho?.();
+  }
   const despacharSel = () => despachar(Array.from(sel).map((k) => porKey.get(k)!).filter(Boolean));
 
   const item = (r: Recurso) => (
@@ -115,34 +143,38 @@ export default function DespachoRecursos({ llamadaId, sitioId, editable, onDespa
       <div onDragOver={(e) => { if (editable) { e.preventDefault(); setSobre(true); } }} onDragLeave={() => setSobre(false)}
         onDrop={(e) => { e.preventDefault(); setSobre(false); const k = e.dataTransfer.getData("rkey"); const r = porKey.get(k); if (r) despachar([r]); }}
         style={{ ...box, marginBottom: 12, minHeight: 70, background: sobre ? "var(--sc-btn-soft,#f6ede1)" : "transparent", outline: sobre ? "2px dashed var(--sc-btn,#f4a03f)" : undefined }}>
-        <div style={{ fontSize: 12, color: "var(--sc-text-soft)", marginBottom: 6 }}>Recursos despachados / contactados{editable ? " — arrastra aquí un recurso o selecciónalo y pulsa Despachar" : ""}</div>
+        <div style={{ fontSize: 12, color: "var(--sc-text-soft)", marginBottom: 6 }}>Recursos despachados / contactados{editable ? " — arrastra aquí un recurso o selecciónalo y pulsa Despachar. Para deshacer un despacho, pulsa ✕ o arrástralo de vuelta a la lista." : ""}</div>
         {desp.length === 0 ? <div style={{ color: "var(--sc-text-faint)", fontSize: 12.5, textAlign: "center", padding: 8 }}>Sin recursos despachados todavía.</div> :
           desp.map((d) => (
-            <div key={d.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 4px", borderBottom: "1px solid var(--sc-card-line)" }}>
+            <div key={d.id} draggable={editable} onDragStart={(e) => e.dataTransfer.setData("dkey", d.id)}
+              style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 4px", borderBottom: "1px solid var(--sc-card-line)", cursor: editable ? "grab" : "default" }}>
               <span style={{ fontSize: 14 }}>{d.es_contacto ? "🚨" : d.recurso_tipo === "supervisor" ? "🎖️" : d.recurso_tipo === "recurso_propio" ? "🧰" : "👮"}</span>
               <div style={{ flex: 1, minWidth: 0 }}>{d.es_contacto && <span style={{ marginRight: 6, fontSize: 10.5, fontWeight: 800, color: "#e23b53" }}>Autoridad — Enterada</span>}<b style={{ fontSize: 13 }}>{d.recurso_nombre ?? "Recurso"}</b></div>
               {d.es_contacto ? <span style={{ fontSize: 12, color: "var(--sc-text-soft)" }}>autoridad</span> :
                 <select value={d.estado} disabled={!editable} onChange={(e) => cambiarEstado(d.id, e.target.value)} style={{ fontSize: 12.5, padding: "3px 6px", borderRadius: 7, border: "1px solid var(--sc-card-line)", background: "var(--sc-content)", color: "var(--sc-text)" }}>
-                  {EST_DESP.map((s) => <option key={s} value={s}>{s}</option>)}
+                  {EST_DESP.map((s) => <option key={s} value={s}>{EST_DESP_LABEL[s] ?? s}</option>)}
                 </select>}
+              {editable && <button onClick={() => cancelar(d)} title="Cancelar / deshacer despacho" style={{ background: "transparent", border: "none", color: "#e23b53", cursor: "pointer", fontSize: 15, lineHeight: 1, padding: "2px 4px" }}>✕</button>}
             </div>
           ))}
       </div>
 
       {editable && (
         <>
-          <div style={{ ...box, marginBottom: 10 }}>
+          <div onDragOver={(e) => { if (e.dataTransfer.types.includes("dkey")) e.preventDefault(); }}
+            onDrop={(e) => { const dk = e.dataTransfer.getData("dkey"); if (!dk) return; e.preventDefault(); const d = desp.find((x) => x.id === dk); if (d) cancelar(d); }}
+            style={{ ...box, marginBottom: 10 }}>
             {cabe("Recursos posibles a despachar", openR, () => setOpenR((v) => !v))}
             {openR && <div>
-              {guardias.length + propios.length === 0 && <div style={{ fontSize: 12.5, color: "var(--sc-text-soft)" }}>Sin guardias del sitio en turno hoy.</div>}
-              {guardias.map(item)}{propios.map(item)}
+              {guardias.filter((r) => !yaDespachado(r)).length + propios.filter((r) => !yaDespachado(r)).length === 0 && <div style={{ fontSize: 12.5, color: "var(--sc-text-soft)" }}>Sin recursos disponibles para despachar.</div>}
+              {guardias.filter((r) => !yaDespachado(r)).map(item)}{propios.filter((r) => !yaDespachado(r)).map(item)}
             </div>}
           </div>
           <div style={{ ...box, marginBottom: 10 }}>
             {cabe("Autoridades de seguridad", openA, () => setOpenA((v) => !v))}
             {openA && <div>
-              {autoridades.length === 0 && <div style={{ fontSize: 12.5, color: "var(--sc-text-soft)" }}>Aún no hay autoridades en el <a href="/directorio" style={{ color: "var(--sc-btn,#f4a03f)" }}>Directorio</a>.</div>}
-              {autoridades.map(item)}
+              {autoridades.filter((r) => !yaDespachado(r)).length === 0 && <div style={{ fontSize: 12.5, color: "var(--sc-text-soft)" }}>Aún no hay autoridades disponibles en el <a href="/directorio" style={{ color: "var(--sc-btn,#f4a03f)" }}>Directorio</a>.</div>}
+              {autoridades.filter((r) => !yaDespachado(r)).map(item)}
             </div>}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>

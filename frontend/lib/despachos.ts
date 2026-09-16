@@ -13,7 +13,10 @@ export const DESPACHO_LABEL: Record<string, string> = {
   enterado: "Enterado",
   en_ruta: "En ruta",
   en_lugar: "En el lugar",
+  en_sitio: "En sitio",
+  liberada: "Liberada",
   cerrado: "Cerrado",
+  cancelado: "Cancelado",
 };
 export const DESPACHO_COLOR: Record<string, string> = {
   asignada: "#8a6d00",
@@ -39,6 +42,7 @@ export interface HistItem {
 export function etiquetaHistorial(r: any): string {
   if (r.ambito === "despacho") {
     const nombre = r.recurso_desc ?? (r.patrulla_numero ? `#${r.patrulla_numero}` : "");
+    if (r.campo === "estatus" && r.estado === "cancelado") return `Despacho cancelado${nombre ? `: ${nombre}` : ""}`;
     if (r.es_contacto) return `Autoridad — Enterada${nombre ? `: ${nombre}` : ""}`;
     return `Recurso ${nombre} → ${DESPACHO_LABEL[r.estado] ?? r.estado}`.replace(/\s+/g, " ").trim();
   }

@@ -236,6 +236,7 @@ export default function CentralDespachoPage() {
   async function agregarLlamada(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    if (!tipo) { setError("Selecciona el tipo de incidente."); return; }
     if (!sitioId) { setError("Elige el sitio donde ocurrió la incidencia."); return; }
     if (telefono && telefono.length !== 10) { setError("El teléfono debe tener 10 dígitos."); return; }
     const s = sitios.find((x) => x.id === sitioId);
