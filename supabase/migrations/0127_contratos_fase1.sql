@@ -130,7 +130,9 @@ begin
   drop trigger if exists trg_folio_contratos on contratos;
   create trigger trg_folio_contratos before insert on contratos for each row execute function fn_asignar_folio();
 
-  for cfg in (select unnest(array['contratos','contrato_servicios','contrato_puestos','contrato_requerimientos','contrato_sla_metas']) as tabla)
+  -- WORM (no-delete + estatus) solo para las tablas con ciclo de retención.
+  -- contrato_sla_metas es configuración (permite delete para "heredar") → aparte.
+  for cfg in (select unnest(array['contratos','contrato_servicios','contrato_puestos','contrato_requerimientos']) as tabla)
   loop
     execute format('drop trigger if exists trg_no_delete_%1$s on %1$s;', cfg.tabla);
     execute format('create trigger trg_no_delete_%1$s before delete on %1$s for each row execute function fn_bloquear_delete();', cfg.tabla);
@@ -148,6 +150,19 @@ begin
     execute format($p$create policy upd_%1$s on %1$s for update to authenticated using (coalesce(fn_rol_actual(), '') in ('administrador','coordinador','operador')) with check (coalesce(fn_rol_actual(), '') in ('administrador','coordinador','operador'));$p$, cfg.tabla);
   end loop;
 end $$;
+
+-- contrato_sla_metas: config (sin estatus, permite delete). Auditoría + RLS propias.
+drop trigger if exists trg_auditoria_contrato_sla_metas on contrato_sla_metas;
+create trigger trg_auditoria_contrato_sla_metas after insert or update on contrato_sla_metas for each row execute function fn_bitacora_generica();
+alter table contrato_sla_metas enable row level security;
+drop policy if exists sel_contrato_sla_metas on contrato_sla_metas;
+create policy sel_contrato_sla_metas on contrato_sla_metas for select to authenticated using (true);
+drop policy if exists ins_contrato_sla_metas on contrato_sla_metas;
+create policy ins_contrato_sla_metas on contrato_sla_metas for insert to authenticated with check (coalesce(fn_rol_actual(), '') in ('administrador','coordinador','operador'));
+drop policy if exists upd_contrato_sla_metas on contrato_sla_metas;
+create policy upd_contrato_sla_metas on contrato_sla_metas for update to authenticated using (coalesce(fn_rol_actual(), '') in ('administrador','coordinador','operador')) with check (coalesce(fn_rol_actual(), '') in ('administrador','coordinador','operador'));
+drop policy if exists del_contrato_sla_metas on contrato_sla_metas;
+create policy del_contrato_sla_metas on contrato_sla_metas for delete to authenticated using (coalesce(fn_rol_actual(), '') in ('administrador','coordinador','operador'));
 
 -- 3) Catálogo de tipos de servicio -------------------------------------
 insert into cat_opciones (categoria, valor, orden) values
