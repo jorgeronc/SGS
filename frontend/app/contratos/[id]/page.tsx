@@ -303,15 +303,30 @@ function ServiciosTab({ contratoId, servicios, puestos, reqs, sitios, expandido,
         {msg && <p style={{ color: "#b00020" }}>{msg}</p>}
       </div>
 
-      {servicios.length === 0 ? <p className="dash-sub">Sin servicios. Agrega el primero arriba.</p> : servicios.map((s: any) => (
+      {servicios.length === 0 ? <p className="dash-sub">Sin servicios. Agrega el primero arriba.</p> : servicios.map((s: any) => {
+        const estPill = s.estado === "activo" ? { bg: "#e6f6ec", fg: "#0a7c2f" } : s.estado === "suspendido" ? { bg: "#fde7e7", fg: "#b00020" } : { bg: "#ececec", fg: "#555" };
+        const dato = (label: string, valor: React.ReactNode) => (
+          <span style={{ fontSize: 12.5, color: "var(--sc-text-soft)" }}><b style={{ color: "var(--sc-text)", fontWeight: 600 }}>{label}:</b> {valor}</span>
+        );
+        return (
         <div key={s.id} style={card}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <b style={{ fontSize: 15 }}>{s.tipo_servicio ?? "Servicio"}</b>
-            <span className="dash-sub">{s.sitio?.nombre ?? "Sin sitio"} · {s.cobertura_tipo ?? "—"} · {s.guardias_requeridos ?? 0} guardias · {s.supervisores_requeridos ?? 0} superv.</span>
-            <span style={{ fontSize: 11.5, fontWeight: 700, color: s.estado === "activo" ? "#0a7c2f" : "#8a5a00" }}>{s.estado}</span>
-            <span style={{ flex: 1 }} />
-            <button className="secundario" onClick={() => setExpandido(expandido === s.id ? null : s.id)}>{expandido === s.id ? "▾ Ocultar" : "▸ Puestos y requerimientos"}</button>
-            {s.estado === "activo" && <button className="secundario" onClick={() => terminarServicio(s.id)}>Terminar</button>}
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+            <div style={{ flex: 1, minWidth: 220 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <b style={{ fontSize: 15 }}>{s.tipo_servicio ?? "Servicio"}</b>
+                <span style={{ background: estPill.bg, color: estPill.fg, fontWeight: 700, fontSize: 11, borderRadius: 7, padding: "2px 8px", textTransform: "capitalize" }}>{s.estado}</span>
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 20px", marginTop: 6 }}>
+                {dato("Sitio", s.sitio?.nombre ?? "Sin sitio")}
+                {dato("Cobertura", s.cobertura_tipo ?? "—")}
+                {dato("Guardias", s.guardias_requeridos ?? 0)}
+                {dato("Superv.", s.supervisores_requeridos ?? 0)}
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 8, flexShrink: 0, flexWrap: "wrap" }}>
+              <button className="secundario" onClick={() => setExpandido(expandido === s.id ? null : s.id)}>{expandido === s.id ? "▾ Ocultar" : "▸ Puestos y requerimientos"}</button>
+              {s.estado === "activo" && <button className="secundario" onClick={() => terminarServicio(s.id)}>Terminar</button>}
+            </div>
           </div>
           {expandido === s.id && (
             <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
@@ -320,7 +335,8 @@ function ServiciosTab({ contratoId, servicios, puestos, reqs, sitios, expandido,
             </div>
           )}
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
