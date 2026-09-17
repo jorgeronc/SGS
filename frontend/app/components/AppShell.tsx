@@ -84,6 +84,7 @@ export const GRUPOS: { grupo: string; items: { href: string; label: string; ico:
     grupo: "Administración",
     items: [
       { href: "/clientes", label: "Clientes", ico: "🏢" },
+      { href: "/contratos", label: "Contratos", ico: "📑" },
       { href: "/sla", label: "Metas de SLA", ico: "🎯" },
       { href: "/personal", label: "Guardias", ico: "★" },
       { href: "/patrullas", label: "Unidades", ico: "▣" },

@@ -37,6 +37,7 @@ export default function TurnoDetallePage() {
   const [sobre, setSobre] = useState<string | null>(null);              // sitio bajo el cursor al arrastrar
   const [forzar, setForzar] = useState<{ personal: string; motivo: string } | null>(null); // relevo forzado (fatiga)
   const [forzarSitio, setForzarSitio] = useState<string | null>(null);   // sitio con el form de forzar abierto
+  const [reqSitio, setReqSitio] = useState<Record<string, { guardias: number; superv: number; folio: string | null }>>({}); // dotación contractual requerida por sitio
 
   async function cargar() {
     const { data: t } = await supabase.from("turnos")
@@ -82,6 +83,18 @@ export default function TurnoDetallePage() {
     ((tg as any[]) ?? []).forEach((r) => mem.add(r.personal_id));
     ((ts as any[]) ?? []).forEach((r) => { if (r.supervisor_personal_id) mem.add(r.supervisor_personal_id); });
     setMiembros(mem);
+
+    // Dotación contractual requerida por sitio (Requerido vs Programado en el roster).
+    const sitesReq = Array.from(new Set([
+      ...((tg as any[]) ?? []).map((r) => r.sitio_id),
+      ...((ts as any[]) ?? []).map((r) => r.sitio_id),
+    ].filter(Boolean))) as string[];
+    const reqMap: Record<string, { guardias: number; superv: number; folio: string | null }> = {};
+    if (sitesReq.length && (t as any)?.fecha) {
+      const res = await Promise.all(sitesReq.map((sid) => supabase.rpc("rpc_dotacion_requerida_sitio", { p_sitio: sid, p_fecha: (t as any).fecha })));
+      res.forEach((r, i) => { const row = (r.data as any[])?.[0]; if (row) reqMap[sitesReq[i]] = { guardias: row.guardias_requeridos ?? 0, superv: row.supervisores_requeridos ?? 0, folio: row.folio ?? null }; });
+    }
+    setReqSitio(reqMap);
   }
 
   useEffect(() => { cargar(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [params.id]);
@@ -348,6 +361,10 @@ export default function TurnoDetallePage() {
                 <div style={{ background: "var(--sc-btn-soft,#f6ede1)", padding: "7px 12px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                   <b>{sid === "__sin__" ? "Sin sitio asignado" : sitioNombre(sid)}</b>
                   <span className="dash-sub" style={{ fontSize: 12 }}>({gs.length} guardia{gs.length === 1 ? "" : "s"})</span>
+                  {sid !== "__sin__" && reqSitio[sid] && reqSitio[sid].guardias > 0 && (() => {
+                    const req = reqSitio[sid].guardias, prog = gs.length, falta = req - prog;
+                    return <span title={reqSitio[sid].folio ? `Contrato ${reqSitio[sid].folio}` : "Dotación contratada"} style={{ fontSize: 11.5, fontWeight: 700, borderRadius: 8, padding: "2px 8px", background: falta > 0 ? "#fde7e7" : "#e6f6ec", color: falta > 0 ? "#b00020" : "#0a7c2f" }}>Contrato: req {req} · prog {prog}{falta > 0 ? ` · ⚠ falta ${falta}` : " ✓"}</span>;
+                  })()}
                   {sid !== "__sin__" && (
                     <label className="dash-sub" style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>Supervisor
                       <select value={superv[sid] ?? ""} disabled={!puedeEditar} onChange={(e) => setSuperv((s) => ({ ...s, [sid]: e.target.value }))}>

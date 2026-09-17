@@ -42,18 +42,26 @@ export type ReporteSla = SlaResultado;
 
 const dstr = (d: string | Date) => new Date(d).toISOString().slice(0, 10);
 
-// Config del cliente: por cada clave, valor + si aplica (cliente > global > default).
-export async function getSlaConfig(clienteId: string | null): Promise<Record<string, { valor: number | null; activa: boolean }>> {
+// Config de SLA por cada clave: valor + si aplica. Precedencia:
+//   contrato (override) > cliente > global > default.
+// contratoId es opcional; sin él se comporta como antes (cliente > global > default).
+export async function getSlaConfig(clienteId: string | null, contratoId?: string | null): Promise<Record<string, { valor: number | null; activa: boolean }>> {
   const filtro = clienteId ? `cliente_id.is.null,cliente_id.eq.${clienteId}` : "cliente_id.is.null";
-  const { data } = await supabase.from("sla_metas_cliente").select("cliente_id, clave, valor, activa").or(filtro);
-  const glob = new Map<string, any>(), cli = new Map<string, any>();
+  const [{ data }, ov] = await Promise.all([
+    supabase.from("sla_metas_cliente").select("cliente_id, clave, valor, activa").or(filtro),
+    contratoId
+      ? supabase.from("contrato_sla_metas").select("clave, valor, activa").eq("contrato_id", contratoId)
+      : Promise.resolve({ data: [] } as any),
+  ]);
+  const glob = new Map<string, any>(), cli = new Map<string, any>(), con = new Map<string, any>();
   ((data as any[]) ?? []).forEach((r) => (r.cliente_id ? cli : glob).set(r.clave, r));
+  ((ov?.data as any[]) ?? []).forEach((r) => con.set(r.clave, r));
   const out: Record<string, { valor: number | null; activa: boolean }> = {};
   SLA_CATALOGO.forEach((c) => {
-    const rc = cli.get(c.clave), rg = glob.get(c.clave);
+    const rk = con.get(c.clave), rc = cli.get(c.clave), rg = glob.get(c.clave);
     out[c.clave] = {
-      valor: rc?.valor ?? rg?.valor ?? c.defecto,
-      activa: rc?.activa ?? rg?.activa ?? c.activaDefecto,
+      valor: rk?.valor ?? rc?.valor ?? rg?.valor ?? c.defecto,
+      activa: rk?.activa ?? rc?.activa ?? rg?.activa ?? c.activaDefecto,
     };
   });
   return out;
