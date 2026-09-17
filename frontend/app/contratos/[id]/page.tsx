@@ -357,7 +357,13 @@ function ReqPanel({ servicioId, reqs, onCambio }: any) {
   async function agregar() {
     if (n.valor === "") return;
     const unidad = REQ_CAT.find((r) => r.clave === n.clave)?.unidad || null;
-    await supabase.from("contrato_requerimientos").upsert({ contrato_servicio_id: servicioId, clave: n.clave, valor: Number(n.valor), unidad, estatus: "activo", actualizado_en: new Date().toISOString() }, { onConflict: "contrato_servicio_id,clave" } as any);
+    // WORM: si ya existe la clave activa, se actualiza; si no, se inserta.
+    const existente = reqs.find((r: any) => r.clave === n.clave);
+    if (existente) {
+      await supabase.from("contrato_requerimientos").update({ valor: Number(n.valor), unidad, actualizado_en: new Date().toISOString() }).eq("id", existente.id);
+    } else {
+      await supabase.from("contrato_requerimientos").insert({ contrato_servicio_id: servicioId, clave: n.clave, valor: Number(n.valor), unidad, estatus: "activo" });
+    }
     setN({ clave: n.clave, valor: "" }); onCambio();
   }
   async function quitar(id: string) { await supabase.from("contrato_requerimientos").update({ estatus: "cancelado", cancelado_en: new Date().toISOString() }).eq("id", id); onCambio(); }
