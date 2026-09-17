@@ -7,7 +7,7 @@ import { supabase } from "./supabase";
 // el turno estuviera vigente. (Debe coincidir con el gate de sesión en sesion.ts.)
 const pad = (n: number) => String(n).padStart(2, "0");
 const ymd = (d: Date): string => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-const fechasRelevantes = (): string[] => {
+export const fechasRelevantes = (): string[] => {
   const n = new Date();
   return [ymd(new Date(n.getTime() - 86400000)), ymd(n)];
 };
@@ -21,7 +21,7 @@ function combinar(fecha: string, hora?: string | null): Date {
 
 // ¿la ventana REAL [inicio, fin) del turno (con su fecha) contiene "ahora"?
 // Maneja el cruce de medianoche sumando un día al fin.
-function ventanaCubre(t: any, ahora: Date): boolean {
+export function ventanaCubre(t: any, ahora: Date): boolean {
   if (!t?.fecha) return false;
   const inicio = combinar(t.fecha, t.hora_inicio ?? "00:00:00");
   let fin = combinar(t.fecha, t.hora_fin ?? "23:59:59");

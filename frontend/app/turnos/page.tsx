@@ -35,7 +35,7 @@ export default function TurnosPage() {
     // Marca como 'terminado' los turnos cuyo horario ya concluyó (antes de listar).
     await supabase.rpc("rpc_cerrar_turnos_vencidos").then(() => undefined, () => undefined);
     const { data } = await supabase.from("turnos")
-      .select("id, folio, fecha, tipo_turno, hora_inicio, hora_fin, estado, estatus, sitio:sitios(nombre), supervisor:personal!turnos_supervisor_id_fkey(persona:personas(nombre, apellido_paterno, apellido_materno)), turno_guardias(count)")
+      .select("id, folio, fecha, tipo_turno, hora_inicio, hora_fin, estado, estatus, coordinador:personal!turnos_coordinador_id_fkey(persona:personas(nombre, apellido_paterno, apellido_materno)), turno_guardias(sitio_id), turno_supervisores(sitio_id, estatus)")
       .eq("estatus", "activo").order("fecha", { ascending: false });
     setTurnos((data as any[]) ?? []);
     setCargando(false);
@@ -74,7 +74,15 @@ export default function TurnosPage() {
     router.push(`/turnos/${(data as any).id}`);
   }
 
-  const nGuardias = (t: any) => t.turno_guardias?.[0]?.count ?? 0;
+  const nGuardias = (t: any) => (t.turno_guardias ?? []).length;
+  // Sitios considerados en el turno: sitio_id distintos de guardias (con sitio) y
+  // supervisores activos.
+  const nSitios = (t: any) => {
+    const s = new Set<string>();
+    (t.turno_guardias ?? []).forEach((r: any) => { if (r.sitio_id) s.add(r.sitio_id); });
+    (t.turno_supervisores ?? []).forEach((r: any) => { if (r.sitio_id && r.estatus === "activo") s.add(r.sitio_id); });
+    return s.size;
+  };
 
   return (
     <main className="contenedor">
@@ -116,16 +124,16 @@ export default function TurnosPage() {
         <p className="dash-sub">Aún no hay turnos.</p>
       ) : (
         <table>
-          <thead><tr><th>Folio</th><th>Fecha</th><th>Sitio</th><th>Supervisor</th><th>Turno</th><th>Horario</th><th>Guardias</th><th>Estado</th></tr></thead>
+          <thead><tr><th>Folio</th><th>Fecha</th><th>Coordinador</th><th>Turno</th><th>Horario</th><th>Sitios</th><th>Guardias</th><th>Estado</th></tr></thead>
           <tbody>
             {turnos.map((t) => (
               <tr key={t.id}>
                 <td><Link href={`/turnos/${t.id}`} className="sc-folio">{t.folio ?? "s/folio"}</Link></td>
                 <td>{t.fecha ? new Date(t.fecha + "T00:00:00").toLocaleDateString() : "—"}</td>
-                <td>{t.sitio?.nombre ?? "—"}</td>
-                <td>{nombre(t.supervisor)}</td>
+                <td>{nombre(t.coordinador)}</td>
                 <td>{t.tipo_turno ?? "—"}</td>
                 <td>{t.hora_inicio ? `${String(t.hora_inicio).slice(0, 5)}–${String(t.hora_fin ?? "").slice(0, 5)}` : "—"}</td>
+                <td>{nSitios(t)}</td>
                 <td>{nGuardias(t)}</td>
                 <td><EstadoBadge e={t.estado} /></td>
               </tr>

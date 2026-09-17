@@ -203,9 +203,11 @@ export default function TurnoDetallePage() {
       supabase.from("turno_guardias").select("personal_id, sitio_id").eq("turno_id", params.id),
       supabase.from("turno_supervisores").select("sitio_id, supervisor_personal_id").eq("turno_id", params.id).eq("estatus", "activo"),
     ]);
-    const filas = ((tg as any[]) ?? []).map((r) => ({ turno_id: nuevoId, personal_id: r.personal_id, sitio_id: r.sitio_id }));
+    // No arrastrar sitios cancelados: se ignoran las filas cuyo sitio ya no está activo.
+    const sitiosActivosSet = new Set(sitios.map((s) => s.id));
+    const filas = ((tg as any[]) ?? []).filter((r) => !r.sitio_id || sitiosActivosSet.has(r.sitio_id)).map((r) => ({ turno_id: nuevoId, personal_id: r.personal_id, sitio_id: r.sitio_id }));
     if (filas.length) await supabase.from("turno_guardias").insert(filas);
-    const filasSup = ((ts as any[]) ?? []).map((r) => ({ turno_id: nuevoId, sitio_id: r.sitio_id, supervisor_personal_id: r.supervisor_personal_id, estatus: "activo" }));
+    const filasSup = ((ts as any[]) ?? []).filter((r) => r.sitio_id && sitiosActivosSet.has(r.sitio_id)).map((r) => ({ turno_id: nuevoId, sitio_id: r.sitio_id, supervisor_personal_id: r.supervisor_personal_id, estatus: "activo" }));
     if (filasSup.length) await supabase.from("turno_supervisores").insert(filasSup);
     setGuardando(false);
     router.push(`/turnos/${nuevoId}`);
@@ -216,6 +218,11 @@ export default function TurnoDetallePage() {
   // Se puede editar (agregar/quitar guardias) en borrador y en activo; al cerrar
   // el turno queda bloqueado.
   const puedeEditar = turno.estado === "borrador" || turno.estado === "activo";
+  // Un turno solo se activa dentro de las 2 h previas a su inicio (o ya iniciado).
+  // Antes de eso debe quedar en borrador (regla reforzada por trigger en BD).
+  const inicioTurno = turno.hora_inicio ? new Date(`${turno.fecha}T${String(turno.hora_inicio).slice(0, 5)}:00`) : null;
+  const puedeActivar = !inicioTurno || inicioTurno.getTime() - Date.now() <= 2 * 60 * 60 * 1000;
+  const activarHint = inicioTurno ? `Se podrá activar a partir de ${new Date(inicioTurno.getTime() - 2 * 60 * 60 * 1000).toLocaleString()}` : "";
   const seleccionados = Object.values(sel).filter((v) => v.checked).length;
   const sitiosActivos = Array.from(new Set(Object.values(sel).filter((v) => v.checked && v.sitio_id).map((v) => v.sitio_id)));
   const sitioNombre = (sid: string) => sitios.find((s) => s.id === sid)?.nombre ?? sid;
@@ -254,7 +261,8 @@ export default function TurnoDetallePage() {
         {editando ? (
           <>
             <button onClick={guardar} disabled={guardando || !puedeEditar}>{guardando ? "Guardando…" : "💾 Guardar turno"}</button>
-            {turno.estado === "borrador" && <button className="cad-guardar" onClick={activar} disabled={guardando}>✔ Activar turno</button>}
+            {turno.estado === "borrador" && <button className="cad-guardar" onClick={activar} disabled={guardando || !puedeActivar} title={!puedeActivar ? activarHint : undefined}>✔ Activar turno</button>}
+            {turno.estado === "borrador" && !puedeActivar && <span className="dash-sub" style={{ color: "#8a6d00" }}>⏳ {activarHint}</span>}
             <button className="secundario" onClick={() => { cargar(); }} disabled={guardando}>👁 Ver roster</button>
           </>
         ) : (

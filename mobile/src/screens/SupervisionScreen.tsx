@@ -5,6 +5,7 @@ import { WebView } from "react-native-webview";
 import { Ionicons } from "@expo/vector-icons";
 import { supabase } from "../lib/supabase";
 import { tileUrl } from "../lib/geo";
+import { ventanaCubre, fechasRelevantes } from "../lib/unidad";
 import { T, UI } from "../theme";
 
 function nombre(p: any) {
@@ -94,13 +95,14 @@ export default function SupervisionScreen() {
         ((data as any[]) ?? []).forEach((r) => { map[r.personal_id] = r; });
         setEstadoPorGuardia(map);
       });
-    // Sitios con turno activo hoy (para supervisar por sitio).
+    // Sitios con turno VIGENTE ahora (franja horaria que cubre el momento). Filtrar
+    // solo por fecha=hoy contaba también el turno de la noche → duplicaba guardias.
     (async () => {
-      const hoy = fmtFecha(new Date());
+      const ahora = new Date(), fechas = fechasRelevantes();
       const { data } = await supabase.from("turno_guardias")
-        .select("sitio:sitios(id, nombre, latitud, longitud), turno:turnos(estado, fecha)")
+        .select("sitio:sitios(id, nombre, latitud, longitud), turno:turnos(estado, fecha, hora_inicio, hora_fin)")
         .eq("estatus", "activo");
-      const arr = ((data as any[]) ?? []).filter((r) => r.turno?.estado === "activo" && r.turno?.fecha === hoy && r.sitio);
+      const arr = ((data as any[]) ?? []).filter((r) => r.turno?.estado === "activo" && fechas.includes(r.turno?.fecha) && ventanaCubre(r.turno, ahora) && r.sitio);
       const uniq = Array.from(new Map(arr.map((r) => [r.sitio.id, r.sitio])).values());
       setSitiosLista(uniq);
     })();
@@ -111,11 +113,11 @@ export default function SupervisionScreen() {
     if (!guardiaId) { setGps(null); setSitio(null); return; }
     setGps(estadoPorGuardia[guardiaId] ?? null);
     (async () => {
-      const hoy = fmtFecha(new Date());
+      const ahora = new Date(), fechas = fechasRelevantes();
       const { data } = await supabase.from("turno_guardias")
-        .select("sitio:sitios(nombre, latitud, longitud), turno:turnos(estado, fecha)")
+        .select("sitio:sitios(nombre, latitud, longitud), turno:turnos(estado, fecha, hora_inicio, hora_fin)")
         .eq("personal_id", guardiaId).eq("estatus", "activo");
-      const fila = ((data as any[]) ?? []).find((r) => r.turno?.estado === "activo" && r.turno?.fecha === hoy);
+      const fila = ((data as any[]) ?? []).find((r) => r.turno?.estado === "activo" && fechas.includes(r.turno?.fecha) && ventanaCubre(r.turno, ahora));
       setSitio(fila?.sitio ?? null);
     })();
   }, [guardiaId, estadoPorGuardia]);
@@ -124,11 +126,11 @@ export default function SupervisionScreen() {
   useEffect(() => {
     if (!sitioSelId) { setSitioSel(null); setGuardiasSitio([]); return; }
     (async () => {
-      const hoy = fmtFecha(new Date());
+      const ahora = new Date(), fechas = fechasRelevantes();
       const { data } = await supabase.from("turno_guardias")
-        .select("personal_id, personal:personal(persona:personas(nombre, apellido_paterno, apellido_materno)), sitio:sitios(nombre, latitud, longitud), turno:turnos(estado, fecha)")
+        .select("personal_id, personal:personal(persona:personas(nombre, apellido_paterno, apellido_materno)), sitio:sitios(nombre, latitud, longitud), turno:turnos(estado, fecha, hora_inicio, hora_fin)")
         .eq("sitio_id", sitioSelId).eq("estatus", "activo");
-      const arr = ((data as any[]) ?? []).filter((r) => r.turno?.estado === "activo" && r.turno?.fecha === hoy);
+      const arr = ((data as any[]) ?? []).filter((r) => r.turno?.estado === "activo" && fechas.includes(r.turno?.fecha) && ventanaCubre(r.turno, ahora));
       setSitioSel(arr[0]?.sitio ?? sitiosLista.find((s) => s.id === sitioSelId) ?? null);
       const uniq = Array.from(new Map(arr.map((r) => [r.personal_id, r])).values());
       setGuardiasSitio(uniq.map((r: any) => ({
