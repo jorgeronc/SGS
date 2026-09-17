@@ -431,7 +431,7 @@ function NuevaCredencial({ onCreado }: { onCreado: () => void }) {
 
 export default function CredencialesPage() {
   const [k, setK] = useState(0);
-  const prefillNueva = typeof window !== "undefined" && (() => { try { const p = new URLSearchParams(window.location.search); return p.has("nombre") || p.has("pid"); } catch { return false; } })();
+  const prefillNueva = typeof window !== "undefined" && (() => { try { const p = new URLSearchParams(window.location.search); return p.has("nombre") || p.has("pid") || p.has("folio") || p.has("cat"); } catch { return false; } })();
   return (
     <div>
       <PlantillasPanel />
