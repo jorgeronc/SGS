@@ -12,7 +12,7 @@ interface Recurso { key: string; tipo: string; nombre: string; sub?: string; per
 interface Desp { id: string; recurso_tipo: string | null; recurso_nombre: string | null; estado: string; es_contacto: boolean; personal_id: string | null; autoridad_id: string | null }
 
 const EST_DESP = ["asignada", "en_ruta", "en_sitio", "liberada"];
-const EST_DESP_LABEL: Record<string, string> = { asignada: "Asignada", en_ruta: "En ruta", en_sitio: "En sitio", liberada: "Liberada" };
+const EST_DESP_LABEL: Record<string, string> = { asignada: "Asignada", en_ruta: "En ruta", en_sitio: "En sitio", liberada: "Liberada", cerrado: "Cerrado" };
 const nom = (p: any) => [p?.persona?.nombre, p?.persona?.apellido_paterno].filter(Boolean).join(" ") || "Elemento";
 // Fechas de turno relevantes en hora LOCAL (ayer+hoy): con toISOString() el "hoy"
 // se calculaba en UTC y de noche (UTC ya era el día siguiente) el pool de guardias
@@ -21,7 +21,7 @@ const pad2 = (n: number) => String(n).padStart(2, "0");
 const ymdLocal = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 const fechasTurno = () => { const n = new Date(); return [ymdLocal(new Date(n.getTime() - 86400000)), ymdLocal(n)]; };
 
-export default function DespachoRecursos({ llamadaId, sitioId, editable, onDespacho }: { llamadaId: string; sitioId: string | null; editable: boolean; onDespacho?: () => void }) {
+export default function DespachoRecursos({ llamadaId, sitioId, editable, onDespacho, recargar }: { llamadaId: string; sitioId: string | null; editable: boolean; onDespacho?: () => void; recargar?: number }) {
   const [desp, setDesp] = useState<Desp[]>([]);
   const [guardias, setGuardias] = useState<Recurso[]>([]);
   const [propios, setPropios] = useState<Recurso[]>([]);
@@ -36,7 +36,7 @@ export default function DespachoRecursos({ llamadaId, sitioId, editable, onDespa
     const { data } = await supabase.from("despachos").select("id, recurso_tipo, recurso_nombre, estado, es_contacto, personal_id, autoridad_id").eq("llamada_id", llamadaId).eq("estatus", "activo").order("fecha_asignacion", { ascending: true });
     setDesp((data as any[]) ?? []);
   }, [llamadaId]);
-  useEffect(() => { cargarDesp(); }, [cargarDesp]);
+  useEffect(() => { cargarDesp(); }, [cargarDesp, recargar]);
 
   // Auto-refresco: cualquier cambio en los despachos de este incidente (p. ej. un
   // guardia que pasa a En ruta / En el lugar desde el móvil, u otro operador que
@@ -165,9 +165,12 @@ export default function DespachoRecursos({ llamadaId, sitioId, editable, onDespa
               <span style={{ fontSize: 14 }}>{d.es_contacto ? "🚨" : d.recurso_tipo === "supervisor" ? "🎖️" : d.recurso_tipo === "recurso_propio" ? "🧰" : "👮"}</span>
               <div style={{ flex: 1, minWidth: 0 }}>{d.es_contacto && <span style={{ marginRight: 6, fontSize: 10.5, fontWeight: 800, color: "#e23b53" }}>Autoridad — Enterada</span>}<b style={{ fontSize: 13 }}>{d.recurso_nombre ?? "Recurso"}</b></div>
               {d.es_contacto ? <span style={{ fontSize: 12, color: "var(--sc-text-soft)" }}>autoridad</span> :
-                <select value={d.estado} disabled={!editable} onChange={(e) => cambiarEstado(d.id, e.target.value)} style={{ fontSize: 12.5, padding: "3px 6px", borderRadius: 7, border: "1px solid var(--sc-card-line)", background: "var(--sc-content)", color: "var(--sc-text)" }}>
-                  {EST_DESP.map((s) => <option key={s} value={s}>{EST_DESP_LABEL[s] ?? s}</option>)}
-                </select>}
+                editable ? (
+                  <select value={EST_DESP.includes(d.estado) ? d.estado : ""} onChange={(e) => cambiarEstado(d.id, e.target.value)} style={{ fontSize: 12.5, padding: "3px 6px", borderRadius: 7, border: "1px solid var(--sc-card-line)", background: "var(--sc-content)", color: "var(--sc-text)" }}>
+                    {!EST_DESP.includes(d.estado) && <option value="">{EST_DESP_LABEL[d.estado] ?? d.estado}</option>}
+                    {EST_DESP.map((s) => <option key={s} value={s}>{EST_DESP_LABEL[s] ?? s}</option>)}
+                  </select>
+                ) : <span style={{ fontSize: 12, fontWeight: 700, color: "var(--sc-text-soft)" }}>{EST_DESP_LABEL[d.estado] ?? d.estado}</span>}
               {editable && <button onClick={() => cancelar(d)} title="Cancelar / deshacer despacho" style={{ background: "transparent", border: "none", color: "#e23b53", cursor: "pointer", fontSize: 15, lineHeight: 1, padding: "2px 4px" }}>✕</button>}
             </div>
           ))}

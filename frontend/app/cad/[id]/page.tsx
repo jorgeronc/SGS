@@ -182,7 +182,7 @@ export default function IncidenciaDetallePage() {
     }
     setGuardando(false);
     if (error) { setError(error.message); return; }
-    setCerrando(false); cargarLlamada();
+    setCerrando(false); cargarLlamada(); setRecarga((x) => x + 1);
   }
 
   // Si cambia (o termina) la transmisión, se vuelve a mostrar aquí en vivo.
@@ -331,7 +331,7 @@ export default function IncidenciaDetallePage() {
                   <div className="dash-sub" style={{ fontSize: 12, marginTop: 4 }}>Seguimiento cronológico del incidente.</div>
                 </div>
 
-                <div><DespachoRecursos llamadaId={params.id} sitioId={(llamada as any).sitio_id ?? null} editable={editable} onDespacho={refrescarLlamada} /></div>
+                <div><DespachoRecursos llamadaId={params.id} sitioId={(llamada as any).sitio_id ?? null} editable={editable} onDespacho={refrescarLlamada} recargar={recarga} /></div>
                 <div>
                   <h3 style={h3}>🔗 Registros relacionados</h3>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 8, textAlign: "center" }}>
