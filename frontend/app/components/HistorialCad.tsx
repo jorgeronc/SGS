@@ -6,7 +6,7 @@ import { historialCad, type HistItem } from "@/lib/despachos";
 
 // Línea de tiempo de cambios de estado del reporte y sus despachos, con fecha,
 // hora y usuario. Se actualiza en tiempo real conforme cambian los estados.
-export default function HistorialCad({ llamadaId }: { llamadaId: string }) {
+export default function HistorialCad({ llamadaId, recargar }: { llamadaId: string; recargar?: number }) {
   const [items, setItems] = useState<HistItem[]>([]);
 
   useEffect(() => {
@@ -17,7 +17,8 @@ export default function HistorialCad({ llamadaId }: { llamadaId: string }) {
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "cad_estado_historial", filter: `llamada_id=eq.${llamadaId}` }, cargar)
       .subscribe();
     return () => { supabase.removeChannel(canal); };
-  }, [llamadaId]);
+    // `recargar` fuerza una recarga manual (tras despachar / guardar), sin depender del realtime.
+  }, [llamadaId, recargar]);
 
   return (
     <section>

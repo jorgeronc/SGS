@@ -62,6 +62,7 @@ export default function IncidenciaDetallePage() {
   const [motivoCancel, setMotivoCancel] = useState("");
   const [tab, setTab] = useState<Tab>("detalle");
   const [conteos, setConteos] = useState({ persona: 0, vehiculo: 0, evidencia: 0, tarea: 0, archivo: 0 });
+  const [recarga, setRecarga] = useState(0); // señal para recargar historial/stepper sin depender del realtime
 
   useEffect(() => {
     if (!params.id) return;
@@ -93,7 +94,7 @@ export default function IncidenciaDetallePage() {
     const canal = supabase.channel(`cad-histp:${params.id}`).on("postgres_changes", { event: "INSERT", schema: "public", table: "cad_estado_historial", filter: `llamada_id=eq.${params.id}` }, cargar).subscribe();
     return () => { supabase.removeChannel(canal); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.id, (llamada as any)?.fecha_recepcion, (llamada as any)?.fecha_cierre]);
+  }, [params.id, (llamada as any)?.fecha_recepcion, (llamada as any)?.fecha_cierre, recarga]);
 
   async function guardar() {
     if (!llamada) return;
@@ -110,7 +111,7 @@ export default function IncidenciaDetallePage() {
     }).eq("id", llamada.id);
     setGuardando(false);
     if (error) { setError(error.message); return; }
-    setMensaje("Cambios guardados."); setEditando(false); cargarLlamada();
+    setMensaje("Cambios guardados."); setEditando(false); cargarLlamada(); setRecarga((x) => x + 1);
   }
 
   async function cargarLlamada() {
@@ -130,6 +131,7 @@ export default function IncidenciaDetallePage() {
   async function refrescarLlamada() {
     const { data } = await supabase.from("llamadas_cad").select("*").eq("id", params.id).maybeSingle();
     if (data) setLlamada(data as LlamadaCad);
+    setRecarga((x) => x + 1);
   }
 
   // Conteos de "Registros relacionados".
@@ -366,7 +368,7 @@ export default function IncidenciaDetallePage() {
                 </div>
                 <GrabacionesTransmision llamadaId={params.id} />
                 <div><CamarasCercanas latitud={llamada.latitud} longitud={llamada.longitud} /></div>
-                <div><h3 style={h3}>🕘 Historial de atención</h3><HistorialCad llamadaId={params.id} /></div>
+                <div><h3 style={h3}>🕘 Historial de atención</h3><HistorialCad llamadaId={params.id} recargar={recarga} /></div>
               </div>
             </div>
           )}
