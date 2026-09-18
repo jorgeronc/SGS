@@ -64,6 +64,12 @@ export default function AccesoCasetaScreen() {
   // Movimiento de seguridad logística (para ligar el acceso del camión).
   const [movimientos, setMovimientos] = useState<any[]>([]);
   const [movimientoId, setMovimientoId] = useState("");
+  // Citas de VISITANTE (módulo Citas Visitantes): para validar que el visitante
+  // tiene cita, por nombre o folio (VI…), y traer sus datos y los del vehículo.
+  const [citasVis, setCitasVis] = useState<any[]>([]);
+  const [busqCita, setBusqCita] = useState("");
+  const [citaVis, setCitaVis] = useState<any>(null);   // cita de visitante seleccionada
+  const esVisitante = /visit/i.test(tipoPersona);
 
   useEffect(() => {
     supabase.from("cat_opciones").select("valor").eq("categoria", "tipo_persona_acceso").eq("activo", true).order("orden")
@@ -80,6 +86,17 @@ export default function AccesoCasetaScreen() {
       .eq("estatus", "activo").eq("sitio_id", sitioId)
       .not("estado", "in", "(finalizada,salida,cancelada)").order("programada_en").limit(100)
       .then(({ data }) => setCitas((data as any[]) ?? []));
+  }, [sitioId]);
+
+  // Citas de VISITANTE del sitio (módulo Citas Visitantes): para validar por
+  // nombre o folio. Se cargan las del sitio y se filtran en el cliente.
+  useEffect(() => {
+    if (!sitioId) { setCitasVis([]); return; }
+    supabase.from("citas_visitantes")
+      .select("id, folio, estado, fecha_hora_cita, empresa, telefono, persona_id, vehiculo_id, persona:personas(nombre, apellido_paterno, apellido_materno), vehiculo:vehiculos(marca, modelo, color, placas)")
+      .eq("estatus", "activo").eq("sitio_id", sitioId)
+      .order("fecha_hora_cita", { ascending: false }).limit(100)
+      .then(({ data }) => setCitasVis((data as any[]) ?? []));
   }, [sitioId]);
 
   // Movimientos para ligar el acceso del camión: los de este sitio (origen o
@@ -249,6 +266,21 @@ export default function AccesoCasetaScreen() {
     return path;
   }
 
+  // --- Citas de visitante: filtro por nombre/folio y selección ---
+  const nombreDePersona = (p: any) => (p ? `${p.nombre ?? ""} ${p.apellido_paterno ?? ""} ${p.apellido_materno ?? ""}`.trim() : "");
+  function citasVisFiltradas(): any[] {
+    const q = busqCita.trim().toLowerCase();
+    const base = q ? citasVis.filter((c) => (c.folio ?? "").toLowerCase().includes(q) || nombreDePersona(c.persona).toLowerCase().includes(q)) : citasVis;
+    return base.slice(0, 12);
+  }
+  function elegirCitaVis(c: any) {
+    if (citaVis?.id === c.id) { setCitaVis(null); return; } // toggle
+    setCitaVis(c);
+    const nom = nombreDePersona(c.persona);
+    if (nom) setVisitante(nom);
+    if (modo === "vehiculo" && c.vehiculo?.placas && !placa) setPlaca(c.vehiculo.placas);
+  }
+
   function validar(): string | null {
     const movSel = movimientos.find((m) => m.id === movimientoId);
     const sitioEfectivo = sitioId || (modo === "vehiculo" ? (movSel?.sitio_origen_id ?? null) : null);
@@ -270,13 +302,16 @@ export default function AccesoCasetaScreen() {
     const nombreLibre = visitante.trim();
     const movSel = movimientos.find((m) => m.id === movimientoId);
 
-    // Persona (maestro): credencial existente, o se crea a partir del nombre.
-    let personaId: string | null = cred?.persona_id ?? null;
+    // Persona (maestro): credencial existente, cita de visitante, o se crea del nombre.
+    let personaId: string | null = cred?.persona_id ?? citaVis?.persona_id ?? null;
     if (!personaId && nombreLibre) personaId = await crearPersona(nombreLibre);
 
-    // Vehículo (maestro): solo en modo vehículo.
+    // Vehículo (maestro): en modo vehículo, el de la cita de visitante o el de la placa.
     let vehiculoId: string | null = null;
-    if (modo === "vehiculo" && placa.trim()) vehiculoId = await encontrarOCrearVehiculo(placa.trim());
+    if (modo === "vehiculo") {
+      if (citaVis?.vehiculo_id) vehiculoId = citaVis.vehiculo_id;
+      else if (placa.trim()) vehiculoId = await encontrarOCrearVehiculo(placa.trim());
+    }
 
     // La foto de la credencial/identificación queda como foto de la persona.
     let fotoPath: string | null = null;
@@ -303,7 +338,7 @@ export default function AccesoCasetaScreen() {
       transporte_activo_id: modo === "vehiculo" ? (movSel?.transporte_activo_id ?? null) : null,
       latitud: pos.lat, longitud: pos.lng,
       fotografias: fotoPath ? [fotoPath] : [],
-      datos_adicionales: { origen: "caseta_movil", movimiento_folio: movSel?.folio ?? null },
+      datos_adicionales: { origen: "caseta_movil", movimiento_folio: movSel?.folio ?? null, cita_visitante_id: citaVis?.id ?? null, cita_visitante_folio: citaVis?.folio ?? null },
     }).select("id, folio").single();
     if (error) { Alert.alert("Error", error.message); return null; }
     // Evento en el timeline del movimiento (best-effort; no interrumpe el registro).
@@ -395,7 +430,55 @@ export default function AccesoCasetaScreen() {
           ))}
         </View>
 
-        {modo === "vehiculo" && (
+        <Text style={styles.label}>Tipo de persona</Text>
+        {chips(tiposPersona, tipoPersona, setTipoPersona)}
+
+        {esVisitante && (
+          <>
+            <Text style={styles.label}>Cita de visitante</Text>
+            <TextInput style={styles.input} placeholder="Buscar por nombre o folio (VI…)" placeholderTextColor={T.textMute} value={busqCita} onChangeText={setBusqCita} />
+            {citasVis.length === 0 ? (
+              <Text style={styles.hint}>No hay citas de visitante registradas en este sitio.</Text>
+            ) : (
+              <View style={[styles.chips, { marginTop: 8 }]}>
+                {citasVisFiltradas().map((c) => (
+                  <TouchableOpacity key={c.id} style={[styles.chip, citaVis?.id === c.id && styles.chipOn]} onPress={() => elegirCitaVis(c)}>
+                    <Text style={[styles.chipTxt, citaVis?.id === c.id && styles.chipTxtOn]} numberOfLines={1}>{c.folio ?? "cita"} · {nombreDePersona(c.persona) || "—"}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+            {citaVis && (
+              <View style={styles.credCard}>
+                <View style={[styles.credBand, { backgroundColor: CATCOL.Visitante.band }]}>
+                  <Text style={styles.credOrg}>CITA DE VISITANTE</Text>
+                  <Text style={[styles.credTipo, { backgroundColor: CATCOL.Visitante.accent, color: "#fff" }]}>{String(citaVis.estado ?? "").toUpperCase()}</Text>
+                </View>
+                <View style={{ padding: 12, gap: 3 }}>
+                  <Text style={styles.credNombre}>{nombreDePersona(citaVis.persona) || "—"}</Text>
+                  <Text style={styles.credMeta}>Folio: <Text style={styles.credMetaV}>{citaVis.folio ?? "—"}</Text></Text>
+                  {citaVis.empresa ? <Text style={styles.credMeta}>Empresa: <Text style={styles.credMetaV}>{citaVis.empresa}</Text></Text> : null}
+                  <Text style={styles.credMeta}>Cita: <Text style={styles.credMetaV}>{citaVis.fecha_hora_cita ? new Date(citaVis.fecha_hora_cita).toLocaleString() : "—"}</Text></Text>
+                  <Text style={styles.credMeta}>Vehículo: <Text style={styles.credMetaV}>{citaVis.vehiculo ? `${citaVis.vehiculo.marca ?? ""} ${citaVis.vehiculo.modelo ?? ""} ${citaVis.vehiculo.color ?? ""} · ${citaVis.vehiculo.placas ?? ""}`.replace(/\s+/g, " ").trim() : "sin vehículo"}</Text></Text>
+                  <View style={[styles.badge, { backgroundColor: citaVis.estado === "registrada" ? "#e6f6ec" : "#fff4e0", marginTop: 6 }]}>
+                    <Text style={{ color: citaVis.estado === "registrada" ? "#0a7c2f" : "#8a5a00", fontWeight: "800", fontSize: 12 }}>{citaVis.estado === "registrada" ? "✓ Cita registrada" : "Cita pendiente de registro"}</Text>
+                  </View>
+                </View>
+              </View>
+            )}
+            <Text style={styles.label}>Visitante</Text>
+            <TextInput style={styles.input} placeholder="Nombre del visitante" placeholderTextColor={T.textMute} value={visitante} onChangeText={setVisitante} />
+            {modo === "vehiculo" && (
+              <>
+                <Text style={styles.label}>Vehículo</Text>
+                <TextInput style={styles.input} placeholder="Placa" placeholderTextColor={T.textMute} value={placa} onChangeText={setPlaca} autoCapitalize="characters" />
+                <TextInput style={styles.input} placeholder="Andén (opcional)" placeholderTextColor={T.textMute} value={anden} onChangeText={setAnden} />
+              </>
+            )}
+          </>
+        )}
+
+        {!esVisitante && modo === "vehiculo" && (
           <>
             {movimientos.length > 0 && (
               <>
@@ -430,7 +513,7 @@ export default function AccesoCasetaScreen() {
           </>
         )}
 
-        {modo === "persona" && (<>
+        {!esVisitante && modo === "persona" && (<>
         <Text style={styles.label}>Credencial</Text>
         <View style={styles.grid}>
           <TouchableOpacity style={styles.cap} onPress={() => abrirCamara("qr")}><Ionicons name="qr-code" size={22} color={T.accent} /><Text style={styles.capTxt}>Escanear QR</Text></TouchableOpacity>
@@ -475,9 +558,6 @@ export default function AccesoCasetaScreen() {
           </>
         )}
         </>)}
-
-        <Text style={styles.label}>Tipo de persona</Text>
-        {chips(tiposPersona, tipoPersona, setTipoPersona)}
 
         <Text style={styles.label}>Motivo</Text>
         {chips(motivos, motivo, setMotivo)}
@@ -535,6 +615,7 @@ export default function AccesoCasetaScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: T.bg },
   sub: { color: T.textDim, fontSize: 14, fontWeight: "700" },
+  hint: { color: T.textMute, fontSize: 13, marginTop: 8 },
   label: { color: T.textDim, fontSize: 13, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.4, marginTop: 20, marginBottom: 8 },
   input: { backgroundColor: T.surface, borderWidth: 1, borderColor: T.border, borderRadius: UI.radiusSm, paddingHorizontal: 14, minHeight: 50, color: T.text, fontSize: 16, marginTop: 8 },
   ok: { color: "#0a7c2f", fontWeight: "700", marginTop: 8 },

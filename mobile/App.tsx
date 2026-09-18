@@ -67,6 +67,7 @@ function Tabs() {
   return (
     <Tab.Navigator
       id={"tabs" as never}
+      initialRouteName={"Perfil" as never}
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarActiveTintColor: T.accent,

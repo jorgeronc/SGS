@@ -10,7 +10,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import { decode } from "base64-arraybuffer";
 import { supabase, BUCKET_FOTOS } from "../lib/supabase";
 import { getMiOficialValido } from "../lib/oficial";
-import { getSitiosAsignados } from "../lib/unidad";
+import { getSitiosAsignados, getSitioAsignado, getSitiosSupervisados } from "../lib/unidad";
 import { getRolActual, esMando } from "../lib/rol";
 import BodycamBoton from "../components/BodycamBoton";
 import { asociarBodycamActual } from "../lib/bodycamHd";
@@ -66,13 +66,31 @@ export default function IncidenteScreen() {
     setTelefono((per as any)?.telefono ?? null);
 
     if (esM) {
-      const { data: ss } = await supabase.from("sitios").select("id, nombre").eq("estatus", "activo").order("nombre");
-      setSitios((ss as any[]) ?? []);
+      // Supervisor: elige entre los sitios que tiene BAJO SUPERVISIÓN en su turno
+      // vigente. Si no tiene, cae a todos los activos.
+      const supIds = await getSitiosSupervisados(g.personalId);
+      let lista: { id: string; nombre: string }[] = [];
+      if (supIds.length) {
+        const { data: ss } = await supabase.from("sitios").select("id, nombre").in("id", supIds).eq("estatus", "activo").order("nombre");
+        lista = ((ss as any[]) ?? []).map((s) => ({ id: s.id, nombre: s.nombre }));
+      } else {
+        const { data: ss } = await supabase.from("sitios").select("id, nombre").eq("estatus", "activo").order("nombre");
+        lista = ((ss as any[]) ?? []).map((s) => ({ id: s.id, nombre: s.nombre }));
+      }
+      setSitios(lista);
+      if (lista.length === 1) setSitioId(lista[0].id); // preselección; chips visibles para cambiar
       return;
     }
-    const uniq = (await getSitiosAsignados(g.personalId)).map((s) => ({ id: s.id, nombre: s.nombre ?? "Sitio" }));
-    setSitios(uniq);
-    if (uniq.length === 1) { setSitioId(uniq[0].id); setSitioNombre(uniq[0].nombre); }
+    // Guardia: el sitio es SU sitio de asignación (mismo que muestra Perfil) por
+    // default. Se preselecciona; si tiene varios, se listan para elegir.
+    const lista = (await getSitiosAsignados(g.personalId)).map((s) => ({ id: s.id, nombre: s.nombre ?? "Sitio" }));
+    setSitios(lista);
+    const asignado = await getSitioAsignado(g.personalId);
+    const def = asignado ? { id: asignado.id, nombre: asignado.nombre ?? "Sitio" } : (lista.length === 1 ? lista[0] : null);
+    if (def) {
+      setSitioId(def.id);
+      if (lista.length <= 1) setSitioNombre(def.nombre); // un solo sitio → se muestra fijo "(de tu turno)"
+    }
   }
 
   async function obtenerUbicacion() {
