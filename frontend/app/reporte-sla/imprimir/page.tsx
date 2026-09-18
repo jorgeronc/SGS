@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { computeReporteSla, type ReporteSla } from "@/lib/sla";
+import { computeReporteSla, computeSla, type ReporteSla } from "@/lib/sla";
 import ReporteSlaVista from "@/app/components/ReporteSlaVista";
 
 function rangoMes(mes: string): { ini: string; fin: string; label: string } {
@@ -23,14 +23,28 @@ export default function ReporteSlaImprimirPage() {
     (async () => {
       const q = new URLSearchParams(window.location.search);
       const clienteId = q.get("cliente");
+      const contratoId = q.get("contrato");
       const mes = q.get("mes") || new Date().toISOString().slice(0, 7);
       const { ini, fin, label } = rangoMes(mes);
       setPeriodo(label);
+      let etiqueta = clienteId ? "Cliente" : "Todos los clientes";
       if (clienteId) {
         const { data } = await supabase.from("clientes").select("razon_social").eq("id", clienteId).maybeSingle();
-        setCliente((data as any)?.razon_social ?? "Cliente");
+        etiqueta = (data as any)?.razon_social ?? "Cliente";
       }
-      const r = await computeReporteSla(clienteId, ini, fin);
+      let r: ReporteSla;
+      if (contratoId) {
+        const [{ data: ct }, { data: sv }] = await Promise.all([
+          supabase.from("contratos").select("folio, nombre").eq("id", contratoId).maybeSingle(),
+          supabase.from("contrato_servicios").select("sitio_id").eq("contrato_id", contratoId).eq("estatus", "activo").eq("estado", "activo"),
+        ]);
+        if (ct) etiqueta = `${etiqueta} · ${(ct as any).folio ? `[${(ct as any).folio}] ` : ""}${(ct as any).nombre}`;
+        const sitiosIds = Array.from(new Set(((sv as any[]) ?? []).filter((s) => s.sitio_id).map((s) => s.sitio_id))) as string[];
+        r = await computeSla(clienteId, ini, fin, { contratoId, sitiosIds });
+      } else {
+        r = await computeReporteSla(clienteId, ini, fin);
+      }
+      setCliente(etiqueta);
       setRep(r);
       setTimeout(() => window.print(), 500);
     })();
