@@ -14,6 +14,12 @@ interface Desp { id: string; recurso_tipo: string | null; recurso_nombre: string
 const EST_DESP = ["asignada", "en_ruta", "en_sitio", "liberada"];
 const EST_DESP_LABEL: Record<string, string> = { asignada: "Asignada", en_ruta: "En ruta", en_sitio: "En sitio", liberada: "Liberada" };
 const nom = (p: any) => [p?.persona?.nombre, p?.persona?.apellido_paterno].filter(Boolean).join(" ") || "Elemento";
+// Fechas de turno relevantes en hora LOCAL (ayer+hoy): con toISOString() el "hoy"
+// se calculaba en UTC y de noche (UTC ya era el día siguiente) el pool de guardias
+// del turno salía vacío; además cubre turnos que cruzan medianoche.
+const pad2 = (n: number) => String(n).padStart(2, "0");
+const ymdLocal = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+const fechasTurno = () => { const n = new Date(); return [ymdLocal(new Date(n.getTime() - 86400000)), ymdLocal(n)]; };
 
 export default function DespachoRecursos({ llamadaId, sitioId, editable, onDespacho }: { llamadaId: string; sitioId: string | null; editable: boolean; onDespacho?: () => void }) {
   const [desp, setDesp] = useState<Desp[]>([]);
@@ -44,18 +50,26 @@ export default function DespachoRecursos({ llamadaId, sitioId, editable, onDespa
   }, [llamadaId, cargarDesp]);
 
   useEffect(() => {
-    const hoy = new Date().toISOString().slice(0, 10);
+    const fechas = fechasTurno();
     supabase.from("cat_opciones").select("valor").eq("categoria", "recurso_propio").eq("activo", true).order("orden")
       .then(({ data }) => setPropios(((data as any[]) ?? []).map((r) => ({ key: "prop:" + r.valor, tipo: "recurso_propio", nombre: r.valor }))));
 
     (async () => {
       const recs: Recurso[] = [];
-      const { data: turnos } = await supabase.from("turnos").select("supervisor_id, estado, fecha").eq("estado", "activo").eq("fecha", hoy).not("supervisor_id", "is", null);
-      const supIds = Array.from(new Set(((turnos as any[]) ?? []).map((t) => t.supervisor_id)));
+      // Supervisores del turno vigente: por sitio (turno_supervisores) + el legacy
+      // de cabecera (turnos.supervisor_id). Ambos filtrados por turno activo y fecha local.
+      const supSet = new Set<string>();
+      const { data: turnos } = await supabase.from("turnos").select("supervisor_id, estado, fecha").eq("estado", "activo").in("fecha", fechas).not("supervisor_id", "is", null);
+      ((turnos as any[]) ?? []).forEach((t) => supSet.add(t.supervisor_id));
+      if (sitioId) {
+        const { data: ts } = await supabase.from("turno_supervisores").select("supervisor_personal_id, turno:turnos(estado, fecha)").eq("sitio_id", sitioId).eq("estatus", "activo");
+        ((ts as any[]) ?? []).filter((r) => r.turno?.estado === "activo" && fechas.includes(r.turno?.fecha)).forEach((r) => supSet.add(r.supervisor_personal_id));
+      }
+      const supIds = Array.from(supSet).filter(Boolean);
       let guaIds: string[] = [];
       if (sitioId) {
         const { data: tg } = await supabase.from("turno_guardias").select("personal_id, turno:turnos(estado, fecha)").eq("sitio_id", sitioId);
-        guaIds = ((tg as any[]) ?? []).filter((r) => r.turno?.estado === "activo" && r.turno?.fecha === hoy).map((r) => r.personal_id);
+        guaIds = ((tg as any[]) ?? []).filter((r) => r.turno?.estado === "activo" && fechas.includes(r.turno?.fecha)).map((r) => r.personal_id);
       }
       const ids = Array.from(new Set([...supIds, ...guaIds]));
       if (ids.length) {

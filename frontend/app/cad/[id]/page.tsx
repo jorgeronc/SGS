@@ -124,6 +124,14 @@ export default function IncidenciaDetallePage() {
     supabase.rpc("rpc_registrar_bitacora", { p_tipo_accion: "CONSULTAR", p_entidad_tipo: "llamadas_cad", p_entidad_id: params.id, p_modulo: "cad" }).then(() => undefined);
   }
 
+  // Refresco ligero de la llamada (solo el registro, sin tocar el formulario `ed`):
+  // se usa tras despachar / cambiar estado / cancelar para que el encabezado y el
+  // stepper reflejen de inmediato el rollup del estado (p. ej. → "En atención").
+  async function refrescarLlamada() {
+    const { data } = await supabase.from("llamadas_cad").select("*").eq("id", params.id).maybeSingle();
+    if (data) setLlamada(data as LlamadaCad);
+  }
+
   // Conteos de "Registros relacionados".
   useEffect(() => {
     if (!params.id) return;
@@ -321,7 +329,7 @@ export default function IncidenciaDetallePage() {
                   <div className="dash-sub" style={{ fontSize: 12, marginTop: 4 }}>Seguimiento cronológico del incidente.</div>
                 </div>
 
-                <div><DespachoRecursos llamadaId={params.id} sitioId={(llamada as any).sitio_id ?? null} editable={editable} onDespacho={() => { setLlamada((l) => (l ? ({ ...l, estado_despacho: l.estado_despacho === "recibida" ? "despachada" : l.estado_despacho } as LlamadaCad) : l)); setEd((e) => ({ ...e, estado_despacho: e.estado_despacho === "recibida" ? "despachada" : e.estado_despacho })); }} /></div>
+                <div><DespachoRecursos llamadaId={params.id} sitioId={(llamada as any).sitio_id ?? null} editable={editable} onDespacho={refrescarLlamada} /></div>
                 <div>
                   <h3 style={h3}>🔗 Registros relacionados</h3>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 8, textAlign: "center" }}>
