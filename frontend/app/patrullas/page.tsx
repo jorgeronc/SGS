@@ -93,7 +93,7 @@ export default function PatrullasPage() {
       tabla="patrullas"
       modulo="patrullas"
       orderBy="numero"
-      select="id, folio, numero, tipo, marca, modelo, placas, anio, color, estatus_unidad, estatus, creado_en, fotografias"
+      select="id, folio, numero, tipo, marca, modelo, placas, anio, color, estatus_unidad, estatus, creado_en, fotografias, asignado:personal!patrullas_asignado_personal_id_fkey(persona:personas(nombre, apellido_paterno))"
       miniatura={(r) => r.fotografias}
       placeholderBuscar="Buscar número, placas, marca…"
       columnas={[
@@ -102,6 +102,7 @@ export default function PatrullasPage() {
         { header: "Marca / Modelo", campo: "marca", celda: (r) => `${r.marca ?? ""} ${r.modelo ?? ""}`.trim() || "—" },
         { header: "Placas", campo: "placas", celda: (r) => r.placas ?? "—" },
         { header: "Estatus operativo", campo: "estatus_unidad", celda: (r) => <PillUnidad v={r.estatus_unidad} /> },
+        { header: "Asignada a", celda: (r) => (r.asignado?.persona ? `${r.asignado.persona.nombre ?? ""} ${r.asignado.persona.apellido_paterno ?? ""}`.trim() : "—") },
         { header: "Estatus", campo: "estatus", celda: (r) => <span className={r.estatus === "activo" ? "badge-activo" : "badge-cancelado"}>{r.estatus}</span> },
       ]}
       textoBusqueda={(r) => `${r.folio ?? ""} ${r.numero ?? ""} ${r.placas ?? ""} ${r.marca ?? ""} ${r.modelo ?? ""}`}

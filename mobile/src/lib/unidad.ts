@@ -58,6 +58,21 @@ export async function getUnidadDelSistema(personalId: string): Promise<string | 
   return s ? (s.nombre || s.folio || null) : null;
 }
 
+// Unidad ASIGNADA al elemento desde la web (patrullas.asignado_personal_id). A
+// diferencia de "Mi unidad" (elección local del dispositivo), este dato lo fija el
+// administrador/coordinador en la pantalla de Unidades.
+export interface UnidadAsignada { id: string; etiqueta: string }
+export async function getUnidadAsignada(personalId: string): Promise<UnidadAsignada | null> {
+  const { data } = await supabase
+    .from("patrullas")
+    .select("id, numero, tipo, marca, modelo, placas")
+    .eq("asignado_personal_id", personalId).eq("estatus", "activo").limit(1);
+  const p = ((data as any[]) ?? [])[0];
+  if (!p) return null;
+  const etiqueta = [p.numero ? `#${p.numero}` : null, [p.marca, p.modelo].filter(Boolean).join(" ") || p.tipo, p.placas].filter(Boolean).join(" · ");
+  return { id: p.id, etiqueta: etiqueta || "Unidad" };
+}
+
 export interface TurnoVigente { fecha: string; horaInicio: string | null; horaFin: string | null; }
 
 // Turno vigente del elemento: como guardia (turno_guardias) o como supervisor

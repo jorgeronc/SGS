@@ -8,7 +8,7 @@ import * as ImagePicker from "expo-image-picker";
 import { decode } from "base64-arraybuffer";
 import { supabase, BUCKET_FOTOS } from "../lib/supabase";
 import { urlFoto, primeraFoto } from "../lib/fotos";
-import { getUnidadDelSistema, getTurnoVigente, type TurnoVigente } from "../lib/unidad";
+import { getUnidadDelSistema, getTurnoVigente, getUnidadAsignada, type TurnoVigente } from "../lib/unidad";
 import { getMiCrp, sincronizarMiElemento } from "../lib/oficial";
 import { actualizarPersonalPush } from "../lib/push";
 import { validarBodycam, getMiBodycam } from "../lib/bodycam";
@@ -41,7 +41,8 @@ export default function PerfilScreen() {
   const [subiendo, setSubiendo] = useState(false);
   const [miBodycam, setMiBodycamState] = useState<string | null>(null);   // folio
   const [sitio, setSitio] = useState<string | null>(null);                // sitio/puesto del turno
-  const [unidadNum, setUnidadNum] = useState<string | null>(null);        // número de unidad asignada
+  const [unidadNum, setUnidadNum] = useState<string | null>(null);        // "Mi unidad" (elección local del dispositivo)
+  const [unidadAsig, setUnidadAsig] = useState<string | null>(null);       // unidad ASIGNADA desde la web (patrullas)
   const [turno, setTurno] = useState<TurnoVigente | null>(null);
   // Grabaciones de bodycam pendientes de descargar (subir en WiFi).
   const [pendientesBc, setPendientesBc] = useState(0);
@@ -88,6 +89,7 @@ export default function PerfilScreen() {
   async function cargarUnidadYTurno(pid: string) {
     setSitio(await getUnidadDelSistema(pid));
     setUnidadNum(await getMiCrp());
+    setUnidadAsig((await getUnidadAsignada(pid))?.etiqueta ?? null);
     setTurno(await getTurnoVigente(pid));
   }
 
@@ -299,7 +301,7 @@ export default function PerfilScreen() {
               <View style={styles.idRow}><Ionicons name="id-card-outline" size={15} color={T.accent} style={styles.idIco} /><Text style={styles.idLbl}>Nombre</Text><Text style={styles.idVal} numberOfLines={2}>{nombreGuardia || miOficialEtq || "—"}</Text></View>
               <View style={styles.idRow}><Ionicons name="pricetag-outline" size={15} color={T.accent} style={styles.idIco} /><Text style={styles.idLbl}># Guardia</Text><Text style={styles.idVal} numberOfLines={1}>{numGuardia || "—"}</Text></View>
               <View style={styles.idRow}><Ionicons name="business-outline" size={15} color={T.accent} style={styles.idIco} /><Text style={styles.idLbl}>Sitio</Text><Text style={styles.idVal} numberOfLines={2}>{sitio || "sin sitio"}</Text></View>
-              <View style={styles.idRow}><Ionicons name="car-outline" size={15} color={T.accent} style={styles.idIco} /><Text style={styles.idLbl}>Unidad</Text><Text style={styles.idVal} numberOfLines={1}>{unidadNum || "Sin unidad"}</Text></View>
+              <View style={styles.idRow}><Ionicons name="car-outline" size={15} color={T.accent} style={styles.idIco} /><Text style={styles.idLbl}>Unidad</Text><Text style={styles.idVal} numberOfLines={1}>{unidadAsig || unidadNum || "Sin unidad"}</Text></View>
               <View style={styles.idRow}><Ionicons name="videocam-outline" size={15} color={T.accent} style={styles.idIco} /><Text style={styles.idLbl}>Bodycam</Text><Text style={styles.idVal} numberOfLines={1}>{miBodycam || "sin bodycam"}</Text></View>
               <View style={styles.idRow}><Ionicons name="time-outline" size={15} color={T.accent} style={styles.idIco} /><Text style={styles.idLbl}>Turno</Text><Text style={styles.idVal} numberOfLines={2}>{turno ? `${turno.fecha} · ${hhmm(turno.horaInicio)}–${hhmm(turno.horaFin)}` : "Sin turno activo"}</Text></View>
             </View>
