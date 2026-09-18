@@ -25,6 +25,7 @@ export interface GuardiaMapa {
   personal_id: string; etiqueta: string | null; unidad?: string | null;
   latitud: number; longitud: number; actualizado_en?: string | null;
   estatus_servicio?: string | null; motivo_pausa?: string | null;
+  estatus_operativo?: string | null;   // 'atendiendo_incidente' si tiene un despacho CAD activo
 }
 
 function hace(iso?: string | null): string {
@@ -148,9 +149,11 @@ export default function MapaReportes({
     guardiaMarks.current.forEach((m) => m.remove()); guardiaMarks.current = [];
     datos.current.guardias.forEach((g) => {
       if (g.latitud == null || g.longitud == null) return;
+      const atiende = g.estatus_operativo === "atendiendo_incidente";
       const sub = [g.unidad ? `📍 ${g.unidad}` : "", hace(g.actualizado_en)].filter(Boolean).join(" · ");
-      const mk = new maplibre.Marker({ element: punto("#1e88e5", 7), anchor: "center" }).setLngLat([Number(g.longitud), Number(g.latitud)])
-        .setPopup(new maplibre.Popup({ offset: 12, closeButton: false }).setHTML(`<div style="font-size:12px;color:#111">👷 <b>${g.etiqueta ?? "Guardia"}</b>${sub ? `<br>${sub}` : ""}</div>`))
+      const badge = atiende ? `<br>🚨 <b style="color:#e11d48">Atendiendo incidente</b>` : "";
+      const mk = new maplibre.Marker({ element: punto(atiende ? "#e11d48" : "#1e88e5", 7), anchor: "center" }).setLngLat([Number(g.longitud), Number(g.latitud)])
+        .setPopup(new maplibre.Popup({ offset: 12, closeButton: false }).setHTML(`<div style="font-size:12px;color:#111">👷 <b>${g.etiqueta ?? "Guardia"}</b>${badge}${sub ? `<br>${sub}` : ""}</div>`))
         .addTo(map);
       guardiaMarks.current.push(mk);
     });

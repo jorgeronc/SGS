@@ -9,7 +9,7 @@ export const COL = { sitio: "#f4a03f", punto: "#0e8f86", guardia: "#1e88e5", inc
 
 export interface MSitio { id: string; nombre: string; cliente?: string | null; latitud: number; longitud: number; href?: string }
 export interface MPunto { id: string; nombre: string; sitio?: string | null; codigo?: string | null; latitud: number; longitud: number }
-export interface MGuardia { personal_id: string; etiqueta: string | null; unidad?: string | null; latitud: number; longitud: number; actualizado_en?: string | null; estatus_servicio?: string | null; motivo_pausa?: string | null }
+export interface MGuardia { personal_id: string; etiqueta: string | null; unidad?: string | null; latitud: number; longitud: number; actualizado_en?: string | null; estatus_servicio?: string | null; motivo_pausa?: string | null; estatus_operativo?: string | null }
 export interface MIncidente { id: string; folio?: string | null; tipo?: string | null; prioridad?: string | null; direccion?: string | null; estado?: string | null; latitud: number; longitud: number; href?: string }
 export interface MCamara { id: string; nombre: string; sitio?: string | null; estado_operativo?: string | null; latitud: number; longitud: number }
 
@@ -35,6 +35,7 @@ const htmlPunto = `<div style="width:13px;height:13px;background:${COL.punto};bo
 const htmlIncidente = `<svg width="22" height="22" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg"><path d="M11 1 21 20 1 20 Z" fill="${COL.incidente}" stroke="#fff" stroke-width="1.5"/><rect x="10" y="8" width="2" height="6" fill="#fff"/><rect x="10" y="15.5" width="2" height="2" fill="#fff"/></svg>`;
 const htmlCamara = `<svg width="22" height="22" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg"><circle cx="11" cy="11" r="10" fill="${COL.camara}" stroke="#fff" stroke-width="1.6"/><rect x="5" y="8" width="8" height="6" rx="1" fill="#fff"/><path d="M13 9.5 17 7.5 17 14.5 13 12.5 Z" fill="#fff"/></svg>`;
 const htmlGuardia = `<div style="width:14px;height:14px;border-radius:50%;background:${COL.guardia};border:2px solid #fff;box-shadow:0 1px 4px #0006"></div>`;
+const htmlGuardiaAtiende = `<div style="width:16px;height:16px;border-radius:50%;background:#e11d48;border:2px solid #fff;box-shadow:0 0 0 3px #e11d4855,0 1px 4px #0006"></div>`;
 
 // Mapa de monitoreo (Calles/Liberty): se construye UNA vez y luego solo repinta
 // las capas cuando cambian los datos, SIN mover ni reencuadrar (conserva el foco).
@@ -68,7 +69,7 @@ export default function MapaMonitoreo({
     marks.current = { sitios: [], puntos: [], guardias: [], incidentes: [], camaras: [] };
     sitios.forEach((s) => { if (s.latitud != null) marks.current.sitios.push(marcador(htmlSitio, "bottom", Number(s.longitud), Number(s.latitud), `🏢 <b>${s.nombre}</b>${s.cliente ? `<br>${s.cliente}` : ""}${s.href ? `<br><a href="${s.href}">Abrir sitio →</a>` : ""}`)); });
     puntos.forEach((p) => { if (p.latitud != null) marks.current.puntos.push(marcador(htmlPunto, "center", Number(p.longitud), Number(p.latitud), `🚩 <b>${p.nombre}</b>${p.sitio ? `<br>${p.sitio}` : ""}${p.codigo ? `<br><code>${p.codigo}</code>` : ""}`)); });
-    guardias.forEach((g) => { if (g.latitud != null) { const sub = [g.unidad ? `📍 ${g.unidad}` : "", hace(g.actualizado_en)].filter(Boolean).join(" · "); marks.current.guardias.push(marcador(htmlGuardia, "center", Number(g.longitud), Number(g.latitud), `👷 <b>${g.etiqueta ?? "Guardia"}</b><br>${labelServicio(g.estatus_servicio, g.motivo_pausa)}${sub ? `<br>${sub}` : ""}`)); } });
+    guardias.forEach((g) => { if (g.latitud != null) { const atiende = g.estatus_operativo === "atendiendo_incidente"; const sub = [g.unidad ? `📍 ${g.unidad}` : "", hace(g.actualizado_en)].filter(Boolean).join(" · "); const badge = atiende ? `<br>🚨 <b style="color:#e11d48">Atendiendo incidente</b>` : ""; marks.current.guardias.push(marcador(atiende ? htmlGuardiaAtiende : htmlGuardia, "center", Number(g.longitud), Number(g.latitud), `👷 <b>${g.etiqueta ?? "Guardia"}</b>${badge}<br>${labelServicio(g.estatus_servicio, g.motivo_pausa)}${sub ? `<br>${sub}` : ""}`)); } });
     incidentes.forEach((it) => { if (it.latitud != null) { const est = it.estado ? `<br>Estado: <b>${DESP_LABEL[it.estado] ?? it.estado}</b>` : ""; marks.current.incidentes.push(marcador(htmlIncidente, "bottom", Number(it.longitud), Number(it.latitud), `🚨 <b>${it.tipo ?? "Incidencia"}</b> · prioridad ${it.prioridad ?? "—"}${est}${it.direccion ? `<br>${it.direccion}` : ""}${it.href ? `<br><a href="${it.href}">Abrir →</a>` : ""}`)); } });
     camaras.forEach((cam) => { if (cam.latitud != null) { const est = cam.estado_operativo && cam.estado_operativo !== "activa" ? ` (${cam.estado_operativo})` : ""; marks.current.camaras.push(marcador(htmlCamara, "center", Number(cam.longitud), Number(cam.latitud), `📹 <b>${cam.nombre}</b>${est}${cam.sitio ? `<br>${cam.sitio}` : ""}<br><a href="/videovigilancia/muro?cam=${cam.id}">Abrir en muro →</a>`)); } });
   }
