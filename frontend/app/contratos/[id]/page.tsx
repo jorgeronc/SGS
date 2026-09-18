@@ -5,10 +5,18 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { CatalogoSelect } from "@/app/components/CatalogoSelect";
-import { SLA_CATALOGO, getSlaConfig } from "@/lib/sla";
+import { SLA_CATALOGO, getSlaConfig, computeSla, puntajeMetrica, type SlaResultado } from "@/lib/sla";
 import { ESTADO_CONTRATO } from "@/lib/contratos";
 
-type Tab = "resumen" | "servicios" | "sitios" | "sla" | "historial";
+type Tab = "resumen" | "servicios" | "sitios" | "sla" | "cumplimiento" | "historial";
+const mesActual = () => new Date().toISOString().slice(0, 7);
+function rangoMes(mes: string): { ini: string; fin: string; label: string } {
+  const [y, mm] = mes.split("-").map(Number);
+  const ini = new Date(y, mm - 1, 1, 0, 0, 0);
+  const fin = new Date(y, mm, 0, 23, 59, 59);
+  return { ini: ini.toISOString(), fin: fin.toISOString(), label: ini.toLocaleDateString("es-MX", { month: "long", year: "numeric" }) };
+}
+const colorIdx = (v: number | null) => (v == null ? "#9aa4b2" : v >= 90 ? "#1f9d5c" : v >= 75 ? "#d98a2b" : "#d32f2f");
 const ESTADOS: string[] = ["borrador", "por_aprobar", "programado", "activo", "suspendido", "por_vencer", "vencido", "terminado", "cerrado"];
 const COBERTURAS = ["24x7", "franja", "eventual"];
 // Requerimientos cuantificables por servicio (catálogo en código).
@@ -143,6 +151,7 @@ export default function ContratoDetallePage() {
         <button style={tabBtn("servicios", "")} onClick={() => setTab("servicios")}>Servicios ({servicios.length})</button>
         <button style={tabBtn("sitios", "")} onClick={() => setTab("sitios")}>Sitios ({sitiosSet.size})</button>
         <button style={tabBtn("sla", "")} onClick={() => setTab("sla")}>SLA</button>
+        <button style={tabBtn("cumplimiento", "")} onClick={() => setTab("cumplimiento")}>Cumplimiento</button>
         <button style={tabBtn("historial", "")} onClick={() => setTab("historial")}>Historial</button>
       </div>
 
@@ -217,6 +226,10 @@ export default function ContratoDetallePage() {
 
       {tab === "sla" && (
         <SlaTab contratoId={params.id} override={slaOverride} cliente={slaCliente} onCambio={cargar} />
+      )}
+
+      {tab === "cumplimiento" && (
+        <CumplimientoTab contratoId={params.id} clienteId={c.cliente_id} servicios={servicios} />
       )}
 
       {tab === "historial" && (
@@ -452,6 +465,109 @@ function SlaTab({ contratoId, override, cliente, onCambio }: any) {
         </div>
       ))}
       {msg && <p style={{ color: "#b00020" }}>{msg}</p>}
+    </div>
+  );
+}
+
+// ------- Cumplimiento (Fase 2): índice SLA del contrato + Contratado vs Programado -------
+function CumplimientoTab({ contratoId, clienteId, servicios }: { contratoId: string; clienteId: string; servicios: any[] }) {
+  const [mes, setMes] = useState(mesActual());
+  const [res, setRes] = useState<SlaResultado | null>(null);
+  const [prog, setProg] = useState<Record<string, number>>({});
+  const [cargando, setCargando] = useState(false);
+  const card: React.CSSProperties = { border: "1px solid var(--sc-card-line)", borderRadius: 12, padding: "12px 16px", background: "var(--sc-content)" };
+
+  // Sitios y dotación contratada por sitio (de los servicios activos).
+  const sitios = useMemo(() => {
+    const m = new Map<string, { nombre: string; contratado: number }>();
+    servicios.forEach((s) => { if (s.sitio_id) { const cur = m.get(s.sitio_id) ?? { nombre: s.sitio?.nombre ?? "Sitio", contratado: 0 }; cur.contratado += s.guardias_requeridos ?? 0; m.set(s.sitio_id, cur); } });
+    return m;
+  }, [servicios]);
+  const sitiosIds = useMemo(() => Array.from(sitios.keys()), [sitios]);
+
+  const generar = useCallback(async () => {
+    setCargando(true);
+    const { ini, fin } = rangoMes(mes);
+    const r = await computeSla(clienteId, ini, fin, { contratoId, sitiosIds });
+    setRes(r);
+    // Programado por sitio: máx. guardias distintos en un mismo turno del sitio en el periodo.
+    const p: Record<string, number> = {};
+    if (sitiosIds.length) {
+      const { data: tur } = await supabase.from("turnos").select("id").eq("estatus", "activo").neq("estado", "borrador").gte("fecha", ini.slice(0, 10)).lte("fecha", fin.slice(0, 10));
+      const turnoIds = ((tur as any[]) ?? []).map((t) => t.id);
+      if (turnoIds.length) {
+        const { data: tg } = await supabase.from("turno_guardias").select("turno_id, sitio_id, personal_id").in("turno_id", turnoIds).in("sitio_id", sitiosIds).eq("estatus", "activo");
+        const porTurnoSitio = new Map<string, Set<string>>();
+        ((tg as any[]) ?? []).forEach((r2) => { const k = `${r2.turno_id}|${r2.sitio_id}`; (porTurnoSitio.get(k) ?? porTurnoSitio.set(k, new Set()).get(k)!).add(r2.personal_id); });
+        porTurnoSitio.forEach((set, k) => { const sid = k.split("|")[1]; p[sid] = Math.max(p[sid] ?? 0, set.size); });
+      }
+    }
+    setProg(p);
+    setCargando(false);
+  }, [mes, clienteId, contratoId, sitiosIds]);
+
+  useEffect(() => { generar(); }, [generar]);
+
+  const idx = res?.index ?? null;
+  const activas = (res?.metricas ?? []).filter((m) => m.activa);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <div style={{ ...card, display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+        <div>
+          <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--sc-text-soft)" }}>Índice de cumplimiento del contrato</div>
+          <b style={{ fontSize: 34, color: colorIdx(idx), fontVariantNumeric: "tabular-nums" }}>{idx == null ? "—" : `${idx}`}</b>
+          <span className="dash-sub" style={{ fontSize: 12 }}> / 100</span>
+        </div>
+        <span style={{ flex: 1 }} />
+        <label className="dash-sub" style={{ display: "flex", flexDirection: "column" }}>Mes
+          <input type="month" value={mes} onChange={(e) => setMes(e.target.value)} />
+        </label>
+      </div>
+
+      <div style={card}>
+        <h3 style={{ marginTop: 0 }}>Dotación: contratado vs. programado</h3>
+        {sitiosIds.length === 0 ? <p className="dash-sub">Agrega servicios con sitio y dotación para comparar.</p> : (
+          <table><thead><tr><th>Sitio</th><th>Contratado /turno</th><th>Programado /turno</th><th>Brecha</th></tr></thead>
+            <tbody>
+              {Array.from(sitios.entries()).map(([sid, s]) => {
+                const prg = prog[sid] ?? 0; const falta = (s.contratado ?? 0) - prg;
+                return (
+                  <tr key={sid}>
+                    <td>{s.nombre}</td>
+                    <td>{s.contratado}</td>
+                    <td>{prg}</td>
+                    <td style={{ color: falta > 0 ? "#b00020" : "#0a7c2f", fontWeight: 700 }}>{falta > 0 ? `⚠ falta ${falta}` : "✓"}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+        <p className="dash-sub" style={{ fontSize: 12 }}>La ejecución real (presencia) se refleja en la métrica de <b>Cobertura</b> del SLA de abajo.</p>
+      </div>
+
+      <div style={card}>
+        <h3 style={{ marginTop: 0 }}>Metas de servicio (SLA) del periodo</h3>
+        {cargando ? <p className="dash-sub">Calculando…</p> : activas.length === 0 ? <p className="dash-sub">Sin métricas activas para este contrato.</p> : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {activas.map((m) => {
+              const p = puntajeMetrica(m);
+              const val = m.valor == null ? "—" : `${m.valor}${m.unidad === "%" ? "%" : m.unidad === "min" ? " min" : m.unidad === "h" ? " h" : ""}`;
+              const meta = m.meta == null ? "" : `meta ${m.dir} ${m.meta}${m.unidad === "%" ? "%" : m.unidad === "min" ? " min" : ""}`;
+              return (
+                <div key={m.clave} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ flex: 1, minWidth: 180, fontSize: 13 }}>{m.nombre}{m.detalle ? <span className="dash-sub"> · {m.detalle}</span> : null}</span>
+                  <div style={{ flex: 2, background: "var(--sc-card-line)", borderRadius: 6, height: 10, overflow: "hidden", minWidth: 120 }}>
+                    <div style={{ width: `${p}%`, height: "100%", background: m.cumple === false ? "#d32f2f" : "#1f9d5c" }} />
+                  </div>
+                  <span style={{ width: 130, textAlign: "right", fontSize: 12.5, fontVariantNumeric: "tabular-nums" }}><b>{val}</b> <span className="dash-sub">{meta}</span></span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

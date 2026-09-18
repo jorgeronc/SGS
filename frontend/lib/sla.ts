@@ -79,14 +79,27 @@ export function puntajeMetrica(m: MetricaSla): number {
   return Math.round(score(m.valor, m.meta, m.dir));
 }
 
-export async function computeSla(clienteId: string | null, ini: string, fin: string): Promise<SlaResultado> {
-  const cfg = await getSlaConfig(clienteId);
+export async function computeSla(
+  clienteId: string | null,
+  ini: string,
+  fin: string,
+  opts?: { contratoId?: string | null; sitiosIds?: string[] },
+): Promise<SlaResultado> {
+  // SLA con override del contrato cuando se da contratoId (contrato > cliente > global).
+  const cfg = await getSlaConfig(clienteId, opts?.contratoId ?? null);
   const act = (k: string) => cfg[k]?.activa;
 
-  let sq = supabase.from("sitios").select("id").eq("estatus", "activo");
-  if (clienteId) sq = sq.eq("cliente_id", clienteId);
-  const { data: sit } = await sq;
-  const sitiosIds = ((sit as any[]) ?? []).map((s) => s.id);
+  // Si se pasan sitiosIds explícitos (p. ej. los del contrato), se acotan a esos;
+  // si no, se derivan del cliente como antes.
+  let sitiosIds: string[];
+  if (opts?.sitiosIds) {
+    sitiosIds = opts.sitiosIds;
+  } else {
+    let sq = supabase.from("sitios").select("id").eq("estatus", "activo");
+    if (clienteId) sq = sq.eq("cliente_id", clienteId);
+    const { data: sit } = await sq;
+    sitiosIds = ((sit as any[]) ?? []).map((s) => s.id);
+  }
 
   const val: Record<string, number | null> = {};
   const det: Record<string, string> = {};
