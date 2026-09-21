@@ -26,6 +26,8 @@ export interface GuardiaMapa {
   latitud: number; longitud: number; actualizado_en?: string | null;
   estatus_servicio?: string | null; motivo_pausa?: string | null;
   estatus_operativo?: string | null;   // 'atendiendo_incidente' si tiene un despacho CAD activo
+  rol?: string | null;                 // rol de la cuenta ligada (supervisor/coordinador…)
+  unidad_asignada?: string | null;     // unidad asignada (patrullas) si es supervisor
 }
 
 function hace(iso?: string | null): string {
@@ -150,10 +152,16 @@ export default function MapaReportes({
     datos.current.guardias.forEach((g) => {
       if (g.latitud == null || g.longitud == null) return;
       const atiende = g.estatus_operativo === "atendiendo_incidente";
+      const esSup = g.rol === "supervisor" || g.rol === "coordinador";
       const sub = [g.unidad ? `📍 ${g.unidad}` : "", hace(g.actualizado_en)].filter(Boolean).join(" · ");
       const badge = atiende ? `<br>🚨 <b style="color:#e11d48">Atendiendo incidente</b>` : "";
-      const mk = new maplibre.Marker({ element: punto(atiende ? "#e11d48" : "#1e88e5", 7), anchor: "center" }).setLngLat([Number(g.longitud), Number(g.latitud)])
-        .setPopup(new maplibre.Popup({ offset: 12, closeButton: false }).setHTML(`<div style="font-size:12px;color:#111">👷 <b>${g.etiqueta ?? "Guardia"}</b>${badge}${sub ? `<br>${sub}` : ""}</div>`))
+      const unidadLn = esSup && g.unidad_asignada ? `<br>🚘 ${g.unidad_asignada}` : "";
+      // Prioridad de color: atendiendo (rojo) > supervisor (dorado) > guardia (azul).
+      const color = atiende ? "#e11d48" : esSup ? "#c8860a" : "#1e88e5";
+      const icono = esSup ? "🎖" : "👷";
+      const rango = esSup ? 8 : 7;
+      const mk = new maplibre.Marker({ element: punto(color, rango), anchor: "center" }).setLngLat([Number(g.longitud), Number(g.latitud)])
+        .setPopup(new maplibre.Popup({ offset: 12, closeButton: false }).setHTML(`<div style="font-size:12px;color:#111">${icono} <b>${g.etiqueta ?? (esSup ? "Supervisor" : "Guardia")}</b>${esSup ? " · Supervisor" : ""}${badge}${unidadLn}${sub ? `<br>${sub}` : ""}</div>`))
         .addTo(map);
       guardiaMarks.current.push(mk);
     });

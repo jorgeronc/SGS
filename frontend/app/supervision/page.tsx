@@ -227,10 +227,135 @@ function SupervisionEnVivo() {
   );
 }
 
-// Pantalla unificada del supervisor: pestañas "En vivo" (supervisión por fecha) y
-// "Sesiones" (sesiones de rondín con traza, playback, cumplimiento y anomalías).
+// Distancia en metros (haversine) para detectar "visitado" (GPS dentro de la geocerca del sitio).
+function distanciaM(aLat: number, aLng: number, bLat: number, bLng: number): number {
+  const R = 6371000, toR = Math.PI / 180;
+  const dLat = (bLat - aLat) * toR, dLng = (bLng - aLng) * toR;
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos(aLat * toR) * Math.cos(bLat * toR) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(s));
+}
+
+// Supervisión POR SUPERVISOR: su recorrido GPS del día (traza) sobre los sitios que
+// tiene bajo supervisión, marcando cuáles visitó (GPS dentro de la geocerca) y su
+// unidad asignada. Para que el coordinador supervise el recorrido "de sitio a sitio".
+function SupervisionPorSupervisor() {
+  const [fecha, setFecha] = useState(hoyLocal());
+  const [sups, setSups] = useState<{ id: string; nombre: string }[]>([]);
+  const [supId, setSupId] = useState("");
+  const [sitiosSup, setSitiosSup] = useState<any[]>([]);
+  const [ruta, setRuta] = useState<[number, number][]>([]);
+  const [unidad, setUnidad] = useState<any>(null);
+  const [cargando, setCargando] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const [{ data: per }, { data: perf }] = await Promise.all([
+        supabase.from("personal").select("id, usuario_id, persona:personas(nombre, apellido_paterno, apellido_materno)").eq("estatus", "activo").eq("estado_laboral", "activo"),
+        supabase.from("usuarios_perfil").select("id, rol"),
+      ]);
+      const rol = new Map(((perf as any[]) ?? []).map((x) => [x.id, x.rol]));
+      setSups(((per as any[]) ?? []).filter((x) => x.usuario_id && ["supervisor", "coordinador"].includes(rol.get(x.usuario_id))).map((x) => ({ id: x.id, nombre: nombreGuardia(x) })));
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (!supId) { setSitiosSup([]); setRuta([]); setUnidad(null); return; }
+    (async () => {
+      setCargando(true);
+      const { desde, hasta } = rangoDiaLocal(fecha);
+      const [{ data: ts }, { data: rec }, { data: u }] = await Promise.all([
+        supabase.from("turno_supervisores").select("sitio_id, turno:turnos(fecha, estatus), sitio:sitios(id, nombre, latitud, longitud, radio_geofence_m)").eq("supervisor_personal_id", supId).eq("estatus", "activo"),
+        supabase.from("recorrido_gps").select("latitud, longitud, fecha_hora").eq("personal_id", supId).gte("fecha_hora", desde).lte("fecha_hora", hasta).order("fecha_hora", { ascending: true }),
+        supabase.from("patrullas").select("numero, marca, modelo, placas").eq("asignado_personal_id", supId).eq("estatus", "activo").limit(1),
+      ]);
+      const pts = ((rec as any[]) ?? []).filter((p) => p.latitud != null && p.longitud != null);
+      setRuta(pts.map((p) => [Number(p.latitud), Number(p.longitud)] as [number, number]));
+      const sitios = Array.from(new Map(((ts as any[]) ?? [])
+        .filter((r) => r.turno?.fecha === fecha && r.turno?.estatus === "activo" && r.sitio)
+        .map((r) => [r.sitio.id, r.sitio])).values());
+      const out = sitios.map((s: any) => {
+        const radio = (s.radio_geofence_m ?? 150) + 30;
+        let visitado = false, ultima: string | null = null;
+        if (s.latitud != null && s.longitud != null) {
+          for (const p of pts) {
+            if (distanciaM(Number(p.latitud), Number(p.longitud), Number(s.latitud), Number(s.longitud)) <= radio) {
+              visitado = true; if (!ultima || p.fecha_hora > ultima) ultima = p.fecha_hora;
+            }
+          }
+        }
+        return { ...s, visitado, ultima };
+      });
+      setSitiosSup(out);
+      setUnidad(((u as any[]) ?? [])[0] ?? null);
+      setCargando(false);
+    })();
+  }, [fecha, supId]);
+
+  const reportes = useMemo<ReporteMapa[]>(() => sitiosSup.filter((s) => s.latitud != null && s.longitud != null).map((s) => ({
+    id: s.id, folio: s.visitado ? "✓" : "—",
+    titulo: `📍 <b>${s.nombre}</b><br>${s.visitado ? `✓ Visitado${s.ultima ? ` · ${new Date(s.ultima).toLocaleTimeString()}` : ""}` : "Sin visita registrada"}`,
+    latitud: Number(s.latitud), longitud: Number(s.longitud), href: `/sitios/${s.id}`,
+    color: s.visitado ? "#1f9d5c" : "#9aa4b2",
+  })), [sitiosSup]);
+
+  const visitados = sitiosSup.filter((s) => s.visitado).length;
+  const unidadTxt = unidad ? [unidad.numero ? `#${unidad.numero}` : null, [unidad.marca, unidad.modelo].filter(Boolean).join(" "), unidad.placas].filter(Boolean).join(" · ") : null;
+
+  return (
+    <main className="contenedor">
+      <h2 style={{ marginBottom: 4 }}>Recorrido del supervisor</h2>
+      <div className="form-fila" style={{ alignItems: "flex-end", flexWrap: "wrap", gap: 10, marginTop: 8 }}>
+        <label className="dash-sub" style={{ display: "flex", flexDirection: "column" }}>Fecha
+          <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />
+        </label>
+        <label className="dash-sub" style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 220 }}>Supervisor
+          <select value={supId} onChange={(e) => setSupId(e.target.value)}>
+            <option value="">— Elige supervisor —</option>
+            {sups.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+          </select>
+        </label>
+      </div>
+
+      {!supId ? (
+        <p className="dash-sub" style={{ marginTop: 16 }}>Elige un supervisor para ver su recorrido GPS del día y los sitios que visitó.</p>
+      ) : cargando ? (
+        <p style={{ marginTop: 16 }}>Cargando…</p>
+      ) : (
+        <>
+          <div style={{ display: "flex", gap: 16, margin: "10px 0", flexWrap: "wrap", fontSize: 13, color: "#555" }}>
+            <span>🎖 Unidad: <b>{unidadTxt ?? "sin unidad asignada"}</b></span>
+            <span><b>{visitados}</b>/{sitiosSup.length} sitios visitados</span>
+            <span><b>{ruta.length}</b> puntos GPS (trayecto)</span>
+          </div>
+          <div className="mapcard" style={{ marginTop: 4 }}>
+            <MapaReportes reportes={reportes} ruta={ruta} className="mapbox-dash" />
+          </div>
+          <h3 style={{ marginTop: 18 }}>Sitios bajo supervisión</h3>
+          {sitiosSup.length === 0 ? (
+            <p className="dash-sub">Este supervisor no tiene sitios asignados en su turno de esa fecha.</p>
+          ) : (
+            <div>
+              {sitiosSup.map((s) => (
+                <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", border: "1px solid var(--sc-card-line, #e2e6ec)", borderRadius: 8, marginBottom: 6 }}>
+                  <span style={{ fontSize: 16 }}>{s.visitado ? "✅" : "⬜"}</span>
+                  <b style={{ flex: 1 }}>{s.nombre}</b>
+                  <span className="dash-sub" style={{ fontSize: 12.5 }}>{s.visitado ? `Visitado${s.ultima ? ` · ${new Date(s.ultima).toLocaleTimeString()}` : ""}` : "Sin visita registrada"}</span>
+                  <Link href={`/sitios/${s.id}`} style={{ fontSize: 12.5 }}>ver sitio →</Link>
+                </div>
+              ))}
+            </div>
+          )}
+          <p className="dash-sub" style={{ fontSize: 12, marginTop: 8 }}>Visitado = el GPS del supervisor estuvo dentro de la geocerca del sitio ese día. El trayecto es su recorrido real (recorrido_gps).</p>
+        </>
+      )}
+    </main>
+  );
+}
+
+// Pantalla unificada del supervisor: pestañas "En vivo" (supervisión por fecha),
+// "Sesiones" (sesiones de rondín) y "Supervisores" (recorrido por supervisor).
 export default function SupervisionPage() {
-  const [tab, setTab] = useState<"envivo" | "sesiones">("envivo");
+  const [tab, setTab] = useState<"envivo" | "sesiones" | "supervisores">("envivo");
   return (
     <>
       <div style={{ padding: "14px 22px 0" }}>
@@ -238,9 +363,10 @@ export default function SupervisionPage() {
         <div className="sc-tabs">
           <button className={`sc-tab${tab === "envivo" ? " on" : ""}`} onClick={() => setTab("envivo")}>🛰 En vivo</button>
           <button className={`sc-tab${tab === "sesiones" ? " on" : ""}`} onClick={() => setTab("sesiones")}>🧭 Sesiones</button>
+          <button className={`sc-tab${tab === "supervisores" ? " on" : ""}`} onClick={() => setTab("supervisores")}>🎖 Supervisores</button>
         </div>
       </div>
-      {tab === "envivo" ? <SupervisionEnVivo /> : <SesionesRondinPage />}
+      {tab === "envivo" ? <SupervisionEnVivo /> : tab === "sesiones" ? <SesionesRondinPage /> : <SupervisionPorSupervisor />}
     </>
   );
 }

@@ -22,9 +22,23 @@ export function useGuardiasEnLinea(): GuardiaMapa[] {
       // vive en personal.estatus_operativo; se une por personal_id.
       const ids = rows.map((r) => r.personal_id);
       if (ids.length) {
-        const { data: per } = await supabase.from("personal").select("id, estatus_operativo").in("id", ids);
-        const m = new Map(((per as any[]) ?? []).map((p) => [p.id, p.estatus_operativo]));
-        rows.forEach((r) => { (r as GuardiaMapa).estatus_operativo = m.get(r.personal_id) ?? null; });
+        const [{ data: per }, { data: perf }, { data: uni }] = await Promise.all([
+          supabase.from("personal").select("id, usuario_id, estatus_operativo").in("id", ids),
+          supabase.from("usuarios_perfil").select("id, rol"),
+          supabase.from("patrullas").select("numero, marca, modelo, placas, asignado_personal_id").in("asignado_personal_id", ids).eq("estatus", "activo"),
+        ]);
+        const rolPorUsuario = new Map(((perf as any[]) ?? []).map((p) => [p.id, p.rol]));
+        const perById = new Map(((per as any[]) ?? []).map((p) => [p.id, p]));
+        const uniByPersonal = new Map(((uni as any[]) ?? []).map((u) => {
+          const et = [u.numero ? `#${u.numero}` : null, [u.marca, u.modelo].filter(Boolean).join(" "), u.placas].filter(Boolean).join(" · ");
+          return [u.asignado_personal_id, et || "Unidad"];
+        }));
+        rows.forEach((r) => {
+          const p = perById.get(r.personal_id);
+          (r as GuardiaMapa).estatus_operativo = p?.estatus_operativo ?? null;
+          (r as GuardiaMapa).rol = p?.usuario_id ? (rolPorUsuario.get(p.usuario_id) ?? null) : null;
+          (r as GuardiaMapa).unidad_asignada = uniByPersonal.get(r.personal_id) ?? null;
+        });
       }
       if (!cancelado) setGuardias(rows);
     }
