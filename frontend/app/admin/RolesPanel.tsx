@@ -9,8 +9,8 @@ import { GRUPOS } from "@/app/components/AppShell";
 // "sin restricción" (ve todo). Enforcement de datos (RLS) es fase posterior.
 interface RolCat { clave: string; nombre: string; modulos: string[] | null; es_sistema: boolean }
 
-// Módulos = ítems del menú (menos Inicio, que siempre está permitido).
-const MODULOS = GRUPOS.map((g) => ({ grupo: g.grupo, items: g.items.filter((it) => it.href !== "/") }));
+// Módulos = todos los ítems del menú (incluye Panel Operativo '/', que es otorgable).
+const MODULOS = GRUPOS.map((g) => ({ grupo: g.grupo, items: g.items }));
 
 export default function RolesPanel() {
   const [roles, setRoles] = useState<RolCat[]>([]);

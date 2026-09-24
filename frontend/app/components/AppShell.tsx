@@ -123,7 +123,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [ahora, setAhora] = useState<Date | null>(null);
   const [oculto, setOculto] = useState<string[]>([]); // módulos que el usuario ocultó (por cuenta)
   const [rol, setRol] = useState<string>("");
-  const [modulos, setModulos] = useState<string[] | null>(null); // módulos permitidos por rol; null = sin restricción
+  // permisos: null = aún cargando (no asumir nada); {all} = admin/sin restricción;
+  // {mods} = solo esos módulos. Mientras carga NO se muestra el menú (evita el
+  // parpadeo en el que se veía todo antes de resolver el rol).
+  const [permisos, setPermisos] = useState<{ all: boolean; mods: string[] } | null>(null);
   const pathname = usePathname();
   const router = useRouter();
 
@@ -141,17 +144,20 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   // Preferencia de módulos ocultos (por cuenta). Se relee al navegar para reflejar
   // cambios guardados en Configuración sin recargar toda la app.
   useEffect(() => {
-    if (!session) { setOculto([]); setRol(""); setModulos(null); return; }
+    if (!session) { setOculto([]); setRol(""); setPermisos(null); return; }
     (async () => {
       const { data: perf } = await supabase.from("usuarios_perfil").select("menu_oculto, rol").eq("id", session.user.id).maybeSingle();
       setOculto(Array.isArray((perf as any)?.menu_oculto) ? (perf as any).menu_oculto : []);
       const r = (perf as any)?.rol ?? "";
       setRol(r);
-      // Módulos permitidos por rol (matriz editable, 0131). Sin catálogo o admin →
-      // sin restricción (fallback seguro para no bloquear a nadie por error).
-      if (!r || r === "administrador") { setModulos(null); return; }
+      // administrador → sin restricción. Otros roles → matriz del catálogo (0131).
+      if (!r || r === "administrador") { setPermisos({ all: true, mods: [] }); return; }
       const { data: rr, error } = await supabase.from("roles").select("modulos").eq("clave", r).maybeSingle();
-      setModulos(!error && Array.isArray((rr as any)?.modulos) ? (rr as any).modulos : null);
+      // modulos null en BD (roles de sistema/legados) = sin restricción; array = restringido.
+      // Si el catálogo aún no existe (error), fallback seguro = sin restricción.
+      if (error) { setPermisos({ all: true, mods: [] }); return; }
+      const mods = (rr as any)?.modulos;
+      setPermisos(Array.isArray(mods) ? { all: false, mods } : { all: true, mods: [] });
     })();
   }, [session, pathname]);
 
@@ -180,14 +186,18 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   // permitidos del rol, redirige a Inicio. Admin y roles sin restricción (modulos
   // null) pasan siempre. Inicio/Perfil/Buscar siempre permitidos.
   useEffect(() => {
-    if (cargando || !session || rol === "administrador" || modulos === null) return;
-    const SIEMPRE = ["/", "/perfil", "/buscar"];
+    if (cargando || !session || !permisos || permisos.all) return;
+    const SIEMPRE = ["/perfil", "/buscar"]; // Panel Operativo ('/') ahora es otorgable
     const modActual = GRUPOS.flatMap((g) => g.items.map((it) => it.href))
       .filter((h) => pathname === h || pathname.startsWith(h + "/"))
       .sort((a, b) => b.length - a.length)[0];
-    const permitido = !modActual || SIEMPRE.includes(modActual) || modulos.includes(modActual);
-    if (!permitido) router.replace("/");
-  }, [cargando, session, rol, modulos, pathname, router]);
+    const permitido = !modActual || SIEMPRE.includes(modActual) || permisos.mods.includes(modActual);
+    if (!permitido) {
+      // Aterriza en el primer módulo permitido; si no tiene ninguno, en Perfil.
+      const destino = permisos.mods[0] ?? "/perfil";
+      router.replace(pathname === destino ? "/perfil" : destino);
+    }
+  }, [cargando, session, permisos, pathname, router]);
 
   // Contador global de mensajes de chat no leídos, para avisar aunque el módulo
   // de chat no esté en primer plano. Se muestra solo fuera de /chat (dentro, el
@@ -250,9 +260,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     .filter((h) => pathname === h || pathname.startsWith(h + "/"))
     .sort((a, b) => b.length - a.length)[0] ?? null;
 
-  // Módulos permitidos por rol (0131): admin o rol sin restricción → todos.
-  const SIEMPRE_ROL = ["/", "/perfil", "/buscar"];
-  const permiteRol = (href: string) => rol === "administrador" || modulos === null || SIEMPRE_ROL.includes(href) || modulos.includes(href);
+  // Módulos permitidos por rol (0131). Mientras carga (permisos null) NO se muestra
+  // nada (evita el parpadeo de "ver todo"). Panel Operativo ('/') es otorgable.
+  const SIEMPRE_ROL = ["/perfil", "/buscar"];
+  const permiteRol = (href: string) => !!permisos && (permisos.all || SIEMPRE_ROL.includes(href) || permisos.mods.includes(href));
 
   // Menú = módulos permitidos por rol ∩ no ocultados por el usuario (los
   // SIEMPRE_VISIBLE ignoran el ocultar propio, pero igual respetan el rol).
