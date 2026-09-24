@@ -20,6 +20,7 @@ const TITULOS_TOP: Record<string, { titulo: string; subtitulo?: string }> = {
   "/vista-operativa": { titulo: "Vista Operativa — Seguridad Logística" },
   "/credenciales": { titulo: "Credenciales", subtitulo: "Emisión y control de credenciales de acceso (empleado, guardia, visitante, servicio)." },
   "/citas-visitantes": { titulo: "Citas de visitantes", subtitulo: "Preregistro y control de visitas por sitio; el visitante se autoregistra por enlace." },
+  "/personas": { titulo: "Registro maestro", subtitulo: "Ficha única de cada persona (empleado, guardia, visitante, proveedor); base de credenciales, accesos y vínculos." },
 };
 
 // Módulos que NO se pueden ocultar (para no dejar al usuario sin forma de volver a

@@ -58,6 +58,7 @@ function NuevaPersona({ onCreado }: { onCreado: () => void }) {
 export default function PersonasPage() {
   return (
     <ListaMaestra
+      sinEncabezado
       titulo="Personas"
       subtitulo="Índice maestro único de personas"
       tabla="personas"
