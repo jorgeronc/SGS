@@ -439,6 +439,7 @@ export default function CredencialesPage() {
       <ListaMaestra
         key={k}
         nuevoAbierto={prefillNueva}
+        sinEncabezado
         titulo="Credenciales"
         subtitulo="Credenciales por tipo (Empleado, Guardia, Visitante, Servicio) con QR/NFC; se validan en la caseta y se imprimen con su plantilla."
         tabla="credenciales"

@@ -15,9 +15,11 @@ const LIMPIAS: string[] = ["/monitoreo", "/cad/mapa"];
 const SIN_2FA = ["/login"];
 // Rutas con topbar de "consola": muestran título + fecha/hora (sin el buscador
 // global ni los accesos rápidos, porque la consola tiene los suyos).
-const TITULOS_TOP: Record<string, string> = {
-  "/cad": "Central de Despacho — Incidentes",
-  "/vista-operativa": "Vista Operativa — Seguridad Logística",
+const TITULOS_TOP: Record<string, { titulo: string; subtitulo?: string }> = {
+  "/cad": { titulo: "Central de Despacho — Incidentes" },
+  "/vista-operativa": { titulo: "Vista Operativa — Seguridad Logística" },
+  "/credenciales": { titulo: "Credenciales", subtitulo: "Emisión y control de credenciales de acceso (empleado, guardia, visitante, servicio)." },
+  "/citas-visitantes": { titulo: "Citas de visitantes", subtitulo: "Preregistro y control de visitas por sitio; el visitante se autoregistra por enlace." },
 };
 
 // Módulos que NO se pueden ocultar (para no dejar al usuario sin forma de volver a
@@ -253,7 +255,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   const correo = session.user?.email ?? "";
   const iniciales = correo.slice(0, 2).toUpperCase();
-  const tituloTop = TITULOS_TOP[pathname] ?? (pathname.startsWith("/cad/") ? "Central de Despacho — Detalle de incidente" : undefined);
+  const topInfo = TITULOS_TOP[pathname] ?? (pathname.startsWith("/cad/") ? { titulo: "Central de Despacho — Detalle de incidente" } : undefined);
   // Ítem activo = el href que es el PREFIJO MÁS LARGO de la ruta (así /rondines/sesiones
   // no marca también /rondines).
   const activoHref = GRUPOS.flatMap((g) => g.items.filter((it) => !it.nueva).map((it) => it.href))
@@ -308,9 +310,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <button className="shell-hamb" onClick={() => setColapsado((c) => !c)} title="Contraer menú">
             ☰
           </button>
-          {tituloTop ? (
+          {topInfo ? (
             <>
-              <div style={{ fontWeight: 800, fontSize: 16 }}>{tituloTop}</div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontWeight: 800, fontSize: 16, lineHeight: 1.2 }}>{topInfo.titulo}</div>
+                {topInfo.subtitulo && <div style={{ fontSize: 12, opacity: 0.7, lineHeight: 1.2 }}>{topInfo.subtitulo}</div>}
+              </div>
               <div style={{ marginLeft: "auto", textAlign: "right", fontVariantNumeric: "tabular-nums", lineHeight: 1.15 }}>
                 <div style={{ fontWeight: 700, fontSize: 15 }}>{ahora ? ahora.toLocaleTimeString() : "—"}</div>
                 <div style={{ fontSize: 11.5, opacity: 0.7 }}>{ahora ? ahora.toLocaleDateString("es-MX", { weekday: "long", day: "2-digit", month: "long", year: "numeric" }) : ""}</div>

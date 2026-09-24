@@ -127,6 +127,7 @@ const ESTADO_LBL: Record<string, string> = { pendiente: "Pendiente", registrada:
 export default function CitasVisitantesPage() {
   return (
     <ListaMaestra
+      sinEncabezado
       titulo="Citas de visitantes"
       subtitulo="Agenda de visitas por sitio: entrevistas, proveedores y citas. El visitante registra sus datos por un link de un solo uso."
       tabla="citas_visitantes"

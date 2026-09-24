@@ -95,9 +95,11 @@ export default function ListaMaestra({
   miniatura,
   agruparPor,
   sinToggleCancelados = false,
+  sinEncabezado = false,
 }: {
   titulo: string;
   subtitulo?: string;
+  sinEncabezado?: boolean;
   tabla: string;
   select: string;
   orderBy?: string;
@@ -311,8 +313,8 @@ export default function ListaMaestra({
 
   return (
     <div className="contenedor">
-      <h1 className="dash-h1">{titulo}</h1>
-      <p className="dash-sub">{subtitulo ?? `${filas.length} registros`}</p>
+      {!sinEncabezado && <h1 className="dash-h1">{titulo}</h1>}
+      {!sinEncabezado && <p className="dash-sub">{subtitulo ?? `${filas.length} registros`}</p>}
 
       <div className="sc-toolbar">
         <div className="sc-search">
