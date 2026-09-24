@@ -87,15 +87,19 @@ export default function RolesPanel() {
       {msg && <p style={{ color: "#0a7c2f" }}>{msg}</p>}
 
       <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginTop: 12 }}>
-        <div style={{ minWidth: 220 }}>
+        <div style={{ width: 260, flexShrink: 0 }}>
           <div className="dash-eyebrow">Roles</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            {roles.map((r) => (
-              <button key={r.clave} onClick={() => elegir(r.clave)}
-                style={{ textAlign: "left", padding: "8px 10px", borderRadius: 8, border: "1px solid var(--sc-card-line, #e2e6ec)", background: sel === r.clave ? "var(--sc-btn-soft,#f6ede1)" : "transparent", cursor: "pointer", fontWeight: sel === r.clave ? 700 : 400 }}>
-                {r.nombre} <span style={{ color: "#888", fontSize: 12 }}>· {r.modulos == null ? "todo" : `${r.modulos.length} mód.`}</span>
-              </button>
-            ))}
+            {roles.map((r) => {
+              const on = sel === r.clave;
+              return (
+                <button key={r.clave} onClick={() => elegir(r.clave)} title={r.nombre}
+                  style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", textAlign: "left", padding: "8px 10px", borderRadius: 8, border: "1px solid var(--sc-card-line)", borderLeft: on ? "3px solid var(--sc-btn, #f4a03f)" : "1px solid var(--sc-card-line)", background: on ? "var(--sc-btn-soft, #f6ede1)" : "var(--sc-content)", color: "var(--sc-text)", cursor: "pointer" }}>
+                  <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: on ? 700 : 600 }}>{r.nombre}</span>
+                  <span style={{ flexShrink: 0, fontSize: 11.5, fontWeight: 700, color: r.modulos == null ? "#0a7c2f" : "var(--sc-text-soft)", background: r.modulos == null ? "#e6f6ec" : "var(--sc-card-line)", borderRadius: 999, padding: "1px 9px", fontVariantNumeric: "tabular-nums" }}>{r.modulos == null ? "todo" : `${r.modulos.length} mód.`}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
