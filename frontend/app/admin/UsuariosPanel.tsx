@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import type { UsuarioAdmin, Rol } from "@/lib/types";
+import type { UsuarioAdmin } from "@/lib/types";
 
-// Roles SGS relevantes primero; los heredados de SCP (dormidos) al final.
-const ROLES: Rol[] = ["guardia", "operador", "coordinador", "supervisor", "administrador", "oficial", "investigador", "asuntos_internos"];
+// Fallback si el catálogo de roles (0131) aún no existe.
+const ROLES_FALLBACK: string[] = ["guardia", "operador", "coordinador", "supervisor", "administrador", "oficial", "investigador", "asuntos_internos"];
 
 // Panel de Usuarios y roles (alta, rol y estado). Solo administrador.
 export default function UsuariosPanel() {
@@ -17,8 +17,10 @@ export default function UsuariosPanel() {
   const [nEmail, setNEmail] = useState("");
   const [nNombre, setNNombre] = useState("");
   const [nPass, setNPass] = useState("");
-  const [nRol, setNRol] = useState<Rol>("oficial");
+  const [nRol, setNRol] = useState<string>("guardia");
   const [creando, setCreando] = useState(false);
+  const [roles, setRoles] = useState<{ clave: string; nombre: string }[]>([]);
+  const opcionesRol = roles.length ? roles : ROLES_FALLBACK.map((r) => ({ clave: r, nombre: r }));
   // Vínculo usuario ↔ guardia (para que la app móvil auto-resuelva "Mi elemento").
   const [guardias, setGuardias] = useState<any[]>([]);
   const [ligas, setLigas] = useState<Record<string, string>>({});
@@ -62,7 +64,12 @@ export default function UsuariosPanel() {
     setCargando(false);
   }
 
-  useEffect(() => { cargar(); cargarGuardias(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+  useEffect(() => {
+    cargar(); cargarGuardias();
+    supabase.from("roles").select("clave, nombre").eq("activo", true).order("nombre")
+      .then(({ data }) => setRoles((data as any[]) ?? []));
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, []);
 
   function editar(id: string, campo: "nombre" | "rol" | "activo", valor: string | boolean) {
     setUsuarios((prev) => prev.map((u) => (u.id === id ? { ...u, [campo]: valor } : u)));
@@ -88,7 +95,7 @@ export default function UsuariosPanel() {
       return;
     }
     setMensaje(`Usuario ${nEmail.trim()} creado con rol ${nRol}.${(data as any)?.aviso ? ` (${(data as any).aviso})` : ""}`);
-    setNEmail(""); setNNombre(""); setNPass(""); setNRol("oficial");
+    setNEmail(""); setNNombre(""); setNPass(""); setNRol("guardia");
     cargar();
   }
 
@@ -113,8 +120,8 @@ export default function UsuariosPanel() {
           <label>Nombre<input value={nNombre} onChange={(e) => setNNombre(e.target.value)} placeholder="Nombre y apellidos" /></label>
           <label>Contraseña inicial<input type="password" value={nPass} onChange={(e) => setNPass(e.target.value)} placeholder="mínimo 6 caracteres" autoComplete="new-password" /></label>
           <label>Rol
-            <select value={nRol} onChange={(e) => setNRol(e.target.value as Rol)}>
-              {ROLES.map((r) => (<option key={r} value={r}>{r}</option>))}
+            <select value={nRol} onChange={(e) => setNRol(e.target.value)}>
+              {opcionesRol.map((r) => (<option key={r.clave} value={r.clave}>{r.nombre}</option>))}
             </select>
           </label>
         </div>
@@ -145,7 +152,8 @@ export default function UsuariosPanel() {
                 <td><input value={u.nombre ?? ""} onChange={(e) => editar(u.id, "nombre", e.target.value)} /></td>
                 <td>
                   <select value={u.rol} onChange={(e) => editar(u.id, "rol", e.target.value)}>
-                    {ROLES.map((r) => (<option key={r} value={r}>{r}</option>))}
+                    {opcionesRol.map((r) => (<option key={r.clave} value={r.clave}>{r.nombre}</option>))}
+                    {!opcionesRol.some((r) => r.clave === u.rol) && <option value={u.rol}>{u.rol}</option>}
                   </select>
                 </td>
                 <td>

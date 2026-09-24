@@ -122,6 +122,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [chatNuevos, setChatNuevos] = useState(0);
   const [ahora, setAhora] = useState<Date | null>(null);
   const [oculto, setOculto] = useState<string[]>([]); // módulos que el usuario ocultó (por cuenta)
+  const [rol, setRol] = useState<string>("");
+  const [modulos, setModulos] = useState<string[] | null>(null); // módulos permitidos por rol; null = sin restricción
   const pathname = usePathname();
   const router = useRouter();
 
@@ -139,9 +141,18 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   // Preferencia de módulos ocultos (por cuenta). Se relee al navegar para reflejar
   // cambios guardados en Configuración sin recargar toda la app.
   useEffect(() => {
-    if (!session) { setOculto([]); return; }
-    supabase.from("usuarios_perfil").select("menu_oculto").eq("id", session.user.id).maybeSingle()
-      .then(({ data }) => setOculto(Array.isArray((data as any)?.menu_oculto) ? (data as any).menu_oculto : []));
+    if (!session) { setOculto([]); setRol(""); setModulos(null); return; }
+    (async () => {
+      const { data: perf } = await supabase.from("usuarios_perfil").select("menu_oculto, rol").eq("id", session.user.id).maybeSingle();
+      setOculto(Array.isArray((perf as any)?.menu_oculto) ? (perf as any).menu_oculto : []);
+      const r = (perf as any)?.rol ?? "";
+      setRol(r);
+      // Módulos permitidos por rol (matriz editable, 0131). Sin catálogo o admin →
+      // sin restricción (fallback seguro para no bloquear a nadie por error).
+      if (!r || r === "administrador") { setModulos(null); return; }
+      const { data: rr, error } = await supabase.from("roles").select("modulos").eq("clave", r).maybeSingle();
+      setModulos(!error && Array.isArray((rr as any)?.modulos) ? (rr as any).modulos : null);
+    })();
   }, [session, pathname]);
 
   useEffect(() => {
@@ -164,6 +175,19 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     });
     return () => { cancelado = true; };
   }, [cargando, session, pathname, router]);
+
+  // Guard de acceso por ROL: si el módulo de la ruta actual no está en los módulos
+  // permitidos del rol, redirige a Inicio. Admin y roles sin restricción (modulos
+  // null) pasan siempre. Inicio/Perfil/Buscar siempre permitidos.
+  useEffect(() => {
+    if (cargando || !session || rol === "administrador" || modulos === null) return;
+    const SIEMPRE = ["/", "/perfil", "/buscar"];
+    const modActual = GRUPOS.flatMap((g) => g.items.map((it) => it.href))
+      .filter((h) => pathname === h || pathname.startsWith(h + "/"))
+      .sort((a, b) => b.length - a.length)[0];
+    const permitido = !modActual || SIEMPRE.includes(modActual) || modulos.includes(modActual);
+    if (!permitido) router.replace("/");
+  }, [cargando, session, rol, modulos, pathname, router]);
 
   // Contador global de mensajes de chat no leídos, para avisar aunque el módulo
   // de chat no esté en primer plano. Se muestra solo fuera de /chat (dentro, el
@@ -226,10 +250,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     .filter((h) => pathname === h || pathname.startsWith(h + "/"))
     .sort((a, b) => b.length - a.length)[0] ?? null;
 
-  // Menú según la preferencia del usuario: oculta los módulos elegidos (salvo los
-  // SIEMPRE_VISIBLE) y descarta los grupos que queden vacíos.
+  // Módulos permitidos por rol (0131): admin o rol sin restricción → todos.
+  const SIEMPRE_ROL = ["/", "/perfil", "/buscar"];
+  const permiteRol = (href: string) => rol === "administrador" || modulos === null || SIEMPRE_ROL.includes(href) || modulos.includes(href);
+
+  // Menú = módulos permitidos por rol ∩ no ocultados por el usuario (los
+  // SIEMPRE_VISIBLE ignoran el ocultar propio, pero igual respetan el rol).
   const gruposVisibles = GRUPOS
-    .map((g) => ({ ...g, items: g.items.filter((it) => SIEMPRE_VISIBLE.includes(it.href) || !oculto.includes(it.href)) }))
+    .map((g) => ({ ...g, items: g.items.filter((it) => permiteRol(it.href) && (SIEMPRE_VISIBLE.includes(it.href) || !oculto.includes(it.href))) }))
     .filter((g) => g.items.length > 0);
 
   return (

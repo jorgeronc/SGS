@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import UsuariosPanel from "./UsuariosPanel";
+import RolesPanel from "./RolesPanel";
 import InicialesPanel from "./InicialesPanel";
 import ConsecutivosPanel from "./ConsecutivosPanel";
 import CatalogosPanel from "./CatalogosPanel";
@@ -9,6 +10,7 @@ import TiposTurnoPanel from "./TiposTurnoPanel";
 
 const PESTANAS = [
   { k: "usuarios", label: "Usuarios y roles" },
+  { k: "roles", label: "Roles y módulos" },
   { k: "iniciales", label: "Iniciales por módulo" },
   { k: "consecutivos", label: "Consecutivos por año" },
   { k: "tipos_turno", label: "Tipos de turno" },
@@ -33,6 +35,7 @@ export default function AdminTabs({ initial = "usuarios", embedded = false }: { 
       </div>
       <div className="sc-tabbody">
         {tab === "usuarios" && <UsuariosPanel />}
+        {tab === "roles" && <RolesPanel />}
         {tab === "iniciales" && <InicialesPanel />}
         {tab === "consecutivos" && <ConsecutivosPanel />}
         {tab === "tipos_turno" && <TiposTurnoPanel />}
