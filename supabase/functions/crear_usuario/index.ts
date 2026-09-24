@@ -40,7 +40,13 @@ Deno.serve(async (req) => {
     const rol = (body?.rol ?? "oficial").toString();
     if (!email || !email.includes("@")) return json({ error: "Correo inválido." }, 400);
     if (password.length < 6) return json({ error: "La contraseña debe tener al menos 6 caracteres." }, 400);
-    if (!ROLES.includes(rol)) return json({ error: "Rol inválido." }, 400);
+    // Rol válido = existe y está activo en el catálogo `roles` (0131). Si el catálogo
+    // aún no existe, se acepta la lista base heredada como respaldo.
+    let rolValido = false;
+    const { data: rolCat, error: eRolCat } = await admin.from("roles").select("clave").eq("clave", rol).eq("activo", true).maybeSingle();
+    if (eRolCat) rolValido = ROLES.includes(rol); // catálogo no disponible → respaldo
+    else rolValido = !!rolCat;
+    if (!rolValido) return json({ error: "Rol inválido." }, 400);
 
     // 4) Crea la cuenta ya confirmada con la contraseña inicial.
     const { data: creado, error: eCrear } = await admin.auth.admin.createUser({
