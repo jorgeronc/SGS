@@ -255,7 +255,17 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   const correo = session.user?.email ?? "";
   const iniciales = correo.slice(0, 2).toUpperCase();
-  const topInfo = TITULOS_TOP[pathname] ?? (pathname.startsWith("/cad/") ? { titulo: "Central de Despacho — Detalle de incidente" } : undefined);
+  // Header de consola: match EXACTO primero; el detalle de CAD tiene título propio;
+  // y por último match por PREFIJO para que las subrutas (p. ej. /credenciales/[id],
+  // /credenciales/visitante, /citas-visitantes/[id]) hereden el header de consola de
+  // su pantalla padre en vez de mostrar el header viejo (buscador + píldoras).
+  const topPrefijo = Object.keys(TITULOS_TOP)
+    .filter((k) => pathname.startsWith(k + "/"))
+    .sort((a, b) => b.length - a.length)[0];
+  const topInfo =
+    TITULOS_TOP[pathname] ??
+    (pathname.startsWith("/cad/") ? { titulo: "Central de Despacho — Detalle de incidente" } : undefined) ??
+    (topPrefijo ? TITULOS_TOP[topPrefijo] : undefined);
   // Ítem activo = el href que es el PREFIJO MÁS LARGO de la ruta (así /rondines/sesiones
   // no marca también /rondines).
   const activoHref = GRUPOS.flatMap((g) => g.items.filter((it) => !it.nueva).map((it) => it.href))
