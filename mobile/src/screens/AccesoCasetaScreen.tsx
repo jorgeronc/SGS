@@ -365,10 +365,19 @@ export default function AccesoCasetaScreen() {
       datos_adicionales: { origen: "incidente_movil", subtipo: "control_acceso", personal_id: g?.personalId ?? null, elemento: g?.etiqueta ?? null },
     }).select("id").single();
     if (error) { Alert.alert("Error", error.message); return null; }
+    const incidenteId = (ll as any).id as string;
+    // Liga la persona/vehículo del acceso al incidente (origen 'cad'), para que
+    // aparezcan en la pestaña de involucrados y en VinculosPanel del incidente
+    // web. Best-effort: no interrumpe el registro si falla.
+    const { data: acc } = await supabase.from("accesos").select("persona_id, vehiculo_id").eq("id", accesoId).maybeSingle();
+    const vinc: any[] = [];
+    if ((acc as any)?.persona_id) vinc.push({ entidad_origen_tipo: "cad", entidad_origen_id: incidenteId, entidad_destino_tipo: "persona", entidad_destino_id: (acc as any).persona_id, tipo_relacion: "persona_involucrada" });
+    if ((acc as any)?.vehiculo_id) vinc.push({ entidad_origen_tipo: "cad", entidad_origen_id: incidenteId, entidad_destino_tipo: "vehiculo", entidad_destino_id: (acc as any).vehiculo_id, tipo_relacion: "vehiculo_involucrado" });
+    if (vinc.length) await supabase.from("vinculos").insert(vinc).then(() => {}, () => {});
     // El trigger ya creó el chat; leemos el canal para enlazar y navegar.
-    const { data: full } = await supabase.from("llamadas_cad").select("chat_canal_id").eq("id", (ll as any).id).maybeSingle();
+    const { data: full } = await supabase.from("llamadas_cad").select("chat_canal_id").eq("id", incidenteId).maybeSingle();
     const canal = (full as any)?.chat_canal_id ?? null;
-    await supabase.from("accesos").update({ incidente_id: (ll as any).id, chat_canal_id: canal }).eq("id", accesoId);
+    await supabase.from("accesos").update({ incidente_id: incidenteId, chat_canal_id: canal }).eq("id", accesoId);
     return canal;
   }
 
