@@ -146,3 +146,41 @@ export function SelectPersonal({
     </>
   );
 }
+
+// Control de EDICIÓN de la asignación a personal, para usar como campo `custom`
+// de ListaMaestra (`render`). Escribe `asignado_personal_id` en el borrador y, para
+// las tablas de inventario, mantiene `estado_equipo` en sincronía con la asignación
+// (asignado ↔ operativo) sin pisar estados manuales como en_reparacion/baja.
+// Declarar en el campo: persistCampos: ["asignado_personal_id", "estado_equipo"].
+export function AsignarPersonalEdit({
+  borrador,
+  setBorrador,
+  sincronizarEstado = true,
+}: {
+  borrador: any;
+  setBorrador: (u: any) => void;
+  sincronizarEstado?: boolean;
+}) {
+  return (
+    <label className="sc-edit-l" style={{ gridColumn: "1 / -1" }}>
+      <span>Asignado a</span>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        <SelectPersonal
+          value={borrador?.asignado_personal_id ?? ""}
+          placeholder="— Sin asignar —"
+          onChange={(v) =>
+            setBorrador((p: any) => {
+              const next = { ...p, asignado_personal_id: v || null };
+              if (sincronizarEstado) {
+                const e = p?.estado_equipo;
+                if (v && (e === "operativo" || e == null)) next.estado_equipo = "asignado";
+                else if (!v && e === "asignado") next.estado_equipo = "operativo";
+              }
+              return next;
+            })
+          }
+        />
+      </div>
+    </label>
+  );
+}

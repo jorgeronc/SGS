@@ -31,9 +31,12 @@ export interface CampoEdit {
   label: string;
   tipo?: "text" | "number" | "date" | "select" | "checkbox" | "textarea" | "custom";
   opciones?: string[];
-  // Para tipo "custom": render libre (p. ej. un mapa) sobre el borrador de edición.
-  // No se persiste por `campo`; debe escribir columnas reales en el borrador.
+  // Para tipo "custom": render libre (p. ej. un mapa o un selector de oficial) sobre
+  // el borrador de edición. No se persiste por `campo`. Si el control escribe columnas
+  // reales en el borrador, decláralas en `persistCampos` para que se guarden; si además
+  // esas columnas se declaran como campos `editar` propios, no hace falta persistCampos.
   render?: (borrador: any, setBorrador: (updater: any) => void) => ReactNode;
+  persistCampos?: string[];
 }
 // Acciones en lote (opcional): habilita casillas de selección múltiple y una
 // barra de acciones que se aplican a todos los registros marcados.
@@ -155,7 +158,17 @@ export default function ListaMaestra({
     setGuardandoEd(true); setErrEd(null);
     const upd: Record<string, any> = {};
     for (const c of editar) {
-      if (c.tipo === "custom") continue; // el custom escribe columnas reales por su cuenta
+      if (c.tipo === "custom") {
+        // El custom escribe columnas reales en el borrador; se persisten las que
+        // declare en persistCampos (si no declara, se asume que sus columnas van
+        // como campos `editar` propios y se guardan por esa vía).
+        for (const k of c.persistCampos ?? []) {
+          let v = borrador[k];
+          if (v === "") v = null;
+          upd[k] = v;
+        }
+        continue;
+      }
       let v = borrador[c.campo];
       if (c.tipo === "number") v = v === "" || v == null ? null : Number(v);
       else if (c.tipo === "checkbox") v = !!v;

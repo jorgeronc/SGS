@@ -3,8 +3,10 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import ListaMaestra from "@/app/components/ListaMaestra";
-import { SelectPersonal } from "@/app/components/Pickers";
+import { SelectPersonal, AsignarPersonalEdit } from "@/app/components/Pickers";
 import { subirFotoArchivo } from "@/lib/fotos";
+
+const ESTADOS_EQUIPO = ["operativo", "asignado", "en_reparacion", "baja"];
 import { vehiculosSimilares, type RegistroSimilar } from "@/lib/duplicados";
 import AvisoDuplicados from "@/app/components/AvisoDuplicados";
 
@@ -148,7 +150,7 @@ export default function EquipoPage() {
       subtitulo="Armas, radios, bodycams, patrullas y motos"
       tabla="equipo"
       modulo="equipo"
-      select="id, folio, tipo, marca, modelo, numero_serie, estado_equipo, estatus, creado_en, fotografias, personal:personal(numero_placa, rango, persona:personas(nombre, apellido_paterno))"
+      select="id, folio, tipo, marca, modelo, numero_serie, estado_equipo, asignado_personal_id, estatus, creado_en, fotografias, personal:personal(numero_placa, rango, persona:personas(nombre, apellido_paterno))"
       miniatura={(r) => r.fotografias}
       placeholderBuscar="Buscar folio, tipo, marca, serie…"
       columnas={[
@@ -182,6 +184,8 @@ export default function EquipoPage() {
         { campo: "marca", label: "Marca" },
         { campo: "modelo", label: "Modelo" },
         { campo: "numero_serie", label: "Número de serie" },
+        { campo: "estado_equipo", label: "Estado del equipo", tipo: "select", opciones: ESTADOS_EQUIPO },
+        { campo: "asignado_personal_id", label: "Asignado a", tipo: "custom", persistCampos: ["asignado_personal_id", "estado_equipo"], render: (b, setB) => <AsignarPersonalEdit borrador={b} setBorrador={setB} /> },
       ]}
       nuevo={(onCreado) => <NuevoEquipo onCreado={onCreado} />}
     />

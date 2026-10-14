@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import ListaMaestra from "@/app/components/ListaMaestra";
-import { SelectPersonal } from "@/app/components/Pickers";
+import { SelectPersonal, AsignarPersonalEdit } from "@/app/components/Pickers";
 import { subirFotoArchivo } from "@/lib/fotos";
+
+const ESTADOS_EQUIPO = ["operativo", "asignado", "en_reparacion", "baja"];
 
 function asignadoA(p: any) {
   if (!p) return "—";
@@ -116,7 +118,7 @@ export default function InventarioEquipo({ cfg }: { cfg: InventarioConfig }) {
       tabla={cfg.tabla}
       modulo={cfg.modulo}
       orderBy="creado_en"
-      select="id, folio, tipo, marca, modelo, numero_serie, descripcion, estado_equipo, estatus, creado_en, personal:personal(numero_placa, rango, persona:personas(nombre, apellido_paterno))"
+      select="id, folio, tipo, marca, modelo, numero_serie, descripcion, estado_equipo, asignado_personal_id, estatus, creado_en, personal:personal(numero_placa, rango, persona:personas(nombre, apellido_paterno))"
       placeholderBuscar={cfg.placeholderBuscar ?? "Buscar folio, tipo, marca, serie…"}
       columnas={[
         { header: "Folio", campo: "folio", celda: (r) => <span className="sc-folio">{r.folio ?? "s/folio"}</span> },
@@ -151,7 +153,9 @@ export default function InventarioEquipo({ cfg }: { cfg: InventarioConfig }) {
         { campo: "marca", label: "Marca" },
         { campo: "modelo", label: "Modelo" },
         { campo: "numero_serie", label: "Número de serie" },
-        { campo: "descripcion", label: "Descripción" },
+        { campo: "descripcion", label: "Descripción", tipo: "textarea" },
+        { campo: "estado_equipo", label: "Estado del equipo", tipo: "select", opciones: ESTADOS_EQUIPO },
+        { campo: "asignado_personal_id", label: "Asignado a", tipo: "custom", persistCampos: ["asignado_personal_id", "estado_equipo"], render: (b, setB) => <AsignarPersonalEdit borrador={b} setBorrador={setB} /> },
       ]}
       nuevo={(onCreado) => <NuevoItem cfg={cfg} onCreado={onCreado} />}
     />
