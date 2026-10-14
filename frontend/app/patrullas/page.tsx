@@ -21,6 +21,9 @@ function NuevaPatrulla({ onCreado }: { onCreado: () => void }) {
   async function crear(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    if (!numero.trim() || !marca.trim() || !modelo.trim() || !placas.trim()) {
+      setError("Completa número económico, marca, modelo y placas (la foto es opcional)."); return;
+    }
     setCreando(true);
     const { data, error } = await supabase.from("patrullas").insert({
       numero: numero || null,
@@ -44,17 +47,17 @@ function NuevaPatrulla({ onCreado }: { onCreado: () => void }) {
   return (
     <form onSubmit={crear}>
       <div className="form-fila">
-        <input placeholder="Número económico" value={numero} onChange={(e) => setNumero(e.target.value)} />
+        <input placeholder="Número económico *" value={numero} onChange={(e) => setNumero(e.target.value)} />
         <select value={tipo} onChange={(e) => setTipo(e.target.value)}>
           <option value="auto">Auto</option>
           <option value="motocicleta">Motocicleta</option>
           <option value="bicicleta">Bicicleta</option>
         </select>
-        <input placeholder="Marca" value={marca} onChange={(e) => setMarca(e.target.value)} />
-        <input placeholder="Modelo" value={modelo} onChange={(e) => setModelo(e.target.value)} />
+        <input placeholder="Marca *" value={marca} onChange={(e) => setMarca(e.target.value)} />
+        <input placeholder="Modelo *" value={modelo} onChange={(e) => setModelo(e.target.value)} />
       </div>
       <div className="form-fila">
-        <input placeholder="Placas" value={placas} onChange={(e) => setPlacas(e.target.value)} />
+        <input placeholder="Placas *" value={placas} onChange={(e) => setPlacas(e.target.value)} />
         <input placeholder="Año" type="number" value={anio} onChange={(e) => setAnio(e.target.value)} />
         <input placeholder="Color" value={color} onChange={(e) => setColor(e.target.value)} />
         <label className="dash-sub" style={{ display: "flex", flexDirection: "column" }}>Fotografía

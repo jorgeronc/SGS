@@ -48,6 +48,10 @@ function NuevoEquipo({ onCreado }: { onCreado: () => void }) {
   async function crear(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    if (!marca.trim() || !modelo.trim() || !serie.trim()) {
+      setError("Completa marca, modelo y número de serie (la foto y la asignación son opcionales)."); return;
+    }
+    if (esVehiculo && !placas.trim()) { setError("Para patrulla/motocicleta captura las placas."); return; }
     setCreando(true);
 
     let vehiculoId: string | null = null;
@@ -116,16 +120,16 @@ function NuevoEquipo({ onCreado }: { onCreado: () => void }) {
           <option value="motocicleta">Motocicleta</option>
           <option value="otro">Otro</option>
         </select>
-        <input placeholder="Marca" value={marca} onChange={(e) => setMarca(e.target.value)} />
-        <input placeholder="Modelo" value={modelo} onChange={(e) => setModelo(e.target.value)} />
-        <input placeholder="Número de serie" value={serie} onChange={(e) => setSerie(e.target.value)} />
+        <input placeholder="Marca *" value={marca} onChange={(e) => setMarca(e.target.value)} />
+        <input placeholder="Modelo *" value={modelo} onChange={(e) => setModelo(e.target.value)} />
+        <input placeholder="Número de serie *" value={serie} onChange={(e) => setSerie(e.target.value)} />
         <SelectPersonal value={asignadoId} onChange={setAsignadoId} placeholder="— Asignar a (opcional) —" />
       </div>
       {esVehiculo && (
         <>
           <p className="dash-sub">Datos del vehículo (se crea en Vehículos · flota):</p>
           <div className="form-fila">
-            <input placeholder="Placas" value={placas} onChange={(e) => setPlacas(e.target.value)} />
+            <input placeholder="Placas *" value={placas} onChange={(e) => setPlacas(e.target.value)} />
             <input placeholder="Año" type="number" value={anio} onChange={(e) => setAnio(e.target.value)} />
             <input placeholder="Color" value={color} onChange={(e) => setColor(e.target.value)} />
             <label className="dash-sub" style={{ display: "flex", flexDirection: "column" }}>Fotografía

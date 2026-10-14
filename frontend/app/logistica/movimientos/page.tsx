@@ -30,6 +30,7 @@ function NuevoMovimiento({ onCreado }: { onCreado: () => void }) {
   }, []);
 
   async function crear() {
+    if (!origen || !destino || !activo) { setMsg("Elige sitio origen, sitio destino y activo de transporte."); return; }
     const { error } = await supabase.from("movimientos").insert({
       tipo_movimiento: tipo,
       sitio_origen_id: origen || null,
@@ -47,9 +48,9 @@ function NuevoMovimiento({ onCreado }: { onCreado: () => void }) {
   return (
     <div className="form-grid">
       <label>Tipo de movimiento<select value={tipo} onChange={(e) => setTipo(e.target.value)}>{TIPOS.map((t) => <option key={t} value={t}>{t}</option>)}</select></label>
-      <label>Sitio origen<select value={origen} onChange={(e) => setOrigen(e.target.value)}><option value="">—</option>{sitios.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}</select></label>
-      <label>Sitio destino<select value={destino} onChange={(e) => setDestino(e.target.value)}><option value="">—</option>{sitios.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}</select></label>
-      <label>Activo de transporte<select value={activo} onChange={(e) => setActivo(e.target.value)}><option value="">—</option>{activos.map((a) => <option key={a.id} value={a.id}>{[a.identificador, a.placas, a.tipo_activo].filter(Boolean).join(" · ")}</option>)}</select></label>
+      <label>Sitio origen *<select value={origen} onChange={(e) => setOrigen(e.target.value)}><option value="">—</option>{sitios.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}</select></label>
+      <label>Sitio destino *<select value={destino} onChange={(e) => setDestino(e.target.value)}><option value="">—</option>{sitios.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}</select></label>
+      <label>Activo de transporte *<select value={activo} onChange={(e) => setActivo(e.target.value)}><option value="">—</option>{activos.map((a) => <option key={a.id} value={a.id}>{[a.identificador, a.placas, a.tipo_activo].filter(Boolean).join(" · ")}</option>)}</select></label>
       <label>Programado inicio<input type="datetime-local" value={prog} onChange={(e) => setProg(e.target.value)} /></label>
       <label>Referencia externa<input value={ref} maxLength={60} onChange={(e) => setRef(e.target.value)} placeholder="OC / embarque / pedido" /></label>
       <div style={{ gridColumn: "1 / -1", display: "flex", alignItems: "center", gap: 12 }}>

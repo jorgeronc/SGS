@@ -62,6 +62,10 @@ function NuevoItem({ cfg, onCreado }: { cfg: InventarioConfig; onCreado: () => v
   async function crear(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    if (!tipo) { setError("Elige el tipo."); return; }
+    if (!marca.trim() || !modelo.trim() || !serie.trim()) {
+      setError("Completa marca, modelo y número de serie (la foto y la asignación son opcionales)."); return;
+    }
     setCreando(true);
     const { data, error } = await supabase.from(cfg.tabla).insert({
       tipo: tipo || null,
@@ -88,9 +92,9 @@ function NuevoItem({ cfg, onCreado }: { cfg: InventarioConfig; onCreado: () => v
         <select value={tipo} onChange={(e) => setTipo(e.target.value)}>
           {opciones.map((t) => <option key={t.v} value={t.v}>{t.label}</option>)}
         </select>
-        <input placeholder="Marca" value={marca} onChange={(e) => setMarca(e.target.value)} />
-        <input placeholder="Modelo" value={modelo} onChange={(e) => setModelo(e.target.value)} />
-        <input placeholder="Número de serie" value={serie} onChange={(e) => setSerie(e.target.value)} />
+        <input placeholder="Marca *" value={marca} onChange={(e) => setMarca(e.target.value)} />
+        <input placeholder="Modelo *" value={modelo} onChange={(e) => setModelo(e.target.value)} />
+        <input placeholder="Número de serie *" value={serie} onChange={(e) => setSerie(e.target.value)} />
       </div>
       <div className="form-fila">
         <input placeholder="Descripción" value={descripcion} onChange={(e) => setDescripcion(e.target.value)} style={{ flex: 1 }} />

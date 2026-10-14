@@ -31,6 +31,9 @@ function NuevaUbicacion({ onCreado }: { onCreado: () => void }) {
   async function crear(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    if (!calle.trim() || !colonia.trim() || !municipio.trim() || !estado.trim()) {
+      setError("Completa calle, colonia, municipio y estado."); return;
+    }
     const { error } = await supabase.from("ubicaciones").insert({
       calle: calle || null,
       numero_exterior: num || null,
@@ -51,11 +54,11 @@ function NuevaUbicacion({ onCreado }: { onCreado: () => void }) {
   return (
     <form onSubmit={crear}>
       <div className="form-fila">
-        <input placeholder="Calle" value={calle} onChange={(e) => setCalle(e.target.value)} />
+        <input placeholder="Calle *" value={calle} onChange={(e) => setCalle(e.target.value)} />
         <input placeholder="Núm. ext." value={num} onChange={(e) => setNum(e.target.value)} />
-        <input placeholder="Colonia" value={colonia} onChange={(e) => setColonia(e.target.value)} />
-        <input placeholder="Municipio" value={municipio} onChange={(e) => setMunicipio(e.target.value)} />
-        <input placeholder="Estado" value={estado} onChange={(e) => setEstado(e.target.value)} />
+        <input placeholder="Colonia *" value={colonia} onChange={(e) => setColonia(e.target.value)} />
+        <input placeholder="Municipio *" value={municipio} onChange={(e) => setMunicipio(e.target.value)} />
+        <input placeholder="Estado *" value={estado} onChange={(e) => setEstado(e.target.value)} />
         <input placeholder="Lat" value={lat} onChange={(e) => setLat(e.target.value)} />
         <input placeholder="Lng" value={lng} onChange={(e) => setLng(e.target.value)} />
         <button type="button" onClick={usarMiUbicacion} disabled={ubicando}>{ubicando ? "Ubicando..." : "📍 Ubicación"}</button>

@@ -34,6 +34,7 @@ function NuevaEvidencia({ onCreado }: { onCreado: () => void }) {
   async function crear(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    if (!tipo.trim() || !descripcion.trim()) { setError("Indica el tipo y la descripción de la evidencia."); return; }
     const { error } = await supabase.from("evidencias").insert({
       tipo: tipo || null,
       descripcion: descripcion || null,
@@ -49,8 +50,8 @@ function NuevaEvidencia({ onCreado }: { onCreado: () => void }) {
   return (
     <form onSubmit={crear}>
       <div className="form-fila">
-        <input placeholder="Tipo (arma, droga, documento...)" value={tipo} onChange={(e) => setTipo(e.target.value)} />
-        <input placeholder="Descripción" value={descripcion} onChange={(e) => setDescripcion(e.target.value)} />
+        <input placeholder="Tipo (arma, droga, documento...) *" value={tipo} onChange={(e) => setTipo(e.target.value)} />
+        <input placeholder="Descripción *" value={descripcion} onChange={(e) => setDescripcion(e.target.value)} />
         <input placeholder="Cantidad" value={cantidad} onChange={(e) => setCantidad(e.target.value)} />
         <input placeholder="Almacén / anaquel" value={almacen} onChange={(e) => setAlmacen(e.target.value)} />
         <button type="submit">Registrar evidencia</button>

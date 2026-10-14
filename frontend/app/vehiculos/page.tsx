@@ -24,6 +24,9 @@ function NuevoVehiculo({ onCreado }: { onCreado: () => void }) {
   async function crear(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    if (!placas.trim() || !marca.trim() || !modelo.trim()) {
+      setError("Completa placas, marca y modelo."); return;
+    }
     const { error } = await supabase.from("vehiculos").insert({
       placas: placas || null,
       marca: marca || null,
@@ -42,9 +45,9 @@ function NuevoVehiculo({ onCreado }: { onCreado: () => void }) {
   return (
     <form onSubmit={crear}>
       <div className="form-fila">
-        <input placeholder="Placas" value={placas} onChange={(e) => setPlacas(e.target.value)} />
-        <input placeholder="Marca" value={marca} onChange={(e) => setMarca(e.target.value)} />
-        <input placeholder="Modelo" value={modelo} onChange={(e) => setModelo(e.target.value)} />
+        <input placeholder="Placas *" value={placas} onChange={(e) => setPlacas(e.target.value)} />
+        <input placeholder="Marca *" value={marca} onChange={(e) => setMarca(e.target.value)} />
+        <input placeholder="Modelo *" value={modelo} onChange={(e) => setModelo(e.target.value)} />
         <input placeholder="Año" type="number" value={anio} onChange={(e) => setAnio(e.target.value)} />
         <input placeholder="Color" value={color} onChange={(e) => setColor(e.target.value)} />
         <button type="submit">Agregar vehículo</button>
