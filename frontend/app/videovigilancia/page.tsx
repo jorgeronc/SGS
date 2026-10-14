@@ -150,7 +150,7 @@ export default function VideovigilanciaConsolaPage() {
         <aside style={{ ...card, width: 250, flex: "0 0 auto", display: "flex", flexDirection: "column", overflow: "hidden" }}>
           <div style={{ padding: "10px 12px", borderBottom: "1px solid var(--sc-card-line)" }}>
             <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".05em", color: "var(--sc-text-faint)", marginBottom: 8 }}>CÁMARAS</div>
-            <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar cámara…" style={{ width: "100%", padding: "7px 10px", borderRadius: 8, border: "1px solid var(--sc-card-line)", background: "var(--bg,#f4f6f9)", color: "var(--sc-text)", fontSize: 13 }} />
+            <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar cámara…" style={{ width: "100%", padding: "7px 10px", borderRadius: 8, border: "1px solid var(--sc-card-line)", background: "var(--sc-content)", color: "var(--sc-text)", fontSize: 13 }} />
           </div>
           <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "6px 6px" }}>
             {grupos.map(([sitio, list]) => {

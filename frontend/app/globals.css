@@ -462,7 +462,7 @@ button.secundario {
   flex-direction: column;
   gap: 4px;
   font-size: 13px;
-  color: #333;
+  color: var(--sc-text-soft);
 }
 
 .form-grid input,
