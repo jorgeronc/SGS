@@ -467,7 +467,9 @@ button.secundario {
   flex-direction: column;
   gap: 4px;
   font-size: 13px;
-  color: var(--sc-text-soft);
+  /* Igual que el resto de labels del formulario (p.ej. los .dash-sub "Asunto"/
+     "Sitio", que por especificidad toman .shell-content label = var(--sc-text)). */
+  color: var(--sc-text);
 }
 
 .form-grid input,
