@@ -1,4 +1,8 @@
 :root {
+  /* Controles nativos (select/option, date/datetime-local, scrollbars, autofill)
+     siguen el tema; sin esto, en oscuro se pintan con popup/fondo claro y el
+     texto claro queda ilegible. */
+  color-scheme: light;
   --azul: #0b3d66;
   --gris-fondo: #f4f6f8;
   --texto: #1c1c1c;
@@ -27,6 +31,7 @@
 
 /* ===== Modo oscuro (lo activa el usuario en Mi cuenta → Tema) ===== */
 :root[data-theme="dark"] {
+  color-scheme: dark;
   --azul: #0e2438;
   --gris-fondo: #0b1220;
   --texto: #e7eef6;
