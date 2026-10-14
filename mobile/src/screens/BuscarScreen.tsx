@@ -58,13 +58,15 @@ export default function BuscarScreen() {
     setCargando(true);
     setBuscado(true);
     let res: Resultado[] = [];
+    let err: { message: string } | null = null;
 
     if (tipo === "persona") {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("personas")
         .select("id, nombre, apellido_paterno, apellido_materno, curp, fecha_nacimiento, estatus, fotografias")
         .or(`nombre.ilike.%${term}%,apellido_paterno.ilike.%${term}%,apellido_materno.ilike.%${term}%,curp.ilike.%${term}%`)
         .limit(20);
+      err = error;
       res = ((data as any[]) ?? []).map((p) => ({
         id: p.id,
         titulo: `${p.nombre ?? ""} ${p.apellido_paterno ?? ""} ${p.apellido_materno ?? ""}`.trim(),
@@ -76,11 +78,12 @@ export default function BuscarScreen() {
         ],
       }));
     } else if (tipo === "vehiculo") {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("vehiculos")
         .select("id, placas, vin, marca, modelo, anio, color, estatus, fotografias")
         .or(`placas.ilike.%${term}%,vin.ilike.%${term}%,marca.ilike.%${term}%,modelo.ilike.%${term}%`)
         .limit(20);
+      err = error;
       res = ((data as any[]) ?? []).map((v) => ({
         id: v.id,
         titulo: `${v.marca ?? ""} ${v.modelo ?? ""} ${v.anio ?? ""}`.trim() || "Vehículo",
@@ -94,30 +97,42 @@ export default function BuscarScreen() {
       }));
     } else if (tipo === "incidente") {
       // Los incidentes de SGS viven en Central/Despacho (llamadas_cad), no en la
-      // tabla policial `incidentes`.
-      const { data } = await supabase
+      // tabla policial `incidentes`. El nombre del sitio se resuelve en una
+      // segunda consulta (no con un embed `sitios`) para no depender de que la
+      // relación/RLS del join resuelva dentro del filtro `or`.
+      const { data, error } = await supabase
         .from("llamadas_cad")
-        .select("id, folio, tipo, estado_despacho, estatus, direccion, descripcion, fecha_recepcion, sitio:sitios(nombre)")
+        .select("id, folio, tipo, estado_despacho, estatus, direccion, descripcion, sitio_id, fecha_recepcion")
         .or(`folio.ilike.%${term}%,tipo.ilike.%${term}%,direccion.ilike.%${term}%,descripcion.ilike.%${term}%`)
         .order("fecha_recepcion", { ascending: false })
         .limit(20);
-      res = ((data as any[]) ?? []).map((i) => ({
+      err = error;
+      const filas = (data as any[]) ?? [];
+      // Nombres de sitio en lote para las filas encontradas.
+      const sitioIds = [...new Set(filas.map((f) => f.sitio_id).filter(Boolean))];
+      const sitios: Record<string, string> = {};
+      if (sitioIds.length) {
+        const { data: ss } = await supabase.from("sitios").select("id, nombre").in("id", sitioIds);
+        for (const s of (ss as any[]) ?? []) sitios[s.id] = s.nombre;
+      }
+      res = filas.map((i) => ({
         id: i.id,
         titulo: i.tipo || i.folio || "Incidente",
         badge:
           i.estatus === "cancelado"
             ? { txt: "CANCELADO", tono: "danger" }
-            : i.estatus === "cerrado"
+            : i.estado_despacho === "resuelta"
             ? { txt: "CERRADO", tono: "ok" }
             : { txt: "ABIERTO", tono: "warn" },
         campos: [
           { l: "Folio", v: i.folio ?? "—" },
           { l: "Tipo", v: i.tipo ?? "—" },
-          { l: "Sitio", v: i.sitio?.nombre ?? i.direccion ?? "—" },
+          { l: "Sitio", v: (i.sitio_id && sitios[i.sitio_id]) || i.direccion || "—" },
         ],
       }));
     }
 
+    if (err) Alert.alert("Error al buscar", err.message);
     setResultados(res);
     setCargando(false);
   }
