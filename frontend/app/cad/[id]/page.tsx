@@ -382,6 +382,12 @@ export default function IncidenciaDetallePage() {
         </div>
       </div>
 
+      {puedeEditar && (
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
+          <button style={btnP} onClick={guardar} disabled={guardando}>{guardando ? "Guardando…" : "💾 Guardar cambios"}</button>
+        </div>
+      )}
+
       {cerrando && (
         <div className="cad-modal-back" onClick={() => setCerrando(false)}>
           <div className="cad-modal" onClick={(e) => e.stopPropagation()}>

@@ -37,8 +37,12 @@ export default function PersonasVehiculosIncidente({ llamadaId }: { llamadaId: s
   }, [llamadaId]);
   useEffect(() => { cargar(); }, [cargar]);
 
-  async function vincular(tipo: string, id: string) {
-    await supabase.from("vinculos").insert({ entidad_origen_tipo: "cad", entidad_origen_id: llamadaId, entidad_destino_tipo: tipo, entidad_destino_id: id, tipo_relacion: tipo === "persona" ? "persona_involucrada" : "vehiculo_involucrado" });
+  // Liga el registro maestro al incidente. Devuelve el mensaje de error si falla
+  // (antes se ignoraba, y la persona/vehículo quedaba solo en el maestro sin
+  // aparecer en la pestaña del incidente).
+  async function vincular(tipo: string, id: string): Promise<string | null> {
+    const { error } = await supabase.from("vinculos").insert({ entidad_origen_tipo: "cad", entidad_origen_id: llamadaId, entidad_destino_tipo: tipo, entidad_destino_id: id, tipo_relacion: tipo === "persona" ? "persona_involucrada" : "vehiculo_involucrado" });
+    return error ? error.message : null;
   }
 
   async function guardarPersona() {
@@ -52,8 +56,10 @@ export default function PersonasVehiculosIncidente({ llamadaId }: { llamadaId: s
     if (error) { setBusy(false); setMsg(error.message); return; }
     const id = (data as any).id;
     if (foto) { const path = await subirFotoArchivo("personas", id, foto); if (path) await supabase.from("personas").update({ fotografias: [path] }).eq("id", id); }
-    await vincular("persona", id);
-    setBusy(false); setAbrir(false); setFoto(null);
+    const vErr = await vincular("persona", id);
+    setBusy(false);
+    if (vErr) { setMsg("Persona guardada, pero no se pudo ligar al incidente: " + vErr); await cargar(); return; }
+    setAbrir(false); setFoto(null);
     setP({ nombre: "", apellido_paterno: "", apellido_materno: "", sexo: "", fecha_nacimiento: "", originario_de: "", ocupacion: "", estado_civil: "", escolaridad: "" });
     cargar();
   }
@@ -68,8 +74,10 @@ export default function PersonasVehiculosIncidente({ llamadaId }: { llamadaId: s
     if (error) { setBusy(false); setMsg(error.message); return; }
     const id = (data as any).id;
     if (foto) { const path = await subirFotoArchivo("vehiculos", id, foto); if (path) await supabase.from("vehiculos").update({ fotografias: [path] }).eq("id", id); }
-    await vincular("vehiculo", id);
-    setBusy(false); setAbrir(false); setFoto(null);
+    const vErr = await vincular("vehiculo", id);
+    setBusy(false);
+    if (vErr) { setMsg("Vehículo guardado, pero no se pudo ligar al incidente: " + vErr); await cargar(); return; }
+    setAbrir(false); setFoto(null);
     setV({ placas: "", marca: "", color: "", vin: "", tarjeta_circulacion: "", descripcion: "" });
     cargar();
   }
