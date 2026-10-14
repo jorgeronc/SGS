@@ -91,6 +91,8 @@ export default function TareaDetallePage({ params }: { params: { id: string } })
       tipo: tarea.tipo ?? "", prioridad: tarea.prioridad ?? "media", asunto: tarea.asunto ?? "",
       instrucciones: tarea.instrucciones ?? "",
       vigencia_desde: dtLocal(tarea.vigencia_desde), vigencia_hasta: dtLocal(tarea.vigencia_hasta),
+      sitio_id: tarea.sitio_id ?? "", direccion: tarea.direccion ?? "",
+      latitud: tarea.latitud ?? "", longitud: tarea.longitud ?? "",
     });
     setMensaje(null); setEditando(true);
   }
@@ -101,6 +103,9 @@ export default function TareaDetallePage({ params }: { params: { id: string } })
       asunto: borrador.asunto || null, instrucciones: borrador.instrucciones || null,
       vigencia_desde: borrador.vigencia_desde ? new Date(borrador.vigencia_desde).toISOString() : null,
       vigencia_hasta: borrador.vigencia_hasta ? new Date(borrador.vigencia_hasta).toISOString() : null,
+      sitio_id: borrador.sitio_id || null, direccion: borrador.direccion || null,
+      latitud: borrador.latitud === "" || borrador.latitud == null ? null : Number(borrador.latitud),
+      longitud: borrador.longitud === "" || borrador.longitud == null ? null : Number(borrador.longitud),
       actualizado_en: new Date().toISOString(),
     };
     const { error: err } = await supabase.from("tareas").update(upd).eq("id", params.id);
@@ -185,6 +190,21 @@ export default function TareaDetallePage({ params }: { params: { id: string } })
           </label>
           <label>Vigente hasta
             <input type="datetime-local" value={borrador.vigencia_hasta} onChange={(e) => setBorrador((b: any) => ({ ...b, vigencia_hasta: e.target.value }))} />
+          </label>
+          <label>Sitio
+            <select value={borrador.sitio_id} onChange={(e) => setBorrador((b: any) => ({ ...b, sitio_id: e.target.value }))}>
+              <option value="">— Sin sitio —</option>
+              {sitios.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+            </select>
+          </label>
+          <label style={{ gridColumn: "1 / -1" }}>Lugar / área
+            <input value={borrador.direccion} onChange={(e) => setBorrador((b: any) => ({ ...b, direccion: e.target.value }))} />
+          </label>
+          <label>Latitud
+            <input type="number" value={borrador.latitud} onChange={(e) => setBorrador((b: any) => ({ ...b, latitud: e.target.value }))} />
+          </label>
+          <label>Longitud
+            <input type="number" value={borrador.longitud} onChange={(e) => setBorrador((b: any) => ({ ...b, longitud: e.target.value }))} />
           </label>
           <label style={{ gridColumn: "1 / -1" }}>Asunto
             <input value={borrador.asunto} onChange={(e) => setBorrador((b: any) => ({ ...b, asunto: e.target.value }))} />
