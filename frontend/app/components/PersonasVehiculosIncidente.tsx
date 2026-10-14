@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { subirFotoArchivo, primeraFoto } from "@/lib/fotos";
+import { idsInvolucradosCad } from "@/lib/involucradosCad";
 
 // Personas y vehículos involucrados en un incidente. Se capturan aquí y quedan en
 // los REGISTROS MAESTROS (personas / vehiculos), vinculados al incidente vía
@@ -27,11 +28,9 @@ export default function PersonasVehiculosIncidente({ llamadaId }: { llamadaId: s
   const [v, setV] = useState({ placas: "", marca: "", color: "", vin: "", tarjeta_circulacion: "", descripcion: "" });
 
   const cargar = useCallback(async () => {
-    const { data: vin } = await supabase.from("vinculos")
-      .select("entidad_destino_tipo, entidad_destino_id")
-      .eq("entidad_origen_tipo", "cad").eq("entidad_origen_id", llamadaId).eq("estatus", "activo");
-    const perIds = ((vin as any[]) ?? []).filter((x) => x.entidad_destino_tipo === "persona").map((x) => x.entidad_destino_id);
-    const vehIds = ((vin as any[]) ?? []).filter((x) => x.entidad_destino_tipo === "vehiculo").map((x) => x.entidad_destino_id);
+    // Reúne involucrados de todas las fuentes (vínculos web 'cad' + móvil
+    // 'incidente' + persona/vehículo del control de acceso que lo generó).
+    const { perIds, vehIds } = await idsInvolucradosCad(llamadaId);
     setPersonas(perIds.length ? (((await supabase.from("personas").select("id, folio, nombre, apellido_paterno, apellido_materno, sexo, ocupacion, fotografias").in("id", perIds)).data as any[]) ?? []) : []);
     setVehiculos(vehIds.length ? (((await supabase.from("vehiculos").select("id, folio, placas, marca, color, vin, descripcion, fotografias").in("id", vehIds)).data as any[]) ?? []) : []);
   }, [llamadaId]);

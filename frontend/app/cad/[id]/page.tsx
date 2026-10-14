@@ -16,6 +16,7 @@ import GrabacionesTransmision from "@/app/components/GrabacionesTransmision";
 import CamarasCercanas from "@/app/components/CamarasCercanas";
 import HistorialCad from "@/app/components/HistorialCad";
 import PersonasVehiculosIncidente from "@/app/components/PersonasVehiculosIncidente";
+import { idsInvolucradosCad } from "@/lib/involucradosCad";
 
 // Textarea que ajusta su alto al contenido (tamaño fijo, sin manija de resize).
 function AutoTextarea({ value, onChange, disabled, placeholder, minH = 60 }: { value: string; onChange: (v: string) => void; disabled?: boolean; placeholder?: string; minH?: number }) {
@@ -141,7 +142,10 @@ export default function IncidenciaDetallePage() {
       const { data } = await supabase.from("vinculos").select("entidad_destino_tipo").eq("entidad_origen_tipo", "cad").eq("entidad_origen_id", params.id).eq("estatus", "activo");
       const arr = (data as any[]) ?? []; const c = (t: string) => arr.filter((x) => x.entidad_destino_tipo === t).length;
       const fotos = Array.isArray((llamada as any)?.datos_adicionales?.fotografias) ? (llamada as any).datos_adicionales.fotografias.length : 0;
-      setConteos({ persona: c("persona"), vehiculo: c("vehiculo"), evidencia: c("evidencia"), tarea: c("tarea"), archivo: fotos });
+      // Personas/vehículos: mismo criterio que la pestaña (incluye vínculos del
+      // móvil y el control de acceso), no solo los vínculos web 'cad'.
+      const { perIds, vehIds } = await idsInvolucradosCad(params.id);
+      setConteos({ persona: perIds.length, vehiculo: vehIds.length, evidencia: c("evidencia"), tarea: c("tarea"), archivo: fotos });
     })();
   }, [params.id, llamada]);
 
