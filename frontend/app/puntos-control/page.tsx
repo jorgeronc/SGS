@@ -8,6 +8,7 @@ import ListaMaestra from "@/app/components/ListaMaestra";
 import DireccionGeocode from "@/app/components/DireccionGeocode";
 import MapaPicker from "@/app/components/MapaPicker";
 import MapaUbicacion from "@/app/components/MapaUbicacion";
+import { SelectRelacionEdit } from "@/app/components/Pickers";
 import { getConfig } from "@/lib/config";
 import { urlReverse } from "@/lib/geo";
 
@@ -241,6 +242,7 @@ export default function PuntosControlPage() {
       agruparPor={(r) => r.sitio?.nombre ?? "Sin sitio"}
       quickView={(r) => <QuickViewPunto r={r} />}
       editar={[
+        { campo: "sitio_id", label: "Sitio", tipo: "custom", persistCampos: ["sitio_id"], render: (b, setB) => <SelectRelacionEdit borrador={b} setBorrador={setB} campo="sitio_id" label="Sitio" tabla="sitios" cols="id, nombre" orden="nombre" etiqueta={(o) => o.nombre} /> },
         { campo: "nombre", label: "Nombre del punto" },
         { campo: "codigo", label: "Código (QR/NFC)" },
         { campo: "orden", label: "Orden", tipo: "number" },

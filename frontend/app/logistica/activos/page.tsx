@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import ListaMaestra from "@/app/components/ListaMaestra";
 import { CatalogoSelect } from "@/app/components/CatalogoSelect";
+import { SelectRelacionEdit } from "@/app/components/Pickers";
 
 function NuevoActivo({ onCreado }: { onCreado: () => void }) {
   const [empresas, setEmpresas] = useState<any[]>([]);
@@ -50,7 +51,7 @@ export default function ActivosPage() {
       subtitulo="Tractos, camiones, locomotoras y unidades de seguridad"
       tabla="transporte_activos"
       modulo="transporte_activos"
-      select="id, folio, tipo_activo, identificador, placas, economico, estado_activo, gps_device_id, empresa:transportistas(razon_social), estatus, creado_en"
+      select="id, folio, tipo_activo, identificador, placas, economico, estado_activo, gps_device_id, empresa_id, empresa:transportistas(razon_social), estatus, creado_en"
       placeholderBuscar="Identificador, placas…"
       textoBusqueda={(r) => `${r.folio ?? ""} ${r.identificador ?? ""} ${r.placas ?? ""} ${r.economico ?? ""}`}
       detalleHref={(r) => `/logistica/activos/${r.id}`}
@@ -73,8 +74,11 @@ export default function ActivosPage() {
       )}
       editar={[
         { campo: "estado_activo", label: "Estado", tipo: "select", opciones: ["operativo", "inactivo", "mantenimiento"] },
+        { campo: "tipo_activo", label: "Tipo de activo", tipo: "custom", persistCampos: ["tipo_activo"], render: (b, setB) => <label className="sc-edit-l"><span>Tipo de activo</span><CatalogoSelect categoria="tipo_activo_transporte" value={b.tipo_activo ?? ""} onChange={(v) => setB((p: any) => ({ ...p, tipo_activo: v }))} /></label> },
         { campo: "identificador", label: "Identificador" },
         { campo: "placas", label: "Placas" },
+        { campo: "economico", label: "Económico" },
+        { campo: "empresa_id", label: "Empresa (transportista)", tipo: "custom", persistCampos: ["empresa_id"], render: (b, setB) => <SelectRelacionEdit borrador={b} setBorrador={setB} campo="empresa_id" label="Empresa (transportista)" tabla="transportistas" cols="id, razon_social" orden="razon_social" etiqueta={(o) => o.razon_social} /> },
         { campo: "gps_device_id", label: "GPS device id" },
       ]}
       nuevo={(onCreado) => <NuevoActivo onCreado={onCreado} />}

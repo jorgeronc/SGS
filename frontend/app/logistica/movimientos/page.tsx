@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import ListaMaestra from "@/app/components/ListaMaestra";
+import { SelectRelacionEdit } from "@/app/components/Pickers";
 
 const TIPOS = ["CARRETERO", "FERROVIARIO", "INTERMODAL", "INTERNO"];
 const ESTADOS = ["PROGRAMADO", "EN_PREPARACION", "EN_TRANSITO", "DETENIDO", "EN_PATIO", "FINALIZADO", "CANCELADO"];
@@ -66,7 +67,7 @@ export default function MovimientosPage() {
       subtitulo="Seguridad Logística — movimientos de carga (carretero / ferroviario / intermodal)"
       tabla="movimientos"
       modulo="movimientos"
-      select="id, folio, tipo_movimiento, estado, nivel_riesgo, referencia_externa, programado_inicio, origen:sitios!sitio_origen_id(nombre), destino:sitios!sitio_destino_id(nombre), activo:transporte_activos(identificador, placas, tipo_activo), estatus, creado_en"
+      select="id, folio, tipo_movimiento, estado, nivel_riesgo, referencia_externa, programado_inicio, sitio_origen_id, sitio_destino_id, transporte_activo_id, origen:sitios!sitio_origen_id(nombre), destino:sitios!sitio_destino_id(nombre), activo:transporte_activos(identificador, placas, tipo_activo), estatus, creado_en"
       placeholderBuscar="Folio, referencia…"
       textoBusqueda={(r) => `${r.folio ?? ""} ${r.referencia_externa ?? ""} ${r.tipo_movimiento ?? ""}`}
       detalleHref={(r) => `/logistica/movimientos/${r.id}`}
@@ -97,6 +98,10 @@ export default function MovimientosPage() {
       )}
       editar={[
         { campo: "estado", label: "Estado", tipo: "select", opciones: ESTADOS },
+        { campo: "tipo_movimiento", label: "Tipo de movimiento", tipo: "select", opciones: TIPOS },
+        { campo: "sitio_origen_id", label: "Sitio origen", tipo: "custom", persistCampos: ["sitio_origen_id"], render: (b, setB) => <SelectRelacionEdit borrador={b} setBorrador={setB} campo="sitio_origen_id" label="Sitio origen" tabla="sitios" cols="id, nombre" orden="nombre" etiqueta={(o) => o.nombre} /> },
+        { campo: "sitio_destino_id", label: "Sitio destino", tipo: "custom", persistCampos: ["sitio_destino_id"], render: (b, setB) => <SelectRelacionEdit borrador={b} setBorrador={setB} campo="sitio_destino_id" label="Sitio destino" tabla="sitios" cols="id, nombre" orden="nombre" etiqueta={(o) => o.nombre} /> },
+        { campo: "transporte_activo_id", label: "Activo de transporte", tipo: "custom", persistCampos: ["transporte_activo_id"], render: (b, setB) => <SelectRelacionEdit borrador={b} setBorrador={setB} campo="transporte_activo_id" label="Activo de transporte" tabla="transporte_activos" cols="id, identificador, placas, tipo_activo" orden="creado_en" etiqueta={(o) => [o.identificador, o.placas, o.tipo_activo].filter(Boolean).join(" · ") || o.id} /> },
         { campo: "nivel_riesgo", label: "Nivel de riesgo", tipo: "select", opciones: ["Normal", "Controlada", "Alto valor", "Sensible", "Crítica"] },
         { campo: "referencia_externa", label: "Referencia externa" },
       ]}

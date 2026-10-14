@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import ListaMaestra from "@/app/components/ListaMaestra";
 import { CatalogoSelect } from "@/app/components/CatalogoSelect";
+import { SelectRelacionEdit } from "@/app/components/Pickers";
 
 function NuevaUnidad({ onCreado }: { onCreado: () => void }) {
   const [empresas, setEmpresas] = useState<any[]>([]);
@@ -41,7 +42,7 @@ export default function UnidadesCargaPage() {
       subtitulo="Remolques, cajas, contenedores, vagones, tolvas…"
       tabla="unidades_carga"
       modulo="unidades_carga"
-      select="id, folio, tipo_unidad, identificador, estado_unidad, empresa:transportistas(razon_social), estatus, creado_en"
+      select="id, folio, tipo_unidad, identificador, estado_unidad, empresa_id, empresa:transportistas(razon_social), estatus, creado_en"
       placeholderBuscar="Identificador…"
       textoBusqueda={(r) => `${r.folio ?? ""} ${r.identificador ?? ""} ${r.tipo_unidad ?? ""}`}
       detalleHref={(r) => `/logistica/unidades-carga/${r.id}`}
@@ -60,7 +61,12 @@ export default function UnidadesCargaPage() {
           <div>Estado: {r.estado_unidad ?? "—"}</div>
         </div>
       )}
-      editar={[{ campo: "identificador", label: "Identificador" }, { campo: "estado_unidad", label: "Estado" }]}
+      editar={[
+        { campo: "tipo_unidad", label: "Tipo de unidad", tipo: "custom", persistCampos: ["tipo_unidad"], render: (b, setB) => <label className="sc-edit-l"><span>Tipo de unidad</span><CatalogoSelect categoria="tipo_unidad_carga" value={b.tipo_unidad ?? ""} onChange={(v) => setB((p: any) => ({ ...p, tipo_unidad: v }))} /></label> },
+        { campo: "identificador", label: "Identificador" },
+        { campo: "empresa_id", label: "Empresa (transportista)", tipo: "custom", persistCampos: ["empresa_id"], render: (b, setB) => <SelectRelacionEdit borrador={b} setBorrador={setB} campo="empresa_id" label="Empresa (transportista)" tabla="transportistas" cols="id, razon_social" orden="razon_social" etiqueta={(o) => o.razon_social} /> },
+        { campo: "estado_unidad", label: "Estado" },
+      ]}
       nuevo={(onCreado) => <NuevaUnidad onCreado={onCreado} />}
     />
   );

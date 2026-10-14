@@ -7,6 +7,7 @@ import ListaMaestra from "@/app/components/ListaMaestra";
 import { CatalogoSelect } from "@/app/components/CatalogoSelect";
 import DireccionGeocode from "@/app/components/DireccionGeocode";
 import MapaUbicacion from "@/app/components/MapaUbicacion";
+import { SelectRelacionEdit } from "@/app/components/Pickers";
 import { getConfig } from "@/lib/config";
 
 const TIPOS = [
@@ -121,6 +122,7 @@ export default function SitiosPage() {
         </>
       )}
       editar={[
+        { campo: "cliente_id", label: "Cliente", tipo: "custom", persistCampos: ["cliente_id"], render: (b, setB) => <SelectRelacionEdit borrador={b} setBorrador={setB} campo="cliente_id" label="Cliente" tabla="clientes" cols="id, razon_social" orden="razon_social" etiqueta={(o) => o.razon_social} placeholder="— Cliente —" /> },
         { campo: "nombre", label: "Nombre del sitio" },
         { campo: "tipo", label: "Tipo", tipo: "select", opciones: TIPOS },
         { campo: "direccion", label: "Dirección" },

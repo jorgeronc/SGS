@@ -147,6 +147,41 @@ export function SelectPersonal({
   );
 }
 
+// Select de EDICIÓN para una relación (clave foránea), para usar como campo `custom`
+// de ListaMaestra (`render`). Carga las opciones de `tabla` y escribe el id en
+// `borrador[campo]`. Declarar en el campo: persistCampos: [campo].
+export function SelectRelacionEdit({
+  borrador, setBorrador, campo, label, tabla, cols, etiqueta,
+  orden = "creado_en", placeholder = "— Selecciona —", soloActivos = true,
+}: {
+  borrador: any;
+  setBorrador: (u: any) => void;
+  campo: string;
+  label: string;
+  tabla: string;
+  cols: string;
+  etiqueta: (o: any) => string;
+  orden?: string;
+  placeholder?: string;
+  soloActivos?: boolean;
+}) {
+  const [opts, setOpts] = useState<any[]>([]);
+  useEffect(() => {
+    let q = supabase.from(tabla).select(cols);
+    if (soloActivos) q = q.eq("estatus", "activo");
+    q.order(orden).then(({ data }) => setOpts((data as any[]) ?? []));
+  }, [tabla, cols, orden, soloActivos]);
+  return (
+    <label className="sc-edit-l" style={{ gridColumn: "1 / -1" }}>
+      <span>{label}</span>
+      <select value={borrador?.[campo] ?? ""} onChange={(e) => setBorrador((p: any) => ({ ...p, [campo]: e.target.value || null }))}>
+        <option value="">{placeholder}</option>
+        {opts.map((o) => <option key={o.id} value={o.id}>{etiqueta(o)}</option>)}
+      </select>
+    </label>
+  );
+}
+
 // Control de EDICIÓN de la asignación a personal, para usar como campo `custom`
 // de ListaMaestra (`render`). Escribe `asignado_personal_id` en el borrador y, para
 // las tablas de inventario, mantiene `estado_equipo` en sincronía con la asignación

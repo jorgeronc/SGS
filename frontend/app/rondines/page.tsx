@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import ListaMaestra from "@/app/components/ListaMaestra";
+import { SelectRelacionEdit } from "@/app/components/Pickers";
 
 const hoyISO = () => new Date().toISOString().slice(0, 10);
 function guardiaNombre(g: any) {
@@ -119,7 +120,11 @@ export default function RondinesPage() {
           <p style={{ marginTop: 10 }}><Link href={`/rondines/${r.id}`} className="qbtn2">▤ Ver registro →</Link></p>
         </>
       )}
-      editar={[{ campo: "novedad", label: "Novedad", tipo: "textarea" }]}
+      editar={[
+        { campo: "punto_id", label: "Punto de control", tipo: "custom", persistCampos: ["punto_id"], render: (b, setB) => <SelectRelacionEdit borrador={b} setBorrador={setB} campo="punto_id" label="Punto de control" tabla="puntos_control" cols="id, nombre, codigo" orden="nombre" etiqueta={(o) => `${o.nombre}${o.codigo ? ` (${o.codigo})` : ""}`} /> },
+        { campo: "personal_id", label: "Guardia", tipo: "custom", persistCampos: ["personal_id"], render: (b, setB) => <SelectRelacionEdit borrador={b} setBorrador={setB} campo="personal_id" label="Guardia" tabla="personal" cols="id, persona:personas(nombre, apellido_paterno, apellido_materno)" orden="creado_en" placeholder="— Sin guardia —" etiqueta={(o) => (o.persona ? `${o.persona.nombre ?? ""} ${o.persona.apellido_paterno ?? ""} ${o.persona.apellido_materno ?? ""}`.trim() : o.id) || o.id} /> },
+        { campo: "novedad", label: "Novedad", tipo: "textarea" },
+      ]}
       nuevo={(onCreado) => <NuevoRondin onCreado={onCreado} />}
     />
   );

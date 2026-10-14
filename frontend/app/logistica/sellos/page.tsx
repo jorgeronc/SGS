@@ -57,7 +57,11 @@ export default function SellosPage() {
           <div>Folio: {r.folio ?? "—"}</div>
         </div>
       )}
-      editar={[{ campo: "estado", label: "Estado", tipo: "select", opciones: ESTADOS }]}
+      editar={[
+        { campo: "codigo_sello", label: "Código del sello" },
+        { campo: "tipo_sello", label: "Tipo de sello", tipo: "custom", persistCampos: ["tipo_sello"], render: (b, setB) => <label className="sc-edit-l"><span>Tipo de sello</span><CatalogoSelect categoria="tipo_sello" value={b.tipo_sello ?? ""} onChange={(v) => setB((p: any) => ({ ...p, tipo_sello: v }))} /></label> },
+        { campo: "estado", label: "Estado", tipo: "select", opciones: ESTADOS },
+      ]}
       nuevo={(onCreado) => <NuevoSello onCreado={onCreado} />}
     />
   );

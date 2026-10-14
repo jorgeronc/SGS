@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import ListaMaestra from "@/app/components/ListaMaestra";
 import { CatalogoSelect } from "@/app/components/CatalogoSelect";
+import { SelectRelacionEdit } from "@/app/components/Pickers";
 
 const ESTADOS = ["programada", "en_camino", "llego", "en_caseta", "autorizada", "en_anden", "carga_descarga", "finalizada", "salida", "cancelada"];
 const ESTADO_LBL: Record<string, string> = {
@@ -99,7 +100,7 @@ export default function CitasPage() {
       tabla="citas"
       modulo="citas"
       orderBy="programada_en"
-      select="id, folio, estado, placa, remolque_placa, tipo_operacion, anden, referencia, origen, destino, programada_en, operador_nombre, estatus, creado_en, sitio:sitios(nombre), transportista:transportistas(razon_social), vehiculo:vehiculos(placas), operador:personas(nombre, apellido_paterno)"
+      select="id, folio, estado, placa, remolque_placa, tipo_operacion, anden, referencia, origen, destino, programada_en, operador_nombre, sitio_id, transportista_id, vehiculo_id, estatus, creado_en, sitio:sitios(nombre), transportista:transportistas(razon_social), vehiculo:vehiculos(placas), operador:personas(nombre, apellido_paterno)"
       placeholderBuscar="Buscar placa, transportista, operador, OC…"
       columnas={[
         { header: "Folio", celda: (r) => r.folio ?? "—" },
@@ -136,8 +137,16 @@ export default function CitasPage() {
       )}
       editar={[
         { campo: "estado", label: "Estado", tipo: "select", opciones: ESTADOS },
+        { campo: "sitio_id", label: "Sitio (CEDIS)", tipo: "custom", persistCampos: ["sitio_id"], render: (b, setB) => <SelectRelacionEdit borrador={b} setBorrador={setB} campo="sitio_id" label="Sitio (CEDIS)" tabla="sitios" cols="id, nombre" orden="nombre" etiqueta={(o) => o.nombre} /> },
+        { campo: "transportista_id", label: "Transportista", tipo: "custom", persistCampos: ["transportista_id"], render: (b, setB) => <SelectRelacionEdit borrador={b} setBorrador={setB} campo="transportista_id" label="Transportista" tabla="transportistas" cols="id, razon_social" orden="razon_social" etiqueta={(o) => o.razon_social} placeholder="— Transportista —" /> },
+        { campo: "vehiculo_id", label: "Vehículo", tipo: "custom", persistCampos: ["vehiculo_id"], render: (b, setB) => <SelectRelacionEdit borrador={b} setBorrador={setB} campo="vehiculo_id" label="Vehículo (registro maestro)" tabla="vehiculos" cols="id, placas, marca, modelo" orden="placas" etiqueta={(o) => `${o.placas ?? "s/placa"}${o.marca ? ` · ${o.marca} ${o.modelo ?? ""}` : ""}`.trim()} placeholder="— Vehículo —" /> },
+        { campo: "operador_nombre", label: "Operador (nombre)" },
+        { campo: "placa", label: "Placa" },
+        { campo: "remolque_placa", label: "Placa de remolque" },
         { campo: "anden", label: "Andén" },
         { campo: "tipo_operacion", label: "Operación" },
+        { campo: "origen", label: "Origen" },
+        { campo: "destino", label: "Destino" },
         { campo: "programada_en", label: "Programada", tipo: "date" },
         { campo: "referencia", label: "OC / embarque" },
       ]}

@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabaseClient";
 import ListaMaestra from "@/app/components/ListaMaestra";
 import MapaPicker from "@/app/components/MapaPicker";
 import CameraDetailDrawer from "@/app/components/CameraDetailDrawer";
+import { SelectRelacionEdit } from "@/app/components/Pickers";
 
 const proveedorLabel = (p: string) => (p === "windy" ? "Windy" : "Manual");
 const estadoLabel = (e: string) => (e === "inactiva" ? "Inactiva" : e === "mantenimiento" ? "Mantenimiento" : "Activa");
@@ -202,7 +203,9 @@ export default function VideovigilanciaPage() {
       )}
       editar={[
         { campo: "nombre", label: "Nombre de la cámara" },
+        { campo: "sitio_id", label: "Sitio", tipo: "custom", persistCampos: ["sitio_id"], render: (b, setB) => <SelectRelacionEdit borrador={b} setBorrador={setB} campo="sitio_id" label="Sitio" tabla="sitios" cols="id, nombre" orden="nombre" etiqueta={(o) => o.nombre} /> },
         { campo: "estado_operativo", label: "Estado operativo", tipo: "select", opciones: ["activa", "inactiva", "mantenimiento"] },
+        { campo: "proveedor", label: "Proveedor", tipo: "select", opciones: ["manual", "windy", "iss", "securos"] },
         { campo: "stream_url", label: "URL del stream (proveedor manual)" },
         { campo: "proveedor_ref", label: "ID en el proveedor (proveedor_ref)" },
         { campo: "ubicacion_desc", label: "Ubicación / referencia" },
