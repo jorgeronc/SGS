@@ -31,8 +31,10 @@ export default function PersonasVehiculosIncidente({ llamadaId }: { llamadaId: s
     // Reúne involucrados de todas las fuentes (vínculos web 'cad' + móvil
     // 'incidente' + persona/vehículo del control de acceso que lo generó).
     const { perIds, vehIds } = await idsInvolucradosCad(llamadaId);
-    setPersonas(perIds.length ? (((await supabase.from("personas").select("id, folio, nombre, apellido_paterno, apellido_materno, sexo, ocupacion, fotografias").in("id", perIds)).data as any[]) ?? []) : []);
-    setVehiculos(vehIds.length ? (((await supabase.from("vehiculos").select("id, folio, placas, marca, color, vin, descripcion, fotografias").in("id", vehIds)).data as any[]) ?? []) : []);
+    // Nota: `personas` y `vehiculos` NO tienen columna `folio`; pedirla hacía
+    // fallar el select (error 400 -> data null) y la lista salía vacía.
+    setPersonas(perIds.length ? (((await supabase.from("personas").select("id, nombre, apellido_paterno, apellido_materno, sexo, ocupacion, fotografias").in("id", perIds)).data as any[]) ?? []) : []);
+    setVehiculos(vehIds.length ? (((await supabase.from("vehiculos").select("id, placas, marca, color, vin, descripcion, fotografias").in("id", vehIds)).data as any[]) ?? []) : []);
   }, [llamadaId]);
   useEffect(() => { cargar(); }, [cargar]);
 
@@ -129,7 +131,7 @@ export default function PersonasVehiculosIncidente({ llamadaId }: { llamadaId: s
       {tab === "persona" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {personas.map((r) => (
-            <div key={r.id} style={card}>{thumb(r.fotografias)}<div style={{ flex: 1 }}><b>{[r.nombre, r.apellido_paterno, r.apellido_materno].filter(Boolean).join(" ")}</b><div style={{ fontSize: 12, color: "var(--sc-text-soft)" }}>{r.folio ?? ""}{r.sexo ? ` · ${r.sexo}` : ""}{r.ocupacion ? ` · ${r.ocupacion}` : ""}</div></div><a href={`/personas/${r.id}`} style={{ fontSize: 12.5, color: "var(--sc-btn,#f4a03f)", textDecoration: "none" }}>Ver ficha →</a></div>
+            <div key={r.id} style={card}>{thumb(r.fotografias)}<div style={{ flex: 1 }}><b>{[r.nombre, r.apellido_paterno, r.apellido_materno].filter(Boolean).join(" ")}</b><div style={{ fontSize: 12, color: "var(--sc-text-soft)" }}>{[r.sexo, r.ocupacion].filter(Boolean).join(" · ")}</div></div><a href={`/personas/${r.id}`} style={{ fontSize: 12.5, color: "var(--sc-btn,#f4a03f)", textDecoration: "none" }}>Ver ficha →</a></div>
           ))}
           {personas.length === 0 && <div style={{ color: "var(--sc-text-soft)", fontSize: 13, padding: 8 }}>Sin personas capturadas en el incidente.</div>}
         </div>
@@ -137,7 +139,7 @@ export default function PersonasVehiculosIncidente({ llamadaId }: { llamadaId: s
       {tab === "vehiculo" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {vehiculos.map((r) => (
-            <div key={r.id} style={card}>{thumb(r.fotografias)}<div style={{ flex: 1 }}><b>{r.placas || r.vin || "Vehículo"}</b><div style={{ fontSize: 12, color: "var(--sc-text-soft)" }}>{r.folio ?? ""}{r.marca ? ` · ${r.marca}` : ""}{r.color ? ` · ${r.color}` : ""}{r.descripcion ? ` · ${r.descripcion}` : ""}</div></div><a href={`/vehiculos/${r.id}`} style={{ fontSize: 12.5, color: "var(--sc-btn,#f4a03f)", textDecoration: "none" }}>Ver ficha →</a></div>
+            <div key={r.id} style={card}>{thumb(r.fotografias)}<div style={{ flex: 1 }}><b>{r.placas || r.vin || "Vehículo"}</b><div style={{ fontSize: 12, color: "var(--sc-text-soft)" }}>{[r.marca, r.color, r.descripcion].filter(Boolean).join(" · ")}</div></div><a href={`/vehiculos/${r.id}`} style={{ fontSize: 12.5, color: "var(--sc-btn,#f4a03f)", textDecoration: "none" }}>Ver ficha →</a></div>
           ))}
           {vehiculos.length === 0 && <div style={{ color: "var(--sc-text-soft)", fontSize: 13, padding: 8 }}>Sin vehículos capturados en el incidente.</div>}
         </div>
