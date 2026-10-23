@@ -1,6 +1,6 @@
 # SGS vs. Clave 10 — Comparativa / Benchmark
 
-**Fecha:** Septiembre 2026
+**Fecha:** Octubre 2026
 **Fuentes:** funcionalidad de **SGS** según el sistema construido; funcionalidad de **Clave 10** según su sitio público (clave10.com) a esta fecha — nivel *marketing*, no evaluación práctica. Se marca "s/i" cuando no hay información pública suficiente.
 
 ---
@@ -34,7 +34,7 @@ Leyenda: ✓ = sí / robusto · ◑ = parcial o básico · ✗ = no lo tiene · 
 | **Anti-fatiga (turnos encadenados)** | ✓ (bloqueo + relevo forzado auditado) | s/i |
 | **Relevo automático (detección de descubiertos)** | ✓ (chat + push a central/coordinador/supervisor) | s/i |
 | **Monitoreo en vivo en mapa (guardias/sitios/cámaras)** | ✓ | s/i (no anunciado como mapa en vivo) |
-| **Videovigilancia (cámaras) integrada** | ✓ (consola, muro, snapshot→evidencia; lista para VMS) | ✗ (no lo ofrecen) |
+| **Videovigilancia (cámaras) integrada** | ✓ (consola, muro, snapshot→evidencia; **integración con ISS SecurOS ya disponible**) | ✗ (no lo ofrecen) |
 | **Video en vivo / bodycam (WebRTC + HD local)** | ✓ | ✗ |
 | **Alerta/emergencia con despacho** | ✓ | s/i |
 | **Seguridad Logística / custodia de carga** | ✓ (movimientos, sellos, riesgo, gate de liberación) | ✗ (no es su alcance) |
@@ -42,6 +42,7 @@ Leyenda: ✓ = sí / robusto · ◑ = parcial o básico · ✗ = no lo tiene · 
 | **Artículos perdidos / concesión / paquetería** | ✗ | ✓ (módulo dedicado) |
 | **Índice de cumplimiento / SLA por cliente** | ✓ | s/i (no orientado a proveedor de seguridad) |
 | **Reporte de horas (normales/extra) por cliente** | ✓ | s/i |
+| **Gestión de contratos (estados + vencimientos + tablero)** | ✓ | s/i |
 | **Asistente con IA (copiloto sobre los datos)** | ✓ | ✗ (no anunciado) |
 | **App móvil** | ✓ (Android; iOS por TestFlight) | ✓ (iOS y Android publicadas) |
 | **Operación offline (sin datos móviles)** | ✓ | ✓ |
@@ -58,7 +59,7 @@ Leyenda: ✓ = sí / robusto · ◑ = parcial o básico · ✗ = no lo tiene · 
 - **Rondín verdaderamente verificable:** validación **por GPS** (dentro del radio del punto) **y por geocerca sin QR/NFC** para áreas amplias, con **trayecto/playback** real vs esperado y detección de anomalías. Es evidencia del *cómo*, no solo del *dónde*.
 - **Operación del proveedor de seguridad:** **SLA/Índice de cumplimiento por cliente** y **reporte de horas (normales/extra) por cliente** — pensado para retener contratos y facturar/nominar, algo que un sistema in-house no necesita resolver.
 - **Continuidad del servicio:** **relevo automático** (detecta posiciones descubiertas y escala solo, con push) + **anti-fatiga** en el rol de turnos. Clave 10 no anuncia nada equivalente.
-- **Video:** **videovigilancia integrada** (consola, muro, snapshot→evidencia, listo para VMS) y **video en vivo/bodycam (WebRTC + grabación HD local)**. Clave 10 no ofrece video.
+- **Video:** **videovigilancia integrada** (consola, muro, snapshot→evidencia, con **integración a ISS SecurOS ya disponible**) y **video en vivo/bodycam (WebRTC + grabación HD local)**. Clave 10 no ofrece video.
 - **Seguridad Logística / custodia de carga:** módulo completo (movimientos, inspecciones, sellos, riesgo y **gate de liberación** que impide salir sin cumplir el protocolo) — fuera del alcance de Clave 10.
 - **Monitoreo en vivo en mapa** (guardias + cámaras + incidencias) y **copiloto con IA** sobre los propios registros.
 

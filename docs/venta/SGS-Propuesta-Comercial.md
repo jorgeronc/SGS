@@ -5,7 +5,7 @@ Propuesta de Valor · Presentación comercial del sistema
 
 Rondines verificables con trazabilidad GPS · Control de accesos · **Seguridad Logística (custodia de carga)** · Monitoreo y videovigilancia · Alertas · Índice de cumplimiento y SLA
 
-Documento comercial · **Versión 1.6 · Septiembre 2026**
+Documento comercial · **Versión 1.7 · Octubre 2026**
 
 ---
 
@@ -43,7 +43,7 @@ SGS resuelve lo anterior con capacidades pensadas para el negocio:
 - ✓ **Rondín en áreas amplias sin QR/NFC (geocerca automática).** En predios extensos donde no hay etiquetas, el punto se valida **solo con el GPS**: cuando el guardia permanece dentro del radio del punto el tiempo suficiente, el sistema lo da por cumplido automáticamente. Sin infraestructura física en cada punto.
 - ✓ **Sesiones de rondín automáticas.** El recorrido se abre y cierra solo (por geocerca del sitio), con su folio, y arroja **reproducción del trayecto (playback)**, cumplimiento de puntos y señales de anomalía.
 - ✓ **Monitoreo y supervisión en vivo.** La central ve en un mapa a sus guardias (con su estatus: en posición, en rondín o en pausa), sitios, puntos de control, incidencias y cámaras, en tiempo real y sin perder el foco al actualizarse. El supervisor también da seguimiento **desde el móvil**, por guardia o por sitio.
-- ✓ **Videovigilancia integrada.** Consola dedicada de monitoreo (doble vista de cámaras, árbol por sitio, arrastrar y soltar, eventos y salud del sistema), muro en vivo (hasta 24 cámaras) y cámaras cercanas a cada incidencia. Cada cámara tiene un inspector para tomar un snapshot como evidencia y crear un incidente en un clic. El video no se almacena: la señal se resuelve al momento, y la plataforma queda lista para integrar el VMS del cliente (ISS/SecurOS, Milestone o Genetec).
+- ✓ **Videovigilancia integrada.** Consola dedicada de monitoreo (doble vista de cámaras, árbol por sitio, arrastrar y soltar, eventos y salud del sistema), muro en vivo (hasta 24 cámaras) y cámaras cercanas a cada incidencia. Cada cámara tiene un inspector para tomar un snapshot como evidencia y crear un incidente en un clic. El video no se almacena: la señal se resuelve al momento. **Integración ya disponible con ISS SecurOS** (VMS), y lista para integrar otros VMS del cliente (Milestone o Genetec).
 - ✓ **Seguridad Logística: custodia de movimientos de carga.** Traslados bajo custodia (carretero / ferroviario / intermodal / interno) con su activo de transporte, unidades de carga, inspecciones de seguridad (checklist), sellos y nivel de riesgo. El **control de acceso en caseta se liga al movimiento** (valida al conductor contra el traslado), y una **Vista Operativa** orquesta todo el proceso por etapas con un **gate de Liberación de seguridad** que no deja salir la carga hasta cumplir todos los controles.
 - ✓ **Respuesta inmediata a emergencias.** Botón de alerta que abre un despacho con ubicación y transmisión de video en vivo.
 - ✓ **Supervisión y reportes para el cliente.** Recorrido de cada rondín en mapa y línea de tiempo, exportable a PDF.
@@ -54,6 +54,7 @@ SGS resuelve lo anterior con capacidades pensadas para el negocio:
 - ✓ **Citas de visitantes con autoregistro.** El guardia genera un **enlace de un solo uso**; el visitante captura sus datos y vehículo desde su teléfono; con un clic se emite su **credencial de visitante (QR válido 12 h)**.
 - ✓ **Supervisión de supervisores.** Tablero por supervisor: sitios visitados, brechas de relevo y cumplimiento de rondines de su turno.
 - ✓ **Índice de Cumplimiento y SLA por cliente.** Una sola cifra 0–100 y el % de cumplimiento del servicio contratado, con reporte mensual listo para entregar al cliente.
+- ✓ **Gestión de contratos.** Alta y seguimiento de los contratos por cliente, con sus estados y **control de vencimientos**, y un **tablero de contratos** para ver de un vistazo qué vence y qué requiere atención.
 - ✓ **Asistente con inteligencia artificial.** Responde en lenguaje natural preguntas sobre la operación a partir de los propios registros, citando su origen.
 - ✓ **Opera sin datos móviles.** El guardia captura y **envía por WiFi aunque el teléfono no tenga SIM/datos**; sin señal, la captura se guarda y se sube sola al reconectar. Nada se pierde.
 - ✓ **Trazabilidad total e inalterable.** Todo con folio y bitácora; los registros no se borran, se cancelan con motivo.
@@ -71,7 +72,7 @@ Cada módulo resuelve una necesidad concreta del negocio:
 | **Checkpoints por geocerca (sin QR/NFC)** | Valida puntos solo con GPS por permanencia; habilita el rondín en áreas amplias sin colocar etiquetas físicas. |
 | **Sesiones de rondín (automáticas)** | Abren/cierran solas por geocerca del sitio, con folio, reproducción del trayecto (playback), cumplimiento de puntos y detección de anomalías. |
 | **Monitoreo en vivo multicapa** | Guardias (con su estatus: en posición/rondín/pausa), sitios, puntos, incidencias y cámaras en un mapa en tiempo real. |
-| **Videovigilancia (cámaras)** | Consola dedicada (doble vista, árbol por sitio, eventos y salud), muro en vivo e inspector por cámara (snapshot→evidencia, crear incidente); sin almacenar video y lista para integrar un VMS. |
+| **Videovigilancia (cámaras)** | Consola dedicada (doble vista, árbol por sitio, eventos y salud), muro en vivo e inspector por cámara (snapshot→evidencia, crear incidente); sin almacenar video, con **integración ya disponible con ISS SecurOS** y lista para otros VMS. |
 | **Seguridad Logística (movimientos)** | Custodia de traslados de carga: activo, unidades de carga, inspecciones, sellos y riesgo; caseta ligada al movimiento; gate que garantiza que nada sale sin cumplir el protocolo. |
 | **Vista Operativa (flujo)** | Un solo tablero que orquesta el proceso de seguridad del movimiento por etapas (riesgo, acceso, inspección, liberación, tránsito, arribo, cierre) y su supervisión. |
 | **Control de accesos (CEDIS)** | Entradas/salidas de personas y vehículos, citas, andenes, credenciales y zonas; todo auditable. |
@@ -82,7 +83,8 @@ Cada módulo resuelve una necesidad concreta del negocio:
 | **Relevo automático (descubiertos)** | Detecta posiciones sin cobertura y abre chat + push a central/coordinador/supervisor con sitio, turno, fecha y hora de cambio; se cierra al restablecerse. |
 | **Tareas (recurrencia + evidencia)** | Por sitio o guardia, con vigencia y repetición (diaria/días de semana/por turno); foto o bodycam como evidencia ligada; visibles para el supervisor de sus sitios. |
 | **Citas de visitantes** | Agenda por sitio; enlace de un solo uso para autoregistro del visitante y su vehículo; emisión de credencial (QR 12 h) en un clic. |
-| **Evidencias y bodycam** | Fotos y video con cadena de custodia; respaldo ante reclamos. |
+| **Evidencias y bodycam** | Fotos, video y **audio** con cadena de custodia; respaldo ante reclamos. |
+| **Gestión de contratos** | Contratos por cliente con estados y control de vencimientos, y tablero de contratos para seguimiento. |
 | **Auditoría / bitácora** | Registro inmutable con valores antes/después completos, retención configurable y exportación CSV/Excel (solo administrador). |
 | **Reporte de horas (normales y extra)** | Por periodo y por cliente, agrupado por cliente con desglose por guardia; base para nómina y facturación. |
 | **Copiloto con IA** | Respuestas en lenguaje natural sobre la operación a partir de los registros. |
@@ -168,4 +170,4 @@ Proponemos una demostración con datos de ejemplo para mostrar el flujo completo
 
 **Contacto:** [ nombre / correo / teléfono comercial ]
 
-*SGS — Sistema de Gestión de Seguridad · Documento comercial · v1.6*
+*SGS — Sistema de Gestión de Seguridad · Documento comercial · v1.7*
