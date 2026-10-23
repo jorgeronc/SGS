@@ -8,15 +8,15 @@ Material comercial del **Sistema de Gestión de Seguridad (SGS)** para la venta 
 |---|---|---|---|
 | `SGS-Propuesta-Comercial.md` | **MD v1.7** (+ `.docx` v1.3 por regenerar) | Propuesta de valor / presentación comercial: qué es, beneficios, capacidades, diferenciadores, siguientes pasos. | Cliente / decisor de compra |
 | `SGS-Precios.md` | **MD v1.7** (+ `.docx` v1.2 por regenerar) | Esquema de precios: planes SaaS, add-ons, On-Premise, descuentos por volumen. | Cliente / decisor de compra |
+| `SGS-Flujo-Operativo.md` | **MD v2.5** (+ `.docx` v2.4 por regenerar) | Flujo operativo funcional (anexo): cómo funciona paso a paso, por rol y módulo. | Cliente operativo / evaluación |
 | `../SGS-vs-Clave10-Comparativa.md` | **MD · Oct 2026** | Comparativa/benchmark contra Clave 10. | Ventas / posicionamiento |
-| `SGS-Flujo-Operativo.docx` | `.docx` v2.4 (sin `.md`, por actualizar) | Flujo operativo funcional (anexo): cómo funciona paso a paso, por rol y módulo. | Cliente operativo / evaluación |
-| `SGS-Precios-Interno.docx` | `.docx` v1.2 (**no compartir**) | Precios + costos por servicio + márgenes + reglas de descuento. | Interno / equipo comercial |
+| `SGS-Precios-Interno.md` | **MD v1.3** (+ `.docx` v1.2) · **no compartir** | Precios + costos por servicio + márgenes + reglas de descuento. | Interno / equipo comercial |
 
 ## Estado (Oct 2026)
-- **Al día en MD v1.7:** se agregó **Gestión de contratos** (estados + vencimientos + tablero), **integración de videovigilancia con ISS SecurOS ya disponible**, **evidencia por audio**, y **Seguridad Logística** como línea en Precios.
-- **Pendiente de regenerar a `.docx`:** Propuesta y Precios (los `.docx` actuales están en v1.3/v1.2 · Ago 2026 y no reflejan lo anterior).
-- **Sin `.md` todavía:** `SGS-Flujo-Operativo` y `SGS-Precios-Interno` (siguen solo en `.docx`, por portar/actualizar).
-- Los add-ons nuevos (Seguridad Logística, integración VMS, Contratos avanzado) llevan **precio por definir** en `SGS-Precios.md`.
+- **Al día en MD (fuente de verdad):** Propuesta v1.7, Precios v1.7, Flujo v2.5, Precios-Interno v1.3 y Comparativa (Oct 2026).
+- **Cambios de esta ronda:** **Gestión de contratos** (estados + vencimientos + tablero), **integración de videovigilancia con ISS SecurOS ya disponible**, **evidencia por audio**, **Seguridad Logística / Vista Operativa** (flujo + línea en precios), rondín por **geocerca + sesiones automáticas**, **relevo automático + anti-fatiga** y **citas de visitantes con autoregistro**.
+- **Pendiente de regenerar a `.docx`** (desde los `.md`): Propuesta, Precios, Flujo y Precios-Interno (los `.docx` actuales están en v1.3/v1.2/v2.4 · Ago 2026).
+- Los add-ons nuevos (Seguridad Logística, integración VMS) llevan **precio por definir** en los docs de precios.
 
 ## Notas
 - En la Propuesta Comercial, completar el bloque **Contacto** (`[ nombre / correo / teléfono comercial ]`).
