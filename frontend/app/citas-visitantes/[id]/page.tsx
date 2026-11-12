@@ -143,7 +143,7 @@ export default function CitaVisitanteDetallePage() {
         <>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginTop: 6 }}>
             <h3 style={{ margin: 0 }}>Datos del visitante</h3>
-            <button onClick={emitirCredencial}>🎫 Emitir credencial de visitante</button>
+            {c.estatus !== "cancelado" && <button onClick={emitirCredencial}>🎫 Emitir credencial de visitante</button>}
           </div>
           <div style={card}>
             <dl className="sc-kv" style={{ margin: 0 }}>

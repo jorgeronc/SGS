@@ -221,15 +221,27 @@ function NuevaCredencial({ onCreado }: { onCreado: () => void }) {
   }, []);
 
   // Al elegir la cita (folio), trae los datos del visitante desde la cita.
+  // Si la cita no está en la lista precargada (p.ej. fuera del limit o del filtro),
+  // se consulta directo por id para que el prellenado nunca quede vacío.
   useEffect(() => {
     if (!folioVisita) return;
-    const cv = citasVisita.find((x) => x.id === folioVisita);
-    if (!cv) return;
-    setF((prev) => ({
-      ...prev, categoria: "Visitante", persona_id: cv.persona_id ?? "",
-      nombre: cv.persona?.nombre ?? "", apellido_paterno: cv.persona?.apellido_paterno ?? "",
-      apellido_materno: cv.persona?.apellido_materno ?? "", referencia: cv.empresa ?? "",
-    }));
+    let activo = true;
+    (async () => {
+      let cv: any = citasVisita.find((x) => x.id === folioVisita);
+      if (!cv) {
+        const { data } = await supabase.from("citas_visitantes")
+          .select("id, folio, empresa, persona_id, persona:personas(nombre, apellido_paterno, apellido_materno)")
+          .eq("id", folioVisita).maybeSingle();
+        cv = data;
+      }
+      if (!activo || !cv) return;
+      setF((prev) => ({
+        ...prev, categoria: "Visitante", persona_id: cv.persona_id ?? "",
+        nombre: cv.persona?.nombre ?? "", apellido_paterno: cv.persona?.apellido_paterno ?? "",
+        apellido_materno: cv.persona?.apellido_materno ?? "", referencia: cv.empresa ?? "",
+      }));
+    })();
+    return () => { activo = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [folioVisita, citasVisita]);
 
