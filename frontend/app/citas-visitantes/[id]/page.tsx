@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { SelectPersonal } from "@/app/components/Pickers";
 
@@ -12,7 +12,6 @@ const dtLocal = (s: string | null) => (s ? new Date(new Date(s).getTime() - new 
 
 export default function CitaVisitanteDetallePage() {
   const params = useParams<{ id: string }>();
-  const router = useRouter();
   const [c, setC] = useState<any>(null);
   const [solicitante, setSolicitante] = useState<string>("—");
   const [cargando, setCargando] = useState(true);
@@ -52,7 +51,11 @@ export default function CitaVisitanteDetallePage() {
   function emitirCredencial() {
     // Se pasa el folio (id de la cita); el alta de credenciales lo preselecciona y
     // trae los datos del visitante. El guardia elige sitio/zona y toma la foto.
-    router.push(`/credenciales?cat=Visitante&folio=${encodeURIComponent(c.id)}`);
+    // Navegación completa (no router.push): la página de credenciales lee los
+    // parámetros de la URL al cargar; con push, en el primer render la URL aún
+    // podía ser la anterior y el formulario de emisión no se abría (había que
+    // refrescar). Una carga completa deja la URL correcta desde el inicio.
+    window.location.assign(`/credenciales?cat=Visitante&folio=${encodeURIComponent(c.id)}`);
   }
   function iniciarEdicion() {
     setEd({ sitio_id: c.sitio_id ?? (c.sitio?.id ?? ""), fecha_hora_cita: dtLocal(c.fecha_hora_cita), solicitante_personal_id: c.solicitante_personal_id ?? "" });
