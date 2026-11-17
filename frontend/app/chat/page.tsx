@@ -16,7 +16,10 @@ interface Canal {
   tema: string | null;
   estado: "abierto" | "cerrado";
   actualizado_en: string;
+  creado_en: string;
 }
+// Turno ligado a un canal de brecha de relevo (relevo_gaps → turnos).
+interface RelevoInfo { fecha: string | null; hora_inicio: string | null }
 interface Mensaje {
   id: string;
   canal_id: string;
@@ -45,6 +48,18 @@ function selloTiempo(iso: string): string {
   return `${fecha} ${hora} · hace ${dias} días`;
 }
 
+// Fecha + hora completa (creación del chat).
+function fmtCreado(iso: string): string {
+  return new Date(iso).toLocaleString([], { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+// Turno: fecha (date) + hora de inicio (time "HH:MM:SS" → "HH:MM").
+function fmtTurno(fecha: string | null, hora: string | null): string {
+  if (!fecha) return "—";
+  const f = new Date(`${fecha}T00:00:00`).toLocaleDateString([], { day: "2-digit", month: "short", year: "numeric" });
+  const h = hora ? hora.slice(0, 5) : "";
+  return h ? `${f} · ${h} h` : f;
+}
+
 export default function ChatPage() {
   const [yo, setYo] = useState<string | null>(null);
   const [canales, setCanales] = useState<Canal[]>([]);
@@ -59,6 +74,7 @@ export default function ChatPage() {
   const [subiendo, setSubiendo] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [urlsFirmadas, setUrlsFirmadas] = useState<Record<string, string>>({});
+  const [relevoInfo, setRelevoInfo] = useState<RelevoInfo | null>(null); // turno del canal de brecha
 
   const finRef = useRef<HTMLDivElement | null>(null);
   const nombrePorId = useRef<Record<string, string>>({});
@@ -78,7 +94,7 @@ export default function ChatPage() {
   const cargarCanales = useCallback(async () => {
     const { data } = await supabase
       .from("chat_canales")
-      .select("id, nombre, tema, estado, actualizado_en")
+      .select("id, nombre, tema, estado, actualizado_en, creado_en")
       .order("actualizado_en", { ascending: false });
     setCanales((data as Canal[]) ?? []);
     const { data: mis } = await supabase.from("chat_miembros").select("canal_id, es_admin");
@@ -100,6 +116,10 @@ export default function ChatPage() {
   // --- Al abrir un canal: miembros + historial + marcar leído ---
   const cargarCanal = useCallback(async (canalId: string) => {
     setError(null);
+    setRelevoInfo(null);
+    // Si el canal nació de una brecha de relevo, trae su turno (fecha + hora de inicio).
+    supabase.from("relevo_gaps").select("turno:turnos(fecha, hora_inicio)").eq("canal_id", canalId).maybeSingle()
+      .then(({ data }) => { const t = (data as any)?.turno; setRelevoInfo(t ? { fecha: t.fecha ?? null, hora_inicio: t.hora_inicio ?? null } : null); });
     const { data: mem } = await supabase
       .from("chat_miembros")
       .select("usuario_id, es_admin, perfil:usuarios_perfil(nombre)")
@@ -279,6 +299,10 @@ export default function ChatPage() {
                   <div style={{ fontSize: 17, lineHeight: 1.25 }}>
                     <span style={{ fontWeight: 800 }}>{canalSel.nombre}</span>
                     {canalSel.tema && <span style={{ fontWeight: 400, color: "#555" }}>{"  "}{canalSel.tema}</span>}
+                  </div>
+                  <div style={{ fontSize: 12, color: "#667", marginTop: 2 }}>
+                    <span>Creado: <b>{fmtCreado(canalSel.creado_en)}</b></span>
+                    {relevoInfo && <span>{"  ·  "}Turno: <b>{fmtTurno(relevoInfo.fecha, relevoInfo.hora_inicio)}</b></span>}
                   </div>
                   <details style={{ fontSize: 12, color: "#777" }}>
                     <summary style={{ cursor: "pointer" }}>{miembros.length} integrante(s){cerrado ? " · cerrado" : ""}</summary>
