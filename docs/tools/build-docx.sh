@@ -10,6 +10,7 @@ PANDOC_OPTS=(--toc --toc-depth=3 -V lang=es-MX --standalone)
 
 TECNICOS=(
   "SGS-Modulos-y-Funciones"
+  "SGS-OnPremise-Arquitectura-Seguridad"
   "SGS-Secure-Access"
   "SGS-Integracion-SecurOS-ISS"
   "gps-guardias"
