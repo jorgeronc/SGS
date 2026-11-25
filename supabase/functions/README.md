@@ -1,6 +1,6 @@
 # Copiloto de IA — Fase 0 (cimientos RAG)
 
-Recuperación semántica sobre los expedientes del SCP. Los **embeddings se generan
+Recuperación semántica sobre los registros de SGS. Los **embeddings se generan
 con `gte-small` dentro de Supabase** (Edge Functions, `Supabase.ai`): no sale
 información a terceros. Claude sólo intervendrá en la Fase 1 (redacción con
 citas), no aquí.
@@ -8,9 +8,11 @@ citas), no aquí.
 ## Piezas
 - **Migración `0028_ia_rag.sql`** — `pgvector`, tabla `documentos_ia`,
   `rpc_buscar_semantica()` (RLS-aware) y `ia_consultas` (auditoría).
-- **`indexar-ia`** — (re)construye el índice desde las fuentes de texto
-  (incidentes, novedades, narrativas CAD, casos, llamadas, barandilla,
-  evidencias, órdenes). Asuntos Internos queda **fuera**.
+- **`indexar-ia`** — (re)construye el índice desde las fuentes de texto definidas
+  en `_shared/fuentes.ts` (`llamadas_cad`/CAD, `narrativas_cad`, `evidencias`, y
+  tablas heredadas del fork —`incidentes`, `novedades`, `casos`, `barandilla`,
+  `ordenes`— que al estar **dormidas en SGS** simplemente no aportan documentos).
+  Asuntos Internos queda **fuera**.
 - **`buscar-ia`** — prueba de búsqueda semántica (sin LLM todavía).
 
 ## Requisitos previos
@@ -23,7 +25,7 @@ citas), no aquí.
 
 ## Desplegar las funciones
 ```bash
-cd sistema-central-policial
+cd SGS
 npx supabase functions deploy indexar-ia
 npx supabase functions deploy buscar-ia
 ```
@@ -43,7 +45,7 @@ Respuesta: `{ ok: true, documentos: { incidentes: N, novedades: M, ... } }`.
 curl -X POST "https://rdyjjfbehjfggpldmmur.supabase.co/functions/v1/buscar-ia" \
   -H "Authorization: Bearer <JWT_DE_UN_USUARIO>" \
   -H "Content-Type: application/json" \
-  -d '{"q":"robo de vehículo con violencia en la colonia centro","k":8}'
+  -d '{"q":"acceso rechazado de un visitante en el sitio","k":8}'
 ```
 Devuelve los fragmentos más similares con su `folio`, `titulo` y `similitud`
 (0–1). Verás que recupera por significado, no sólo por palabra exacta.
@@ -53,7 +55,7 @@ Embebe la pregunta (gte-small) → `rpc_buscar_semantica` (RLS del usuario) → 
 el contexto → **Claude (`claude-opus-4-8`)** redacta la respuesta **citando el
 folio** de cada fuente, se **abstiene** si no hay evidencia suficiente, y registra
 todo en `ia_consultas`. En la web aparece como pestaña **Copiloto IA** en el
-detalle de incidentes y casos.
+detalle de incidentes (Central/Despacho).
 
 Requiere el secreto con la API key de Claude (fuera del repo):
 ```bash
@@ -66,7 +68,7 @@ Probar directo:
 curl -X POST "https://rdyjjfbehjfggpldmmur.supabase.co/functions/v1/copiloto" \
   -H "Authorization: Bearer <JWT_DE_UN_USUARIO>" \
   -H "Content-Type: application/json" \
-  -d '{"pregunta":"¿Qué antecedentes hay del vehículo con placas ABC-123?"}'
+  -d '{"pregunta":"¿Qué incidencias hay del vehículo con placas ABC-123?"}'
 ```
 Devuelve `{ respuesta, nivel_confianza, folios_citados, fuentes[] }`. Si el índice
 no tiene nada relevante, responde `sin_evidencia` sin invocar al modelo.

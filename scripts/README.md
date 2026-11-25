@@ -1,5 +1,7 @@
 # scripts/migrar_fotos.mjs
 
+> **Utilidad heredada del fork.** Migración puntual de fotos de datos **P360** (del sistema policial previo) hacia Storage; cruza tablas que incluyen módulos **dormidos en SGS** (`casos`, `incidentes`). No es parte del flujo operativo de SGS; se conserva para referencia de la migración.
+
 Descarga las **fotos remotas** (`mementoserver.appspot.com`) referenciadas en los CSV de
 P360 (`../../Datos/P360 *.csv`) y las sube al bucket de Storage de Supabase, generando un
 **manifiesto** `fotos_manifest.json` con la forma `{ tabla: { idOrigen: [rutas] } }`.
@@ -13,7 +15,7 @@ Sin dependencias: usa `fetch` nativo (Node 18+) y la API REST de Storage.
 
 ### 1) Sólo descargar (no requiere credenciales)
 ```powershell
-cd sistema-central-policial\scripts
+cd SGS\scripts
 node migrar_fotos.mjs --download-only
 ```
 
@@ -22,7 +24,7 @@ Necesita la **service_role key** del proyecto. La forma fácil (sin escribir var
 entorno): copia la plantilla y pega tu llave.
 
 ```powershell
-cd sistema-central-policial\scripts
+cd SGS\scripts
 copy supabase.local.example.json supabase.local.json
 # edita supabase.local.json y pega tu serviceKey (ese archivo está en .gitignore)
 node migrar_fotos.mjs
