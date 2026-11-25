@@ -36,6 +36,14 @@ function captura(s, x, y, w, h, label) {
   s.addText("◻  CAPTURA DE PANTALLA", { isTextBox: true, x, y: y + h / 2 - 0.5, w, h: 0.35, fontFace: BODY, fontSize: 12, bold: true, color: MUTE, align: "center", margin: 0 });
   s.addText(label, { isTextBox: true, x: x + 0.2, y: y + h / 2 - 0.1, w: w - 0.4, h: 0.6, fontFace: BODY, fontSize: 13, color: SOFT, align: "center", margin: 0 });
 }
+// Imagen real dentro de una tarjeta (contain, centrada). portrait = columna angosta.
+const ASSETS = path.join(__dirname, "..", "assets", "presentacion");
+function imagen(s, x, y, w, h, file, portrait) {
+  s.addShape(p.shapes.ROUNDED_RECTANGLE, { x, y, w, h, rectRadius: 0.06, fill: { color: WHITE }, line: { color: LINE, width: 1.25 }, shadow: { type: "outer", color: "9DB0C4", blur: 7, offset: 2, angle: 90, opacity: 0.4 } });
+  let ix = x + 0.14, iy = y + 0.14, iw = w - 0.28, ih = h - 0.28;
+  if (portrait) { const cw = Math.min(iw, h * 0.52); ix = x + (w - cw) / 2; iw = cw; }
+  s.addImage({ path: file, x: ix, y: iy, w: iw, h: ih, sizing: { type: "contain", w: iw, h: ih } });
+}
 // Lista de viñetas
 function vinetas(s, items, x, y, w, h, opt = {}) {
   const runs = items.map((t, i) => ({ text: t, options: { bullet: { indent: 16 }, breakLine: true, paraSpaceAfter: 10, fontFace: BODY, fontSize: opt.fontSize || 15.5, color: opt.color || INK } }));
@@ -119,12 +127,13 @@ pasos.forEach((ps, i) => {
 footer(s, 4);
 
 // ---------- Slides de capacidad (imagen + viñetas) ----------
-function capacidad(n, k, tit, items, cap, imgLeft) {
+function capacidad(n, k, tit, items, cap, imgLeft, imgFile, portrait) {
   const s = p.addSlide(); s.background = { color: WHITE };
   kicker(s, k, 0.6, 0.5, 8);
   s.addText(tit, { isTextBox: true, x: 0.6, y: 0.8, w: W - 1.2, h: 0.8, fontFace: HEAD, fontSize: 28, bold: true, color: INK, align: "left", margin: 0 });
   const imgX = imgLeft ? 0.6 : 6.95, txtX = imgLeft ? 7.0 : 0.7;
-  captura(s, imgX, 1.95, 5.75, 4.55, cap);
+  if (imgFile) imagen(s, imgX, 1.95, 5.75, 4.55, path.join(ASSETS, imgFile), portrait);
+  else captura(s, imgX, 1.95, 5.75, 4.55, cap);
   vinetas(s, items, txtX, 2.15, 5.5, 4.4, { fontSize: 15.5, color: INK });
   footer(s, n);
   return s;
@@ -134,7 +143,7 @@ capacidad(5, "Capacidad", "Rondines verificables con trazabilidad GPS", [
   "Checkpoints por geocerca en áreas amplias, sin colocar etiquetas.",
   "Sesiones automáticas con reproducción del trayecto (real vs. esperado).",
   "Intentos fuera de rango marcados: control anti-fraude con evidencia.",
-], "App del guardia — Rondín QR / NFC", false);
+], "App del guardia — Rondín QR / NFC", false, "rondin.png", true);
 
 capacidad(6, "Capacidad", "Monitoreo y supervisión en vivo", [
   "Mapa en tiempo real: guardias (con estatus), sitios, puntos, incidencias y cámaras.",
@@ -154,19 +163,19 @@ capacidad(8, "Capacidad", "Seguridad Logística — custodia de carga", [
   "Inspecciones (checklist), sellos de seguridad y nivel de riesgo.",
   "Acceso en caseta ligado al movimiento: valida al conductor contra su traslado.",
   "Vista Operativa con gate de Liberación: nada sale sin cumplir el protocolo.",
-], "Seguridad Logística — Vista Operativa", true);
+], "Seguridad Logística — Vista Operativa", true, "vista-operativa.png");
 
 capacidad(9, "Capacidad", "Control de accesos y credenciales", [
   "Entradas/salidas de personas y vehículos; un acceso rechazado genera incidente.",
   "Credenciales QR/NFC/temporal; citas y andenes para CEDIS; zonas por horario.",
   "Citas de visitantes con autoregistro: enlace de un solo uso y credencial QR 12 h.",
-], "Control de accesos / Credenciales", false);
+], "Control de accesos / Credenciales", false, "accesos.png");
 
 capacidad(10, "Capacidad", "Relevo automático, anti-fatiga y tareas", [
   "Relevo automático: detecta posiciones descubiertas y abre un chat con push a central, coordinador y supervisor.",
   "Anti-fatiga: impide encadenar turnos; relevo forzado con motivo, auditado.",
   "Tareas por sitio o guardia, con recurrencia y evidencia (foto, bodycam o audio).",
-], "Rol de turnos / Chat de relevo", true);
+], "Rol de turnos / Chat de relevo", true, "turnos.png");
 
 // ---------- S11 Cumplimiento + SLA + IA ----------
 s = p.addSlide(); s.background = { color: WHITE };
@@ -183,7 +192,7 @@ vinetas(s, [
   "SLA por cliente con metas definidas y reporte mensual que ayuda a retener contratos.",
   "Copiloto IA: responde en lenguaje natural sobre la operación a partir de los propios registros, citando su origen.",
 ], 0.7, 4.15, 5.6, 2.4, { fontSize: 14.5, color: INK });
-captura(s, 6.95, 2.0, 5.75, 4.5, "Panel / Índice de Cumplimiento (/ o /reporte-sla)");
+imagen(s, 6.95, 2.0, 5.75, 4.5, path.join(ASSETS, "cumplimiento.png"), false);
 footer(s, 11);
 
 // ---------- S12 Diferenciadores ----------
