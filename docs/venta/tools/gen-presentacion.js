@@ -149,14 +149,14 @@ capacidad(6, "Capacidad", "Monitoreo y supervisión en vivo", [
   "Mapa en tiempo real: guardias (con estatus), sitios, puntos, incidencias y cámaras.",
   "Refresco automático sin perder el foco del operador.",
   "Ubicación visible solo para mandos; el supervisor también da seguimiento desde el móvil.",
-], "Mapa Operacional (/mapa-operacional)", true);
+], "Mapa Operacional (/mapa-operacional)", true, "mapa-operacional.png");
 
 capacidad(7, "Capacidad", "Videovigilancia integrada", [
   "Consola de monitoreo: doble vista, árbol por sitio, eventos y salud del sistema.",
   "Muro en vivo hasta 24 cámaras y cámaras cercanas a cada incidencia.",
   "Snapshot → evidencia y crear incidente en un clic.",
   "Integración con ISS SecurOS ya disponible (VMS).",
-], "Videovigilancia — Muro en vivo", false);
+], "Videovigilancia — Muro en vivo", false, "videovigilancia.png");
 
 capacidad(8, "Capacidad", "Seguridad Logística — custodia de carga", [
   "Traslados bajo custodia: carretero, ferroviario, intermodal e interno.",
