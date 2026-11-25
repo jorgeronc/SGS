@@ -2,22 +2,23 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## ⚠️ ALCANCE DE ESTA SESIÓN: SGS — seguridad PRIVADA (no policial)
+## ⚠️ ALCANCE: SGS — seguridad PRIVADA (no policial)
 
-Este repo es **SGS (Sistema de Gestión de Seguridad)**, producto para **seguridad privada**, hecho como **FORK PURO de SCP**. Trabaja **solo** en el dominio privado. Reglas de esta sesión:
+Este repo es **SGS (Sistema de Gestión de Seguridad)**, producto para **seguridad privada**, hecho como **FORK PURO de un sistema policial previo (SCP)**. Se trabaja **solo** en el dominio privado:
 
-- **No toques ni reactives los módulos policiales.** Están **dormidos** a propósito (sus tablas existen en la BD porque se corrieron todas las migraciones de SCP, pero sin UI). No los propongas, no los revivas, no los borres.
-- **Dominio SGS** = Guardias, Clientes/Sitios (puestos), Rol de turnos, Puntos de control, Rondines, Tareas, Chat. Aquí se construye lo nuevo (migraciones `0050+`).
-- **Infra separada de SCP**, misma organización/cuentas. Supabase ref **`rdyjjfbehjfggpldmmur`** (cuenta distinta a la de SCP); Vercel proyecto **`sgs`** (web en `sgs-two-phi.vercel.app`, Root=`frontend`); repo GitHub `jorgeronc/SGS` (push a `main` = deploy); móvil EAS **`sgs-movil`** (`@jorgeroncs-team`, projectId `d6052d9c-0653-476f-999a-198b706ee552`, package `com.sgs.movil`, Firebase `sgs-movil-f115a`).
-- **Branding igual a SCP salvo:** en la UI los **botones son naranja claro** (`--sc-btn: #f4a03f` en `globals.css`); el resto (azul/teal) igual.
-- **La arquitectura técnica descrita abajo es la que SGS heredó del fork y sigue aplicando** (WORM, folios, bitácora, RLS, catálogos, vínculos, push Expo, chat, bodycam WebRTC, LocationIQ, environments de EAS). Cuando dudes de un patrón de plataforma, funciona igual que en SCP. **Ojo:** partes del texto de abajo todavía dicen "SCP/policial" por ser copia — el alcance real es este banner.
+- **No tocar ni reactivar los módulos policiales.** Están **dormidos** a propósito (sus tablas existen en la BD porque se corrieron todas las migraciones del fork, pero sin UI). No proponerlos, no revivirlos, no borrarlos.
+- **Dominio SGS** = Guardias, Clientes/Sitios (puestos), Rol de turnos, Puntos de control, Rondines, Control de accesos, Seguridad Logística, Videovigilancia, Contratos, Cumplimiento/SLA, Tareas, Chat. Lo nuevo vive en migraciones `0050+`.
+- **Infra:** Supabase ref **`rdyjjfbehjfggpldmmur`**; Vercel proyecto **`sgs`** (web en `sgs-two-phi.vercel.app`, Root=`frontend`); repo GitHub `jorgeronc/SGS` (push a `main` = deploy); móvil EAS **`sgs-movil`** (`@jorgeroncs-team`, projectId `d6052d9c-0653-476f-999a-198b706ee552`, package `com.sgs.movil`, Firebase `sgs-movil-f115a`).
+- **Branding:** botones en **naranja claro** (`--sc-btn: #f4a03f` en `globals.css`); el resto (azul/teal) igual.
+
+> Nota: por ser un fork, varios identificadores a nivel de código conservan el prefijo heredado `sc-`/`scp_` (p. ej. la variable CSS `--sc-btn`, la clave AsyncStorage `scp_bodycam_pendientes`). Son nombres reales en el código; no se renombran.
 
 ## What this is
 
-**SCP (Sistema Central Policial)** — a police RMS + CAD (Computer-Aided Dispatch) system. Three deployables live in one repo:
+**SGS (Sistema de Gestión de Seguridad)** — a private-security operations platform. Three deployables live in one repo:
 
-- `frontend/` — Next.js 14 (App Router, TypeScript) web app for dispatch/records. Deployed to **Vercel** (project `scp`, **Root Directory = `frontend`**; pushing to `main` on GitHub triggers a production deploy).
-- `mobile/` — Expo / React Native app for officers in the field. Built with **EAS**.
+- `frontend/` — Next.js 14 (App Router, TypeScript) web app: the Central de Operaciones (monitoring, dispatch/CAD, access control, logistics security, records, reports). Deployed to **Vercel** (project `sgs`, **Root Directory = `frontend`**; pushing to `main` on GitHub triggers a production deploy → `sgs-two-phi.vercel.app`).
+- `mobile/` — Expo / React Native app for the **guardia** in the field. Built with **EAS** (`sgs-movil`, Android).
 - `supabase/` — Postgres schema (`migrations/`) + Deno **Edge Functions** (`functions/`). Backend is **Supabase** (project ref `rdyjjfbehjfggpldmmur`).
 
 Both apps talk directly to Supabase (Postgres + Auth + Storage + Realtime) via `@supabase/supabase-js`. There is no separate API server.
@@ -37,7 +38,7 @@ Environment is **Windows / PowerShell**. There is **no test suite**; "verifying"
 - Mobile env vars come from **EAS environments** (set with `eas env:create --environment preview ...`), not from `env` blocks in `eas.json`. `.env` is only for local runs.
 
 **Supabase** (`cd .` — repo root has `supabase/`):
-- Migrations are **applied manually by the user** in the Supabase SQL editor (they are not auto-run). When adding schema, create the next sequentially-numbered file in `supabase/migrations/` (currently up to `0041_*`) and tell the user to run it.
+- Migrations are **applied manually by the user** in the Supabase SQL editor (they are not auto-run). When adding schema, create the next sequentially-numbered file in `supabase/migrations/` (currently up to `0132_*`) and tell the user to run it.
 - Deploy an edge function: `npx supabase functions deploy <name>` (PowerShell; the Bash tool fails on this machine). `enviar_push` must be deployed with `--no-verify-jwt` (it's called by a DB trigger, not a user session).
 
 Multi-line git commit messages: use `git commit -F <file>` (here-strings with quotes misbehave on this machine).
@@ -52,10 +53,10 @@ The schema is the source of truth for most behavior. Cross-cutting patterns, all
 - **Audit.** `fn_bitacora_generica` logs inserts/updates to a bitácora; the frontend also calls `rpc_registrar_bitacora` on reads.
 - **Generic relations.** Cross-entity links use one `vinculos` table (entidad_origen/destino tipo+id, tipo_relacion), surfaced by `VinculosPanel`. Prefer this over per-pair FK tables.
 - **Generic catalogs.** Short admin-editable option lists live in `cat_opciones (categoria, valor, orden, activo)`; the mobile/web forms read by `categoria`.
-- **RLS everywhere**, usually permissive select + `fn_rol_actual()` for role-gated cases (`asuntos_internos` is the strict one). Roles: oficial / supervisor / investigador / asuntos_internos / administrador.
+- **RLS everywhere**, usually permissive select + `fn_rol_actual()` for role-gated cases (reads/writes gated by role; some tables are stricter). Roles: oficial/guardia, supervisor, investigador, operador, coordinador, administrador, asuntos_internos (este último es de los módulos policiales dormidos).
 - **Realtime** drives live UI (CAD "EN VIVO" indicator, dispatch unit/status, state-change timeline). Tables added to the `supabase_realtime` publication are subscribed via `supabase.channel().on("postgres_changes", …)`.
 
-**Edge Functions** (Deno, `supabase/functions/`): call Anthropic/Expo via raw `fetch` (the esm.sh SDKs are flaky in Deno); share `_shared/cors.ts` (`json`, `preflight`). `SUPABASE_SERVICE_ROLE_KEY`/`SUPABASE_URL` are auto-injected. `crear_usuario` (admin-only user creation), `copiloto` (RAG assistant, model `claude-opus-4-8`), `enviar_push` (Expo push relay; validates a shared secret stored in the `app_secretos` table, not a GUC), `indexar-ia` (builds/refreshes the RAG embeddings index), `buscar-ia` (semantic search over that index, feeds `copiloto`).
+**Edge Functions** (Deno, `supabase/functions/`): call Anthropic/Expo via raw `fetch` (the esm.sh SDKs are flaky in Deno); share `_shared/cors.ts` (`json`, `preflight`). `SUPABASE_SERVICE_ROLE_KEY`/`SUPABASE_URL` are auto-injected. `crear_usuario` (admin-only user creation), `copiloto` (RAG assistant, model `claude-opus-4-8`), `enviar_push` (Expo push relay; validates a shared secret stored in the `app_secretos` table, not a GUC), `indexar-ia` (builds/refreshes the RAG embeddings index), `buscar-ia` (semantic search over that index, feeds `copiloto`), `camara_vista` (resolves a camera's live snapshot/stream URL server-side so the provider key never reaches the browser).
 
 ## Frontend architecture (`frontend/`)
 
@@ -69,11 +70,11 @@ The schema is the source of truth for most behavior. Cross-cutting patterns, all
 ## Mobile architecture (`mobile/`)
 
 - Expo SDK 54 / RN 0.81 / React 19. Screens in `src/screens/`, shared logic in `src/lib/`, theme tokens in `src/theme.ts` (`T`, `UI`) — restyle by editing tokens; screens consume them.
-- **Device-scoped identity via AsyncStorage** (there is no `auth.uid ↔ personal` link): `oficial.ts` ("Mi elemento"), `unidad.ts` ("Mi unidad"), `bodycam.ts` ("Mi bodycam", device-bound), `accesos.ts` (configurable quick-actions). Selecting an officer in Perfil validates the phone against a `bodycams` record of type `Smartphone` (`rpc_validar_bodycam`, device id from `expo-application`).
+- **Device-scoped identity via AsyncStorage** (there is no `auth.uid ↔ personal` link): `oficial.ts` ("Mi elemento"), `unidad.ts` ("Mi unidad"), `bodycam.ts` ("Mi bodycam", device-bound), `accesos.ts` (configurable quick-actions). Selecting a guardia (elemento) in Perfil validates the phone against a `bodycams` record of type `Smartphone` (`rpc_validar_bodycam`, device id from `expo-application`).
 - **Push** (`lib/push.ts`): registers an Expo token into `dispositivos_push`; a DB trigger on `despachos`/`tarea_asignaciones` calls the `enviar_push` edge function. Requires an EAS build + FCM (Android `google-services.json` in `app.json`, FCM V1 service account in EAS credentials).
 - **Bodycam / live video** (`lib/transmision.ts` + `TransmisionScreen`): `react-native-webrtc`, signaling over a Supabase Realtime broadcast channel `tx:{id}`, **Metered** TURN. The web dispatcher views/records it (`VisorTransmision`); recording is browser-side into the private `videos` bucket + an `evidencias` record with chain of custody.
-- **Bodycam HD local** (`lib/bodycamHd.ts` + native module `modules/bodycamhd`, Kotlin/CameraX/LifecycleService foreground service `camera|microphone`): the "Activar Bodycam" flow records HD **with the screen locked / app backgrounded**. Rotates into **size-based segments (~45 MB)** via `FileOutputOptions.setFileSizeLimit` to stay under Supabase Storage's 50 MB per-file cap (a 3-min clip → HTTP 413). Segments queue on the phone (`/Android/data/com.scp.movil/files/bodycam/pending/`, AsyncStorage `scp_bodycam_pendientes`); Perfil → "Descargar bodycam" uploads them via `FileSystem.uploadAsync` (streaming to a `createSignedUploadUrl`, never base64/in-memory) as `evidencias` (`video_bodycam`, `datos_adicionales.modo='local_hd'`) + `cadena_custodia`. **No delete-from-app** (every video is evidence); purge test clips by uninstalling the APK. Android-only, needs an EAS build.
-- **Bodycam tied to a module** (`components/BodycamBoton.tsx`): the same recording can be started from Informe (`incidente`), DespachoDetalle (`cad`), Tareas (`tarea`), Abordamiento, and Accidente. `iniciarBodycam(origen)` stamps each segment with the origin `{tipo,id,folio}`; forms that only know the folio after saving call `asociarBodycamActual()` to back-stamp the session's segments. On download the evidence carries `origen_tipo/id/folio` in `datos_adicionales` (+ a `vinculos` origin→evidencia row); the web Evidencias list shows an "Origen" folio column.
+- **Bodycam HD local** (`lib/bodycamHd.ts` + native module `modules/bodycamhd`, Kotlin/CameraX/LifecycleService foreground service `camera|microphone`): the "Activar Bodycam" flow records HD **with the screen locked / app backgrounded**. Rotates into **size-based segments (~45 MB)** via `FileOutputOptions.setFileSizeLimit` to stay under Supabase Storage's 50 MB per-file cap (a 3-min clip → HTTP 413). Segments queue on the phone (`/Android/data/com.sgs.movil/files/bodycam/pending/`, AsyncStorage key `scp_bodycam_pendientes` — nombre heredado); Perfil → "Descargar bodycam" uploads them via `FileSystem.uploadAsync` (streaming to a `createSignedUploadUrl`, never base64/in-memory) as `evidencias` (`video_bodycam`, `datos_adicionales.modo='local_hd'`) + `cadena_custodia`. **No delete-from-app** (every video is evidence); purge test clips by uninstalling the APK. Android-only, needs an EAS build.
+- **Bodycam tied to a module** (`components/BodycamBoton.tsx`): the same recording can be started from Incidente (`incidente`), DespachoDetalle (`cad`), Tareas (`tarea`) and Inspección (`inspeccion`). `iniciarBodycam(origen)` stamps each segment with the origin `{tipo,id,folio}`; forms that only know the folio after saving call `asociarBodycamActual()` to back-stamp the session's segments. On download the evidence carries `origen_tipo/id/folio` in `datos_adicionales` (+ a `vinculos` origin→evidencia row); the web Evidencias list shows an "Origen" folio column.
 - Maps: **TomTom** only for dispatch routing (`EXPO_PUBLIC_TOMTOM_API_KEY`); LocationIQ for everything else. Leaflet runs inside a WebView.
 
 ## graphify
