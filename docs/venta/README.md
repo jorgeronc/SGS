@@ -25,7 +25,13 @@ Edita siempre el `.md` y vuelve a correr el script; nunca edites el `.docx` dire
 - **Última ronda de cambios:** **Gestión de contratos** (estados + vencimientos + tablero), **integración de videovigilancia con ISS SecurOS ya disponible**, **evidencia por audio**, **Seguridad Logística / Vista Operativa** (flujo + línea en precios), rondín por **geocerca + sesiones automáticas**, **relevo automático + anti-fatiga** y **citas de visitantes con autoregistro**.
 - Los add-ons nuevos (Seguridad Logística, integración VMS) llevan **precio por definir** en los docs de precios.
 
+## Presentación (PPTX)
+- `SGS-Presentacion.pptx` — deck **ejecutivo de acercamiento** (~14 slides): reto del sector, qué es SGS, cómo funciona, capacidades con imagen, diferenciadores, seguridad y siguientes pasos (demo → piloto → implementación). Branding SGS (naranja + escudo).
+- Las slides de capacidad traen **marcos de captura etiquetados**: pegar en PowerPoint las pantallas reales (Mapa Operacional, Vista Operativa, Videovigilancia, Rondín app, Credenciales, Rol de turnos, Índice/SLA).
+- Regenerar: `cd docs/venta/tools && npm i pptxgenjs && node gen-presentacion.js` (requiere Node). Contenido tomado de la Propuesta v1.7 + Módulos y Funciones.
+
 ## Notas
 - En la Propuesta Comercial, completar el bloque **Contacto** (`[ nombre / correo / teléfono comercial ]`).
+- En la Presentación, completar el **Contacto** de la última slide y reemplazar los marcos de captura por las pantallas reales.
 - **Precios:** los montos (MXN, sin IVA) son lista sugerida ajustable. En el doc interno, cargar las tarifas reales de cada servicio para calcular costo por guardia y punto de equilibrio.
 - Los `.docx` llevan índice (TOC) generado por pandoc; al abrirlos en Word puede pedir **actualizar el índice** (F9).
