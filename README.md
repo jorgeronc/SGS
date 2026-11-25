@@ -1,123 +1,113 @@
-# Sistema Central Policial (SCP)
+# SGS — Sistema de Gestión de Seguridad
 
-RMS + CAD (Computer-Aided Dispatch) policial. Monorepo con tres entregables, todos
-conectados **directo a Supabase** (Postgres + Auth + Storage + Realtime); no hay
-servidor API intermedio.
+Plataforma **web + móvil** para empresas de **seguridad privada**: rondines verificables, rol de turnos, monitoreo GPS en vivo, control de accesos, videovigilancia, **seguridad logística (custodia de carga)**, cumplimiento/SLA y más.
+
+Monorepo con tres entregables, todos conectados **directo a Supabase** (Postgres + Auth + Storage + Realtime); no hay servidor API intermedio.
 
 | Componente | Carpeta | Stack | Despliegue |
 |---|---|---|---|
-| Web (despacho/registros) | `frontend/` | Next.js 14 (App Router, TS) | **Vercel** (proyecto `scp`, Root = `frontend`; push a `main` = deploy) |
-| Móvil (oficial en campo) | `mobile/` | Expo SDK 54 / RN 0.81 | **EAS** (APK Android) |
-| Backend | `supabase/` | Postgres (migraciones `0001`–`0041`) + Edge Functions (Deno) | Supabase (ref `rdyjjfbehjfggpldmmur`) |
+| Web (Central de Operaciones) | `frontend/` | Next.js 14 (App Router, TS) | **Vercel** (proyecto `sgs`, Root = `frontend`; push a `main` = deploy → `sgs-two-phi.vercel.app`) |
+| Móvil (guardia en campo) | `mobile/` | Expo SDK 54 / RN 0.81 | **EAS** (`sgs-movil`, APK Android) |
+| Backend | `supabase/` | Postgres (migraciones `0001`–`0132`) + Edge Functions (Deno) | Supabase (ref `rdyjjfbehjfggpldmmur`) |
 
-> Guía de trabajo para contribuir (comandos, arquitectura y convenciones): ver
-> `CLAUDE.md`. Diseño completo y roadmap: `Arquitectura_Sistema_Central_Policial_SaaS.md`.
+> **Repo GitHub:** `jorgeronc/SGS` · **Branding:** igual al diseño base salvo los **botones en naranja claro** (`--sc-btn: #f4a03f` en `globals.css`).
+>
+> **Guía para contribuir** (comandos, arquitectura y convenciones): `CLAUDE.md`. **Documentación** (funcional, comercial, técnica): carpeta `docs/` (ver abajo).
+
+> **Alcance:** SGS es un **fork puro** de un sistema previo (SCP, policial). Los módulos policiales quedaron **dormidos a propósito** (sus tablas existen en la BD porque se corrieron todas las migraciones, pero sin UI). Lo nuevo de SGS vive en las migraciones `0050+`. No se tocan ni se reactivan los módulos policiales.
 
 ---
 
 ## Estructura
 
 ```
-sistema-central-policial/
+SGS/
 ├── supabase/
-│   ├── migrations/                 0001…0041 — se corren MANUALMENTE en orden en el SQL Editor
-│   │                               (core, bitácora, WORM, RLS, casos, personal, órdenes, fotos,
-│   │                                evidencias, asuntos internos, CAD/barandilla, foliador, equipo,
-│   │                                admin, incidentes, tareas, transmisiones, bodycam, cierre/historial CAD…)
-│   ├── functions/                  Edge Functions (Deno): crear_usuario, copiloto, enviar_push,
-│   │                               indexar-ia, buscar-ia
-│   └── seed.sql                    Datos de prueba (opcional)
-├── frontend/                       Next.js 14 (App Router) — web de despacho/registros
-│   ├── app/                        rutas + components/ (AppShell, ListaMaestra, VinculosPanel…)
-│   ├── lib/                        supabaseClient, types, config, geo (LocationIQ), turn (WebRTC)
+│   ├── migrations/      0001…0132 — se corren MANUALMENTE en orden en el SQL Editor
+│   │                    (core, bitácora, WORM, RLS, folios, CAD, foliador… y 0050+ el dominio SGS:
+│   │                     sitios, turnos, puntos de control, rondines, relevos, control de accesos,
+│   │                     seguridad logística, videovigilancia, citas de visitantes, contratos, RBAC…)
+│   ├── functions/       Edge Functions (Deno): crear_usuario, copiloto, enviar_push,
+│   │                    indexar-ia, buscar-ia, camara_vista
+│   └── seed.sql         Datos de prueba (opcional)
+├── frontend/            Next.js 14 (App Router) — Central de Operaciones (web)
+│   ├── app/             rutas + components/ (AppShell, ListaMaestra, VinculosPanel…)
+│   ├── lib/             supabaseClient, types, config, geo (LocationIQ), turn (WebRTC), mapStyle…
 │   └── .env.example
-└── mobile/                         Expo / React Native — app del oficial en campo
-    ├── src/screens/ · src/lib/ · src/components/ · modules/bodycamhd (módulo nativo Android)
-    └── app.json · eas.json
+├── mobile/              Expo / React Native — app del guardia en campo
+│   ├── src/screens/ · src/lib/ · src/components/ · modules/bodycamhd (módulo nativo Android)
+│   └── app.json · eas.json
+└── docs/                Documentación (ver sección "Documentación")
 ```
 
 ---
 
-## Paso 1 — Crear el proyecto Supabase (gratis)
+## Puesta en marcha
 
-1. Crear cuenta en [supabase.com](https://supabase.com) y un proyecto nuevo (plan gratuito).
-2. En el dashboard: **SQL Editor** → pegar y ejecutar, en este orden, el contenido de cada archivo de `supabase/migrations/` (`0001` … `0041`). Las migraciones se aplican **manualmente** (no se auto-corren). Al agregar esquema, crear el siguiente archivo numerado y correrlo.
-3. En **Authentication → Providers**, dejar habilitado correo/contraseña, y crear un primer usuario de prueba desde **Authentication → Users → Add user**. Al crearse, el trigger `trg_crear_perfil_nuevo_usuario` le genera automáticamente un perfil con rol `oficial` en `usuarios_perfil`. Para hacerlo `administrador`, editar esa fila manualmente desde **Table Editor** la primera vez.
-4. En **Settings → API**, copiar la `Project URL` y la `anon public key`.
+### Paso 1 — Backend (Supabase)
+1. En el proyecto Supabase, **SQL Editor** → ejecutar en orden el contenido de cada archivo de `supabase/migrations/` (`0001` … `0132`). Las migraciones se aplican **manualmente** (no se auto-corren). Al agregar esquema, crear el siguiente archivo numerado y correrlo.
+2. En **Authentication → Users**, crear un usuario de prueba; el trigger de perfil le asigna un rol inicial. Para dejarlo `administrador`, editar su fila en `usuarios_perfil` desde **Table Editor** la primera vez.
+3. En **Settings → API**, copiar `Project URL` y `anon public key`.
 
-**Importante sobre el plan gratuito:** el proyecto se pausa automáticamente tras 7 días sin uso — hay que reactivarlo desde el dashboard antes de una demo si estuvo inactivo.
-
----
-
-## Paso 2 — Correr el frontend en tu máquina
-
+### Paso 2 — Frontend (web)
 ```bash
 cd frontend
-cp .env.example .env.local
-# editar .env.local con la URL y anon key del paso 1
-
+cp .env.example .env.local      # editar con la URL y anon key del paso 1
 npm install
-npm run dev        # servidor de desarrollo en el puerto 3100
+npm run dev                     # servidor de desarrollo en el puerto 3100
 ```
+Abrir `http://localhost:3100`, iniciar sesión y probar un módulo. **Verificación real** = `npm run build` (atrapa errores que `tsc` no ve, p. ej. `useSearchParams` sin `<Suspense>`).
 
-Abrir `http://localhost:3100`, iniciar sesión con el usuario creado en el paso 1, y
-probar cualquier módulo (p. ej. Personas): agregar un registro, cancelarlo (nota que
-desaparece de la vista normal pero sigue en la tabla con estatus "cancelado") y crear
-un vínculo. **Verificación real** = `npm run build` (atrapa errores que `tsc` no ve,
-como `useSearchParams` sin `<Suspense>`).
+### Paso 3 — Móvil
+```bash
+cd mobile
+npx tsc --noEmit                                        # typecheck
+npx eas-cli build --profile preview --platform android # APK instalable
+```
+Las dependencias nativas (WebRTC, push, bodycam HD, NFC) **no** funcionan en Expo Go — requieren un build de EAS. Las variables del móvil vienen de **EAS environments**, no de `eas.json`.
 
-> **App móvil** (`mobile/`): `npx tsc --noEmit` para typecheck y
-> `npx eas-cli build --profile preview --platform android` para el APK. Las dependencias
-> nativas (WebRTC, push, bodycam) **no** funcionan en Expo Go — requieren un build de EAS.
-
----
-
-## Paso 3 — Verificar la bitácora
-
-Desde el **Table Editor** de Supabase, abrir la tabla `bitacora` después de usar el frontend. Deberías ver un registro por cada alta, modificación, cancelación y consulta, con `usuario_id` (resuelto automáticamente por Supabase Auth), `ip_address` y `computadora_id`.
-
-Sobre `computadora_id`: en esta demo se genera un identificador provisional en el navegador (ver `lib/deviceId.ts`), marcado explícitamente como no confiable para fines legales. El reemplazo por un catálogo de dispositivos registrados por TI (la opción recomendada en el documento de arquitectura) es un paso pendiente antes de producción.
-
-Sobre `ip_address`: la función de bitácora la lee de los headers de la petición HTTP (`request.headers` expuesto por PostgREST). **Esto hay que confirmarlo con el proyecto Supabase real** — la disponibilidad exacta de headers puede variar; si `ip_address` llega vacío en las pruebas, es la primera cosa a ajustar en `0002_bitacora.sql`.
+### Paso 4 — Producción On-Premise
+El mismo esquema SQL y el mismo frontend se despliegan contra una instancia de **Supabase auto-hospedado** (Docker). Detalle de arquitectura, seguridad y dependencias: `docs/SGS-OnPremise-Arquitectura-Seguridad.md`.
 
 ---
 
-## Paso 4 — Camino a producción on-premise
+## Ya construido (dominio SGS)
 
-Cuando llegue el momento de instalar en el servidor de una agencia (en vez de usar Supabase Cloud), el mismo esquema SQL y el mismo frontend se despliegan contra una instancia de **Supabase auto-hospedado** (Docker Compose, open source): ver la sección 2 del documento de arquitectura. No hace falta reescribir nada — solo cambia dónde vive la infraestructura.
+Resumen por área (inventario completo en `docs/SGS-Modulos-y-Funciones.md`):
+
+- **Panel e indicadores** — tablero operativo y de dirección; **Copiloto IA** (RAG con Claude); **Índice de Cumplimiento y SLA** por cliente; tablero de **Supervisores**.
+- **Central / Despacho (CAD)** — atención de incidencias, despacho, estados en vivo (Realtime) y vista imprimible; **alerta de pánico** desde el móvil con video en vivo.
+- **Mapa Operacional** — mapa en vivo multicapa (guardias con estatus, sitios, puntos, incidencias, cámaras).
+- **Videovigilancia** — consola, muro (hasta 24 cámaras), inspector por cámara (snapshot→evidencia, crear incidente); **integración con ISS SecurOS** ya disponible.
+- **Vigilancia en sitio** — Sitios/puestos con geocerca, Puntos de control (QR/NFC/geocerca), **Rondines** verificados con playback, **Supervisión de rondines**, **Rol de turnos** (anti-fatiga, relevo forzado) y **relevo automático de descubiertos** (chat + push).
+- **Tareas** — por sitio o guardia, con recurrencia y evidencia (foto/bodycam/audio).
+- **Control de Acceso** — bitácora de accesos, **Citas CEDIS** (vehículos/andenes), **Citas de visitantes** (autoregistro + credencial QR 12 h), **Credenciales** (QR/NFC/temporal), zonas por horario.
+- **Seguridad Logística (custodia de carga)** — Vista Operativa por etapas con gate de **Liberación de seguridad**, movimientos, inspecciones, sellos, activos y unidades de carga.
+- **Contratos** — gestión por cliente con estados y control de vencimientos, y tablero.
+- **Administración** — Clientes, Guardias (personal), Bienes (unidades/armamento/comunicación/smartphones), catálogos, **usuarios y roles (RBAC)**, parámetros (GPS, retención) y **bitácora de auditoría** (antes/después, export admin).
+- **App móvil (guardia/supervisor)** — Inicio/Mi turno (gate de sesión por turno), Rondín (QR/NFC/geocerca, offline), Tareas, Control de acceso en caseta, Incidentes, Inspecciones, Supervisión, **Bodycam** (HD local + transmisión WebRTC) y Chat.
+
+**Transversales:** WORM (nada se borra; se cancela con motivo), folios automáticos, RLS por rol, 2FA (aal2) en la web, Realtime, push (Expo/FCM), anti-fatiga, operación sin datos móviles, mapas MapLibre/Leaflet, nube sin servidores propios.
 
 ---
 
-## Ya construido
+## Documentación (`docs/`)
 
-- Módulos completos de **Personas**, **Vehículos**, **Ubicaciones**, **Casos/Incidentes**, **Personal**, **Citatorios/Órdenes**, **Bienes/Evidencias**, **Asuntos Internos**, **CAD/Despacho** y **Barandilla**: alta, consulta, cancelación (nunca borrado) y registro en bitácora.
-- **CAD / Despacho**: atención de llamadas con georreferencia (mapa) y despacho de unidades (oficial + patrulla) con seguimiento de estado (Enterado → En Ruta → En el Lugar → Cerrado). **Barandilla**: registro de custodia ligado a Personas. Las integraciones de telefonía/radio/CCTV en tiempo real quedan para el despliegue on-premise de cada agencia.
-- **Incidentes** (`/incidentes`): informe de incidente levantado a partir de un reporte de CAD (hereda su ubicación), con estado, narrativa, mapa, fotos, vínculos y **novedades** (append-only). Es la base que consumirá la app móvil del policía.
-- **App móvil (Expo, Android)** en `mobile/`: rediseño "Consola de Operaciones" con Inicio (8 indicadores), Perfil (Mi elemento / Mi unidad / Mi bodycam / accesos / Recordatorios de turno), consulta rápida, Mis incidentes, **Tareas asignadas** (con respuestas), informe de incidente / accidente / abordamiento con **fotos**, mapa (Leaflet en WebView), **estatus de unidad**, **Enviar Alerta** (pánico) y **push** de despachos/tareas.
-- **Vista de bitácora** (`/bitacora`) para supervisor/administrador: consulta con filtros (acción, módulo) de todo el registro de auditoría, con resolución de nombre de usuario.
-- **Equipo policial** (`/equipo`): inventario de armas, radios, bodycams, patrullas y motos, asignable a personal, con fotos.
-- **Foliador único y administrable**: cada módulo con folio recibe uno automático `AAAA + II + NNNNNN` (año + iniciales del módulo + consecutivo de 6 dígitos, reinicio anual). Se administra en `/admin` (solo administrador): iniciales por módulo y ajuste de consecutivos.
-- **Módulo de administración** (`/admin`): gestión de los foliadores y de **usuarios y roles** (`/admin/usuarios`) — el administrador asigna rol (oficial/supervisor/investigador/asuntos_internos/administrador) y activa/desactiva usuarios, con guard anti-autobloqueo.
-- **Asuntos Internos** con **RLS estricta por rol**: solo el rol `asuntos_internos` (o `administrador`) puede ver/gestionar estos registros; deliberadamente NO se exponen en vínculos ni fotos por confidencialidad. Cifrado por registro pendiente para producción.
-- **Evidencias** con fotos y **cadena de custodia inmutable (append-only / WORM)**: cada movimiento (recolección, traslado, análisis, entrega, devolución, destrucción) queda registrado y no se puede editar ni borrar; se refuerza a nivel de base de datos con triggers.
-- **Citatorios y Órdenes** (aprehensión, cateo, comparecencia) con estado de trámite (emitida → notificada → cumplida → vencida), ligados a casos y personas vía vínculos. La firma electrónica queda pendiente de definir el estándar para producción.
-- **Casos** con folio, tipo, prioridad y estado de investigación editable (abierto → en_investigación → cerrado → archivado), que agrupan a las demás entidades vía vínculos.
-- **Personal** de la agencia (placa, rango, adscripción, estado laboral) ligado al índice maestro de Personas — no duplica datos biográficos.
-- **Fotografías** en Personas y Vehículos: subida a Supabase Storage con captura directa desde la cámara del dispositivo y galería en la ficha.
-- **Ubicaciones con mapa**: captura de coordenadas (botón "usar mi ubicación" vía geolocalización del navegador) y mapa con marcador en el detalle (embed de OpenStreetMap, sin API key).
-- **Vínculos** entre cualquier par de entidades (persona, vehículo, ubicación, caso, personal, orden), con selector de entidad (búsqueda por etiqueta, sin pegar UUID a mano) y cancelación de vínculos.
-- Navegación entre módulos y panel de vínculos reutilizable (`app/components/VinculosPanel.tsx`).
-- **CAD / Despacho ampliado**: unidad que atiende en lista/mapa/detalle con colores de estado (Realtime), **cierre de reporte** con conclusión (Atendido/en Falso/Cancelado), **historial de atención** con fecha/hora/usuario y **PDF oficial** imprimible.
-- **Accidentes viales** (croquis, vehículos y personas) y **Abordamientos**, en web y móvil.
-- **Tareas** (Operaciones): solicitud a unidades en servicio con vigencia, lugar, instrucciones y foto; respuestas Enterado/Atendiendo/Completada y **push** a la app.
-- **Bodycam en vivo (WebRTC)**: al Enviar Alerta el teléfono transmite y el despacho ve/**graba como evidencia** (bucket privado `videos` + custodia); señalización por Realtime, TURN Metered; el smartphone se valida/vincula como bodycam tipo *Smartphone*.
-- **Bodycam HD local (Android)**: módulo nativo (CameraX + foreground service) que graba HD con la pantalla bloqueada, en **segmentos** que se descargan en la agencia por WiFi como evidencia. Se puede **iniciar desde un módulo** (Informe, Despacho, Tarea, Abordamiento, Accidente) y la evidencia queda **ligada al folio de origen**.
-- **Notificaciones push** (Expo + FCM) vía trigger en DB → edge function `enviar_push`.
-- **Copiloto IA** (RAG con Claude): edge functions `indexar-ia` / `buscar-ia` / `copiloto`.
-- **Panel / Dashboard**: KPIs semanales y anuales, galerías de últimos registros, mapa de reportes abiertos y gráficas de bitácora; se auto-refresca al volver a la pestaña.
+| Documento | Para qué |
+|---|---|
+| `docs/SGS-Modulos-y-Funciones.md` | **Documento técnico**: inventario funcional de todos los módulos |
+| `docs/SGS-OnPremise-Arquitectura-Seguridad.md` | Arquitectura, seguridad y despliegue **On-Premise** (para TI del cliente) |
+| `docs/SGS-Secure-Access.md` | Acceso móvil passwordless (NFC + biometría) — especificación |
+| `docs/SGS-Integracion-SecurOS-ISS.md` | Integración de videovigilancia con ISS SecurOS |
+| `docs/gps-guardias.md` | GPS en vivo de guardias |
+| `docs/venta/` | Material **comercial**: Propuesta, Precios, Flujo Operativo, comparativa y **presentación (.pptx)** |
 
-## Qué falta (siguiente iteración)
+Los `.docx`/`.pptx` se generan desde los `.md` con `docs/tools/build-docx.sh`, `docs/venta/tools/build-docx.sh` y `docs/venta/tools/gen-presentacion.js`.
 
-- Confirmar en el proyecto Supabase que `request.headers` expone IP y el header de dispositivo; resolver `computadora_id` con un catálogo de dispositivos registrados por TI.
-- **Diferido a producción** (hardening): bucket privado general, firma electrónica de órdenes, grabación de bodycam garantizada aunque nadie observe, protección para que los videos de evidencia no se puedan borrar, cifrado por registro en Asuntos Internos.
-- **Opcional**: suscribir el Panel a Supabase Realtime (como el CAD) para actualización en vivo sin re-enfocar la pestaña.
+---
+
+## Qué falta (hardening / siguiente iteración)
+
+- Confirmar en Supabase que `request.headers` expone IP y header de dispositivo; resolver `computadora_id` con un catálogo de dispositivos registrados por TI.
+- **SGS Secure Access** (login passwordless NFC + biometría): especificado, **no implementado** aún (ver `docs/SGS-Secure-Access.md`).
+- Opcional: suscribir el Panel a Realtime para actualización en vivo sin re-enfocar la pestaña.

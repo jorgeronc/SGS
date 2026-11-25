@@ -11,7 +11,7 @@ La app tiene dos partes:
 ## Desplegar el frontend en Vercel
 
 1. Entra a [vercel.com](https://vercel.com) y regístrate con tu cuenta de **GitHub**.
-2. **Add New → Project** → importa el repositorio **`jorgeronc/SCP`**.
+2. **Add New → Project** → importa el repositorio **`jorgeronc/SGS`**.
 3. **Root Directory:** selecciona **`frontend`** (la app Next vive en esa subcarpeta,
    no en la raíz del repo). Vercel detectará Next.js automáticamente
    (Framework Preset: Next.js).
@@ -24,7 +24,7 @@ La app tiene dos partes:
 
    > La anon/publishable key es pública por diseño (viaja al navegador), así que no
    > es un secreto. La `service_role` **nunca** se pone aquí.
-5. **Deploy.** En 1–2 minutos obtienes una URL pública, p. ej. `https://scp-xxxx.vercel.app`.
+5. **Deploy.** En 1–2 minutos obtienes una URL pública (el proyecto `sgs` ya está en `https://sgs-two-phi.vercel.app`).
 
 Build settings (Vercel los pone solos al detectar Next.js; solo verifica):
 - Install Command: `npm install`
@@ -36,7 +36,7 @@ Build settings (Vercel los pone solos al detectar Next.js; solo verifica):
 ## Ajuste en Supabase tras el primer deploy
 
 En el dashboard de Supabase → **Authentication → URL Configuration**:
-- **Site URL:** tu URL de Vercel (`https://scp-xxxx.vercel.app`).
+- **Site URL:** tu URL de Vercel (`https://sgs-two-phi.vercel.app`).
 - Agrégala también en **Redirect URLs**.
 
 Con login por contraseña no es imprescindible, pero es buena práctica y evita
@@ -52,14 +52,13 @@ problemas si más adelante activas confirmación por correo o magic links.
   dashboard antes de una demo.
 - **Dominio propio:** opcional, gratis en Vercel → Settings → Domains.
 - **Pendientes de hardening para producción** (no bloquean la demo): bucket de fotos
-  privado + URLs firmadas, firma electrónica en órdenes, cifrado por registro en
-  Asuntos Internos, catálogo de dispositivos para `computadora_id`, migración a Next 16.
+  privado + URLs firmadas, catálogo de dispositivos para `computadora_id`, y el login
+  passwordless (`docs/SGS-Secure-Access.md`, aún no implementado).
 
 ---
 
 ## Alternativa on-premise
 
-Para instalar en el servidor de una agencia (sin nube): Supabase **auto-hospedado**
-(Docker Compose) + el mismo frontend Next. El esquema SQL y el código no cambian;
-solo cambia dónde vive la infraestructura. Ver la sección 2 del documento de
-arquitectura.
+Para instalar en el servidor del cliente (sin nube): Supabase **auto-hospedado**
+(Docker) + el mismo frontend Next. El esquema SQL y el código no cambian; solo cambia
+dónde vive la infraestructura. Ver `docs/SGS-OnPremise-Arquitectura-Seguridad.md`.
