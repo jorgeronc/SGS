@@ -153,4 +153,17 @@ Para clientes que exigen datos en su propia infraestructura (gobierno, corporati
 
 ---
 
+## 10. Segmento Institucional / Centro de monitoreo (C5)
+
+Nuevo segmento: **centros de monitoreo institucionales** (dependencias de seguridad pública, tipo C5) que gestionan **sus propias instalaciones**. No encaja el por-guardia; la compra es gubernamental (licitación, soberanía de datos) → **On-Premise** casi siempre.
+
+- **Métrica:** por **instalación/sitio** + **cámara** (y tope por operadores concurrentes). No por guardia activo.
+- **Modelo preferido — On-Premise institucional:** licencia anual por **bandas** (instalaciones + cámaras) + implementación + **AMS 20%**. Base más baja: **sin Copiloto IA ni Seguridad Logística** (no se licencian).
+- **SaaS Institucional (alternativa):** `$/instalación/mes` + `$/cámara/mes`, con monitoreo/videovigilancia/accesos/rondines/turnos incluidos.
+- **Márgenes:** alto en software; el costo variable real es el **almacenamiento de video** (si graban) y la **integración VMS** (por proyecto). Al quedar IA fuera, no hay ese costo de tercero.
+- **Precio:** **por definir** — fijar `$/instalación`, `$/cámara` y las bandas on-prem. Cotizar por proyecto según nº de instalaciones, cámaras, usuarios, integración VMS y retención de video.
+- **Notas / riesgos:** ciclos de compra largos; exigen On-Premise y auditoría (apoyarse en `../SGS-OnPremise-Arquitectura-Seguridad.md`); la **retención de video** puede ser grande → dimensionar disco.
+
+---
+
 *SGS — Sistema de Gestión de Seguridad · Precios (uso interno) · Interno v1.3 · Octubre 2026 · No compartir.*

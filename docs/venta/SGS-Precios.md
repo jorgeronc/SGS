@@ -59,7 +59,20 @@ Tres planes; cada uno incluye lo del anterior. El precio es **por guardia activo
 
 ---
 
-## 4. On-Premise
+## 4. Segmento Institucional — Centro de monitoreo (C5 / dependencias)
+
+Para **centros de monitoreo institucionales** (tipo C5) que gestionan la seguridad de **sus propias instalaciones** — no prestan servicio a terceros. Suele requerir **On-Premise** (soberanía de datos). Se activan solo los módulos de operación propia; **no incluye** Copiloto IA ni Seguridad Logística.
+
+- **Métrica de valor:** por **instalación/sitio** monitoreado y por **cámara**, no por guardia activo (refleja mejor el tamaño de un centro de monitoreo).
+- **Modelos:**
+  - **On-Premise institucional** (preferido): licencia **anual por bandas** (nº de instalaciones + cámaras) + implementación + mantenimiento anual (AMS), en la infraestructura de la dependencia.
+  - **SaaS Institucional:** **por sitio/instalación** (+ por cámara), con monitoreo, videovigilancia, control de accesos, rondines y turnos incluidos; tope por nº de operadores concurrentes.
+- **Incluye:** Central/Despacho, Mapa Operacional, Videovigilancia, Control de accesos y credenciales, Rondines y turnos, Supervisión, Tareas, Evidencias y Alertas.
+- **Precio:** **a cotizar por proyecto** (alcance: nº de instalaciones, cámaras, usuarios e integración con su VMS).
+
+> Compra típicamente por licitación / contrato anual. Ver `../SGS-OnPremise-Arquitectura-Seguridad.md` para el detalle que pide el equipo de TI.
+
+## 5. On-Premise
 
 Despliegue en infraestructura del cliente para casos que lo requieran (soberanía de datos, aislamiento de red). Cotización por proyecto (licenciamiento + implementación + soporte), con los mismos módulos y add-ons del esquema SaaS.
 
