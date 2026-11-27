@@ -155,14 +155,17 @@ Para clientes que exigen datos en su propia infraestructura (gobierno, corporati
 
 ## 10. Segmento Institucional / Centro de monitoreo (C5)
 
-Nuevo segmento: **centros de monitoreo institucionales** (dependencias de seguridad pública, tipo C5) que gestionan **sus propias instalaciones**. No encaja el por-guardia; la compra es gubernamental (licitación, soberanía de datos) → **On-Premise** casi siempre.
+Centros de monitoreo institucionales (dependencias de seguridad pública, tipo C5) que gestionan **sus propias instalaciones**. No encaja el por-guardia ni el por-cámara (pueden ser pocas); la compra es gubernamental (licitación, soberanía) → **On-Premise** casi siempre.
 
-- **Métrica:** por **instalación/sitio** + **cámara** (y tope por operadores concurrentes). No por guardia activo.
-- **Modelo preferido — On-Premise institucional:** licencia anual por **bandas** (instalaciones + cámaras) + implementación + **AMS 20%**. Base más baja: **sin Copiloto IA ni Seguridad Logística** (no se licencian).
-- **SaaS Institucional (alternativa):** `$/instalación/mes` + `$/cámara/mes`, con monitoreo/videovigilancia/accesos/rondines/turnos incluidos.
-- **Márgenes:** alto en software; el costo variable real es el **almacenamiento de video** (si graban) y la **integración VMS** (por proyecto). Al quedar IA fuera, no hay ese costo de tercero.
-- **Precio:** **por definir** — fijar `$/instalación`, `$/cámara` y las bandas on-prem. Cotizar por proyecto según nº de instalaciones, cámaras, usuarios, integración VMS y retención de video.
-- **Notas / riesgos:** ciclos de compra largos; exigen On-Premise y auditoría (apoyarse en `../SGS-OnPremise-Arquitectura-Seguridad.md`); la **retención de video** puede ser grande → dimensionar disco.
+**Modelo: licencia global (principal) + por usuario de consola (secundario).**
+
+- **Licencia global anual (monto fijo):** uso **ilimitado** de módulos C5, instalaciones, cámaras y **guardias en campo**; incluye un **bloque base de usuarios de consola** (sugerido 10) para que la global valga por sí sola.
+- **Usuario de consola adicional (monto fijo):** operador/supervisor/admin por encima del bloque. **Los guardias de la app NO cuentan** como usuario (si contaran, revienta el precio y mata el atractivo; "guardias ilimitados" es el diferenciador). Nombrado por defecto; concurrente para 24/7 grandes.
+- **Entrega:** On-Premise = licencia anual (o perpetua) + implementación única + **AMS 20%**. SaaS = licencia global anual + usuarios (mensual/anual).
+- **"Ilimitado" con salvedad:** aplica a módulos/instalaciones/cámaras/guardias/datos, **pero la retención/almacenamiento de video se dimensiona y cobra aparte** (en SaaS protege margen; en On-Premise es disco del cliente).
+- **Márgenes:** alto en software (costo marginal por usuario casi nulo); el costo variable real es **video/almacenamiento** y la **integración VMS** (por proyecto). Sin IA → sin ese costo de tercero.
+- **Precio:** **por definir** — fijar (1) **monto de la licencia global** (y si habrá 2–3 bandas por tamaño), (2) **costo por usuario adicional**, (3) **bloque base de usuarios** incluido, y (4) tarifa de almacenamiento de video. Cotizar por proyecto: nº de instalaciones, cámaras, usuarios, integración VMS y retención.
+- **Notas / riesgos:** ciclos de compra largos; exigen On-Premise y auditoría (apoyarse en `../SGS-OnPremise-Arquitectura-Seguridad.md`). Un C5 chico con pocos usuarios podría ver cara la global sola → el bloque base de usuarios incluido lo resuelve.
 
 ---
 

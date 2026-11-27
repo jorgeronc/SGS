@@ -61,14 +61,23 @@ Tres planes; cada uno incluye lo del anterior. El precio es **por guardia activo
 
 ## 4. Segmento Institucional — Centro de monitoreo (C5 / dependencias)
 
-Para **centros de monitoreo institucionales** (tipo C5) que gestionan la seguridad de **sus propias instalaciones** — no prestan servicio a terceros. Suele requerir **On-Premise** (soberanía de datos). Se activan solo los módulos de operación propia; **no incluye** Copiloto IA ni Seguridad Logística.
+Para **centros de monitoreo institucionales** (tipo C5) que gestionan la seguridad de **sus propias instalaciones** — no prestan servicio a terceros. Suele requerir **On-Premise** (soberanía de datos). **No incluye** Copiloto IA ni Seguridad Logística.
 
-- **Métrica de valor:** por **instalación/sitio** monitoreado y por **cámara**, no por guardia activo (refleja mejor el tamaño de un centro de monitoreo).
-- **Modelos:**
-  - **On-Premise institucional** (preferido): licencia **anual por bandas** (nº de instalaciones + cámaras) + implementación + mantenimiento anual (AMS), en la infraestructura de la dependencia.
-  - **SaaS Institucional:** **por sitio/instalación** (+ por cámara), con monitoreo, videovigilancia, control de accesos, rondines y turnos incluidos; tope por nº de operadores concurrentes.
-- **Incluye:** Central/Despacho, Mapa Operacional, Videovigilancia, Control de accesos y credenciales, Rondines y turnos, Supervisión, Tareas, Evidencias y Alertas.
-- **Precio:** **a cotizar por proyecto** (alcance: nº de instalaciones, cámaras, usuarios e integración con su VMS).
+**Modelo de cobro: licencia global + usuarios de consola.**
+
+- **Licencia global anual (principal):** un **monto fijo** con **uso ilimitado** de los módulos C5 y de **instalaciones, cámaras y guardias en campo**, e incluye un **bloque base de usuarios de consola**.
+- **Usuarios de consola adicionales (secundario):** **costo fijo por usuario** (operadores, supervisores, administración) por encima del bloque incluido.
+
+| Concepto | Qué incluye | Precio |
+|---|---|---|
+| **Licencia global (anual)** | Uso ilimitado de módulos, instalaciones, cámaras y **guardias en campo**; incluye un bloque base de usuarios de consola | **por definir** |
+| **Usuario de consola adicional** | Operador / supervisor / administración, por encima del bloque incluido | **por definir** |
+| Guardias en la app | **Ilimitados** — no cuentan como usuario | Incluido |
+| Entrega | On-Premise (licencia anual + implementación + AMS) **o** SaaS (licencia anual + usuarios) | Por proyecto |
+
+- **Módulos incluidos:** Central/Despacho, Mapa Operacional, Videovigilancia, Control de accesos y credenciales, Rondines y turnos, Supervisión, Tareas, Evidencias y Alertas.
+- **Almacenamiento/retención de video** se dimensiona aparte (en On-Premise es disco del cliente).
+- Usuario **nombrado** por defecto; **concurrente** disponible para centros 24/7 grandes. Opcional: 2–3 **bandas de licencia global** por tamaño de centro.
 
 > Compra típicamente por licitación / contrato anual. Ver `../SGS-OnPremise-Arquitectura-Seguridad.md` para el detalle que pide el equipo de TI.
 
