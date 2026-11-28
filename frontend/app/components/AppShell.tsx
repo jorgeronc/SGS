@@ -130,6 +130,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   // {mods} = solo esos módulos. Mientras carga NO se muestra el menú (evita el
   // parpadeo en el que se veía todo antes de resolver el rol).
   const [permisos, setPermisos] = useState<{ all: boolean; mods: string[] } | null>(null);
+  // 2FA: null = verificando, true = aal2 confirmado, false = aún en aal1. Hasta que
+  // sea true NO se pinta el shell/menú (no exponer nada antes de completar el 2FA).
+  const [mfaOk, setMfaOk] = useState<boolean | null>(null);
   const pathname = usePathname();
   const router = useRouter();
 
@@ -172,13 +175,20 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   // Segundo factor OBLIGATORIO. Si hay sesión pero aún no se completó el 2FA
   // (nivel aal1), se envía a /login SIN cerrar sesión; ahí se retoma el paso del
-  // código (o el registro la primera vez). En aal2, acceso normal.
+  // código (o el registro la primera vez). Solo en aal2 se marca mfaOk y se permite
+  // pintar el shell; mientras tanto el menú permanece oculto (no exponer nada antes
+  // de terminar el segundo factor).
   useEffect(() => {
-    if (cargando || !session || SIN_2FA.includes(pathname)) return;
+    if (cargando) return;
+    if (!session) { setMfaOk(null); return; }
+    if (SIN_2FA.includes(pathname)) return; // /login resuelve su propio 2FA
     let cancelado = false;
     supabase.auth.mfa.getAuthenticatorAssuranceLevel().then(({ data }) => {
       if (cancelado || !data) return;
-      if (data.currentLevel === "aal1") {
+      if (data.currentLevel === "aal2") {
+        setMfaOk(true);
+      } else {
+        setMfaOk(false);
         router.replace("/login");
       }
     });
@@ -244,6 +254,26 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     router.replace("/");
   }
 
+  // Marcador neutro mientras se resuelve el acceso (sin filtrar el shell ni el menú).
+  const pantallaEspera = (
+    <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "var(--sc-content, #111827)", color: "var(--sc-text-soft, #9aa7b8)", fontSize: 14 }}>
+      Verificando acceso…
+    </div>
+  );
+
+  // Pantallas que manejan su propio flujo de acceso (p. ej. /login con el paso de
+  // 2FA) se renderizan SIEMPRE limpias, sin shell ni menú, aunque ya exista una
+  // sesión de primer factor (aal1): así el menú no aparece hasta completar el 2FA.
+  if (SIN_2FA.includes(pathname)) {
+    return <>{children}</>;
+  }
+
+  // Mientras se resuelve la sesión inicial en una ruta protegida, no pintar la
+  // pantalla interna todavía (evita el parpadeo de contenido sin sesión).
+  if (cargando && !PUBLICAS.includes(pathname)) {
+    return pantallaEspera;
+  }
+
   // Sin sesión (o pantallas públicas): render limpio, sin shell.
   if (!session) {
     return <>{children}</>;
@@ -252,6 +282,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   // Rutas a pantalla completa (mapa de despacho, vistas de impresión de PDF).
   if (LIMPIAS.includes(pathname) || pathname.endsWith("/imprimir") || pathname.startsWith("/visita/")) {
     return <>{children}</>;
+  }
+
+  // Sesión presente pero el 2FA aún NO está confirmado como aal2 (verificando, o
+  // aal1 en tránsito a /login): se oculta por completo el shell y el menú.
+  if (mfaOk !== true) {
+    return pantallaEspera;
   }
 
   const correo = session.user?.email ?? "";
