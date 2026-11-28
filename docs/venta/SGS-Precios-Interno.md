@@ -3,7 +3,7 @@
 **Sistema de Gestión de Seguridad · Plataforma integral para seguridad privada**
 Lista de precios, costos y márgenes · SaaS (nube) · On-Premise · Add-ons
 
-**Documento interno — no compartir** · **Interno v1.3 · Octubre 2026**
+**Documento interno — no compartir** · **Interno v1.4 · Noviembre 2026**
 
 > Incluye costos por servicio y márgenes. Las cifras de **costo** son un MARCO estimado: sustitúyelas por tus tarifas reales antes de decidir precios.
 
@@ -153,20 +153,37 @@ Para clientes que exigen datos en su propia infraestructura (gobierno, corporati
 
 ---
 
-## 10. Segmento Institucional / Centro de monitoreo (C5)
+## 10. Segmento Institucional / Centro de monitoreo (C5 estatal / C4 municipal)
 
-Centros de monitoreo institucionales (dependencias de seguridad pública, tipo C5) que gestionan **sus propias instalaciones**. No encaja el por-guardia ni el por-cámara (pueden ser pocas); la compra es gubernamental (licitación, soberanía) → **On-Premise** casi siempre.
+Centros de monitoreo institucionales que gestionan **sus propias instalaciones**: un **C5 por estado** o un **C4 por municipio** — **un solo centro por jurisdicción** (mercado finito: ~32 estados + municipios grandes). No encaja el por-guardia ni el por-cámara (pueden ser pocas); compra gubernamental (licitación, soberanía) → **On-Premise** casi siempre.
 
-**Modelo: licencia global (principal) + por usuario de consola (secundario).**
+**Modelo: licencia global (una instalación, principal) + por usuario de consola (secundario).**
 
-- **Licencia global anual (monto fijo):** uso **ilimitado** de módulos C5, instalaciones, cámaras y **guardias en campo**; incluye un **bloque base de usuarios de consola** (sugerido 10) para que la global valga por sí sola.
-- **Usuario de consola adicional (monto fijo):** operador/supervisor/admin por encima del bloque. **Los guardias de la app NO cuentan** como usuario (si contaran, revienta el precio y mata el atractivo; "guardias ilimitados" es el diferenciador). Nombrado por defecto; concurrente para 24/7 grandes.
-- **Entrega:** On-Premise = licencia anual (o perpetua) + implementación única + **AMS 20%**. SaaS = licencia global anual + usuarios (mensual/anual).
-- **"Ilimitado" con salvedad:** aplica a módulos/instalaciones/cámaras/guardias/datos, **pero la retención/almacenamiento de video se dimensiona y cobra aparte** (en SaaS protege margen; en On-Premise es disco del cliente).
+- **Licencia global (monto fijo):** uso **ilimitado** de módulos C5, instalaciones, cámaras y **guardias en campo**, por **una instalación (el centro)**; incluye un **bloque base de usuarios de consola**. **Los guardias de la app NO cuentan** como usuario (si contaran, revienta el precio y mata el atractivo; "guardias ilimitados" es el diferenciador).
+- **Banda de referencia = Estándar: 1 instalación + 25 usuarios** de consola incluidos — describe un C5 estatal típico. Básico para C4 municipal chico; Metropolitano para estado grande / 24-7 con HA.
+- **Usuario de consola adicional (monto fijo):** operador/supervisor/admin por encima del bloque. Nombrado por defecto; concurrente para 24/7 grandes.
+
+### Precios sugeridos (a calibrar)
+
+> No hay lista pública de precios de C5 (se adjudica por licitación). Anclado a: **AMS estándar 18–22%** (Oracle 22%, SAP 19–22%, IBM 20–25%), comparables de software de seguridad y las bandas On-Premise de §4.
+
+| Banda | Perfil | Usuarios incl. | Licencia global perpetua | AMS años 2+ (20%) | Alternativa suscripción anual |
+|---|---|---|---|---|---|
+| Básico | C4 municipal / chico | 10 | **$1.5 M** (1.2–1.8) | **~$300 k/año** | ~$600 k/año |
+| **Estándar** *(ref.)* | **C5 estatal · 1 instalación · 25 usuarios** | **25** | **$2.8 M** (2.2–3.4) | **~$560 k/año** | **~$1.0 M/año** |
+| Metropolitano | Estado grande / HA | 50 | **$4.8 M** (3.8–6.0) | **~$960 k/año** | ~$1.8 M/año |
+
+*(Montos en MXN sin IVA; rangos entre paréntesis.)*
+
+- **Usuario de consola adicional:** ~**$45 k** único (o ~$18–24 k/año en suscripción), sobre el bloque incluido.
+- **Implementación única (On-Premise):** $300 k–$900 k según tamaño (instalaciones, integración VMS, migración).
+- **Soporte años subsecuentes (AMS): 20% de la licencia global/año** (rango 18–22%). Incluye actualizaciones + soporte con SLA; **sin AMS no hay actualizaciones ni soporte**.
+- **Perpetua vs suscripción:** perpetua ≈ 3× la anual + AMS 20% (capex, licitación de inversión); suscripción = todo incluido, se repaga cada año con tope de incremento p. ej. inflación (opex). Ofrecer **ambas** según ciclo presupuestal del cliente.
+- **"Ilimitado" con salvedad:** módulos/instalaciones/cámaras/guardias/datos ilimitados, **pero retención/almacenamiento de video se dimensiona y cobra aparte** (en SaaS protege margen; en On-Premise es disco del cliente).
 - **Márgenes:** alto en software (costo marginal por usuario casi nulo); el costo variable real es **video/almacenamiento** y la **integración VMS** (por proyecto). Sin IA → sin ese costo de tercero.
-- **Precio:** **por definir** — fijar (1) **monto de la licencia global** (y si habrá 2–3 bandas por tamaño), (2) **costo por usuario adicional**, (3) **bloque base de usuarios** incluido, y (4) tarifa de almacenamiento de video. Cotizar por proyecto: nº de instalaciones, cámaras, usuarios, integración VMS y retención.
-- **Notas / riesgos:** ciclos de compra largos; exigen On-Premise y auditoría (apoyarse en `../SGS-OnPremise-Arquitectura-Seguridad.md`). Un C5 chico con pocos usuarios podría ver cara la global sola → el bloque base de usuarios incluido lo resuelve.
+- **Notas / riesgos:** mercado finito (un centro por jurisdicción) → priorizar 2–3 cuentas faro y casos de referencia; ciclos de compra largos; exigen On-Premise y auditoría (apoyarse en `../SGS-OnPremise-Arquitectura-Seguridad.md`). Un C4 chico con pocos usuarios podría ver cara la global sola → la banda Básico + bloque de usuarios lo resuelve.
+- **Pendiente:** validar estas cifras contra una cotización real / sondeo de mercado antes de presentarlas en firme.
 
 ---
 
-*SGS — Sistema de Gestión de Seguridad · Precios (uso interno) · Interno v1.3 · Octubre 2026 · No compartir.*
+*SGS — Sistema de Gestión de Seguridad · Precios (uso interno) · Interno v1.4 · Noviembre 2026 · No compartir.*

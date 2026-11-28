@@ -3,7 +3,7 @@
 **Plataforma integral para empresas de seguridad privada**
 Planes SaaS y On-Premise · Add-ons
 
-Documento comercial · **Versión 1.7 · Octubre 2026**
+Documento comercial · **Versión 1.8 · Noviembre 2026**
 
 ---
 
@@ -59,27 +59,29 @@ Tres planes; cada uno incluye lo del anterior. El precio es **por guardia activo
 
 ---
 
-## 4. Segmento Institucional — Centro de monitoreo (C5 / dependencias)
+## 4. Segmento Institucional — Centro de monitoreo (C5 estatal / C4 municipal)
 
-Para **centros de monitoreo institucionales** (tipo C5) que gestionan la seguridad de **sus propias instalaciones** — no prestan servicio a terceros. Suele requerir **On-Premise** (soberanía de datos). **No incluye** Copiloto IA ni Seguridad Logística.
+Para **centros de monitoreo institucionales** que gestionan la seguridad de **sus propias instalaciones** — no prestan servicio a terceros: un **C5 por estado** o un **C4 por municipio**, **un solo centro por jurisdicción**. Suele requerir **On-Premise** (soberanía de datos). **No incluye** Copiloto IA ni Seguridad Logística.
 
-**Modelo de cobro: licencia global + usuarios de consola.**
+**Modelo de cobro: licencia global (una instalación) + usuarios de consola.**
 
-- **Licencia global anual (principal):** un **monto fijo** con **uso ilimitado** de los módulos C5 y de **instalaciones, cámaras y guardias en campo**, e incluye un **bloque base de usuarios de consola**.
+- **Licencia global (principal):** un **monto fijo** por el **centro (una instalación)** con **uso ilimitado** de los módulos C5 y de **instalaciones monitoreadas, cámaras y guardias en campo**; incluye un **bloque base de usuarios de consola**.
 - **Usuarios de consola adicionales (secundario):** **costo fijo por usuario** (operadores, supervisores, administración) por encima del bloque incluido.
 
-| Concepto | Qué incluye | Precio |
-|---|---|---|
-| **Licencia global (anual)** | Uso ilimitado de módulos, instalaciones, cámaras y **guardias en campo**; incluye un bloque base de usuarios de consola | **por definir** |
-| **Usuario de consola adicional** | Operador / supervisor / administración, por encima del bloque incluido | **por definir** |
-| Guardias en la app | **Ilimitados** — no cuentan como usuario | Incluido |
-| Entrega | On-Premise (licencia anual + implementación + AMS) **o** SaaS (licencia anual + usuarios) | Por proyecto |
+**Referencia — licencia global Estándar (C5 estatal): 1 instalación (el centro) + 25 usuarios de consola incluidos.**
 
+| Banda | Pensada para | Usuarios de consola incl. | Licencia global (referencia) |
+|---|---|---|---|
+| Básico | C4 municipal / centro chico | 10 | desde ~$1.5 M |
+| **Estándar** *(referencia)* | **C5 estatal — 1 instalación, 25 usuarios** | **25** | **~$2.8 M** |
+| Metropolitano | Estado grande / alta disponibilidad | 50 | ~$4.8 M |
+
+- **Entrega:** On-Premise = licencia (perpetua o anual) + implementación única + **AMS 20%/año**; o SaaS = licencia global anual + usuarios.
+- **Guardias en la app ilimitados** (no cuentan como usuario); **usuario de consola adicional** por encima del bloque; **almacenamiento/retención de video** se dimensiona aparte (en On-Premise es disco del cliente).
 - **Módulos incluidos:** Central/Despacho, Mapa Operacional, Videovigilancia, Control de accesos y credenciales, Rondines y turnos, Supervisión, Tareas, Evidencias y Alertas.
-- **Almacenamiento/retención de video** se dimensiona aparte (en On-Premise es disco del cliente).
-- Usuario **nombrado** por defecto; **concurrente** disponible para centros 24/7 grandes. Opcional: 2–3 **bandas de licencia global** por tamaño de centro.
+- Usuario **nombrado** por defecto; **concurrente** disponible para centros 24/7 grandes.
 
-> Compra típicamente por licitación / contrato anual. Ver `../SGS-OnPremise-Arquitectura-Seguridad.md` para el detalle que pide el equipo de TI.
+> Cifras de referencia en **MXN, sin IVA**, a calibrar por proyecto (nº de instalaciones, cámaras, usuarios, integración VMS y retención). Compra típicamente por **licitación / contrato anual**. Ver `../SGS-OnPremise-Arquitectura-Seguridad.md` para el detalle que pide el equipo de TI.
 
 ## 5. On-Premise
 
@@ -87,4 +89,4 @@ Despliegue en infraestructura del cliente para casos que lo requieran (soberaní
 
 ---
 
-*SGS — Sistema de Gestión de Seguridad · Documento comercial · v1.7*
+*SGS — Sistema de Gestión de Seguridad · Documento comercial · v1.8*
